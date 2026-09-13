@@ -1,4 +1,4 @@
-/* The pages themselves: hand-authored HTML out of data/, parsed against the site's vocabulary. */
+/* The pages themselves: each a markup tree its view builds, through Prose.php, in each language. */
 
 h1,
 h2,

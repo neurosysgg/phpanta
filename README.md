@@ -41,7 +41,7 @@ phpanta/
 ├── assets/ts/       ← Navigation (SPA), NestedElement, the mirrors of the framework's enums
 ├── tools/           ← build-{css,assets,prod}.mjs, dev-router.php, coverage-prepend.php, lib/
 ├── test/            ← the framework's own suite, under TestApp
-├── site/            ← this framework's own site, built on it and exported to GitHub Pages
+├── site/            ← this framework's own site, built on it, in English and German, exported to GitHub Pages
 └── docs/            ← the documents; start at architecture.md
 ```
 
@@ -148,9 +148,12 @@ Every route that only reads and is one address is rendered by its own controller
 placeholders says which values to export — and written as `x.html`, with the app's not-found page as
 `404.html` and the stamped asset directories as directories. `--base` moves every address under the
 path the host serves the site at, and the export fails on any link it did not write — a page, or
-an anchor on one.
-[This framework's own site](https://neurosysgg.github.io/phpanta/) is that command's output: its
-source is [`site/`](site/), and `.github/workflows/pages.yml` builds and publishes it on every push.
+an anchor on one. An app whose languages have addresses of their own gets each page once more in
+each — `x.en.html`, `x.de.html` — and on a host that cannot choose a language, the client's
+`LanguageChoice` picks the visitor's.
+[This framework's own site](https://neurosysgg.github.io/phpanta/) is that command's output, in
+English and German, every page a markup tree its view builds: its source is [`site/`](site/), and
+`.github/workflows/pages.yml` tests, builds and publishes it on every push.
 
 ## Working on Phpanta on its own
 
@@ -158,6 +161,7 @@ source is [`site/`](site/), and `.github/workflows/pages.yml` builds and publish
 composer install && vendor/bin/phpunit    # the framework's suite
 npm install && npm run check              # the framework's TypeScript, type-checked
 npm run site:build && npm run site:dev    # its site, served at localhost:8081
+npm run site:test                         # the site's own suite: every page, every address, both languages
 npm run site:prod && npm run site:export  # the export GitHub Pages serves, into build/pages/
 ```
 

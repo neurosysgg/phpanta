@@ -1,4 +1,30 @@
-/* Layout.php's shell: the header with the navigation, the page, the footer. */
+/* Layout.php's shell: the header with the navigation, the page, the footer — and each page's
+   language switch, above what the page says. */
+
+.language-switch {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-block-end: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.language-switch a {
+  color: var(--ink-soft);
+}
+
+.language-switch a:hover,
+.language-switch a:focus-visible {
+  color: var(--accent);
+}
+
+/* The language the page is in: said, not offered. */
+html[lang="en"] .language-switch a[hreflang="en"],
+html[lang="de"] .language-switch a[hreflang="de"] {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
 
 .site-header,
 main,

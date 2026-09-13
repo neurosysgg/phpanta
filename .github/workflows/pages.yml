@@ -46,6 +46,8 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm run site:prod
+      # The site's own suite, once its manifest has been built: every page in every language.
+      - run: npm run site:test
       - run: npm run site:export
 
       - uses: actions/configure-pages@v5

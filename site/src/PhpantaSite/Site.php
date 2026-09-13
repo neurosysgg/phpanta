@@ -14,6 +14,7 @@ use Phpanta\Support\Collection;
 use Phpanta\Support\Directory;
 use Phpanta\Support\Route;
 use Phpanta\Text\Language;
+use Phpanta\Text\LanguageAddresses;
 use Phpanta\Text\Languages;
 use Phpanta\View\Html\Vocabulary;
 use Phpanta\View\Shell;
@@ -21,10 +22,11 @@ use Phpanta\View\Shell;
 /**
  * Phpanta's own site, as the framework's app.
  *
- * The smallest real site there is: four pages of prose, one language, no data of its own beyond
- * the pages, nothing from any other host. It is exported to static files for GitHub Pages, which is
- * why every route is a page and every page is one address — see
- * {@link \Phpanta\Support\Route::exportedPaths()}.
+ * The smallest real site there is: four pages, each a markup tree its view builds, in English and
+ * German, with no data of its own and nothing from any other host. It is exported to static files
+ * for GitHub Pages, which is why every route is a page, and why each language has an address of its
+ * own — a static host cannot choose a language for a visitor, so each page is written once more in
+ * each, and the client picks. See {@link \Phpanta\Text\LanguageAddresses}.
  */
 final class Site extends App
 {
@@ -78,13 +80,23 @@ final class Site extends App
     }
 
     /**
-     * English only.
+     * English, then German.
      *
      * @return Languages
      */
     public function languages(): Languages
     {
-        return new Languages(Language::English);
+        return new Languages(Language::English, Language::German);
+    }
+
+    /**
+     * Each language at an address of its own — `rules.de.html` — as a static host needs.
+     *
+     * @return LanguageAddresses
+     */
+    public function languageAddresses(): LanguageAddresses
+    {
+        return LanguageAddresses::Suffixed;
     }
 
     /**
@@ -96,13 +108,13 @@ final class Site extends App
     }
 
     /**
-     * The standard vocabulary and the tags prose needs.
+     * The standard vocabulary: the site parses nothing, so it declares nothing more.
      *
      * @return Vocabulary
      */
     public function vocabulary(): Vocabulary
     {
-        return Vocabulary::standard()->withTags(ProseTag::class);
+        return Vocabulary::standard();
     }
 
     /**
@@ -114,10 +126,12 @@ final class Site extends App
     }
 
     /**
+     * None: every page is built in PHP, and the site keeps nothing at runtime.
+     *
      * @return Collection<DataFileName>
      */
     protected function ownDataFiles(): Collection
     {
-        return new Collection(DataFileName::class)->with(...Page::cases());
+        return new Collection(DataFileName::class);
     }
 }

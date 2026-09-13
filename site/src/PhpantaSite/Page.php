@@ -4,36 +4,24 @@ declare(strict_types=1);
 
 namespace PhpantaSite;
 
-use Phpanta\DataFileName;
+use PhpantaSite\Text\SiteText;
 
 /**
- * The site's pages, each one a file of hand-authored HTML under `data/`.
+ * The site's pages, each one a markup tree its view builds, in each of the site's languages.
  *
- * Prose is written as HTML rather than built as a tree, because it is prose; it enters the tree
- * through `Element::containingHtml()`, which parses it against the site's vocabulary and refuses
- * anything else — so a page that uses a tag the site does not know fails to render rather than
- * shipping it.
- *
- * Every `h2` and `h3` carries a hand-written `id` and is a link to it —
- * `<h2 id="five-habits"><a href="#five-habits">…</a></h2>` — so an anchor survives a reworded
- * heading. `SitePagesTest` holds the convention; the export fails on a link to an id a page lacks.
+ * There is no hand-authored HTML here any more: a page is a {@link ProseView}, and its words are a
+ * catalog in `Text/`, one case per paragraph, with every piece of code and every link a node placed
+ * into its sentence where each language's word order puts it. Every `h2` carries an anchor that is
+ * its catalog case's key — `#five-habits` is `RulesText::FiveHabits` — so an anchor survives a
+ * reworded heading and is the same in every language. `SitePagesTest` holds the convention, and the
+ * export fails on a link to an id a page lacks.
  */
-enum Page: string implements DataFileName
+enum Page: string
 {
-    case Home           = 'home.html';
-    case GettingStarted = 'getting-started.html';
-    case Rules          = 'rules.html';
-    case Architecture   = 'architecture.html';
-
-    /**
-     * Every page is part of the repository.
-     *
-     * @return bool
-     */
-    public function isTracked(): bool
-    {
-        return true;
-    }
+    case Home           = 'home';
+    case GettingStarted = 'getting-started';
+    case Rules          = 'rules';
+    case Architecture   = 'architecture';
 
     /**
      * Where the page is.
@@ -53,15 +41,30 @@ enum Page: string implements DataFileName
     /**
      * What the navigation calls it, and what its title says in front of the site's name.
      *
-     * @return string
+     * @return SiteText
      */
-    public function title(): string
+    public function title(): SiteText
     {
         return match ($this) {
-            self::Home           => 'Home',
-            self::GettingStarted => 'Getting started',
-            self::Rules          => 'The rules',
-            self::Architecture   => 'Architecture',
+            self::Home           => SiteText::Home,
+            self::GettingStarted => SiteText::GettingStarted,
+            self::Rules          => SiteText::Rules,
+            self::Architecture   => SiteText::Architecture,
+        };
+    }
+
+    /**
+     * The view that builds it.
+     *
+     * @return ProseView
+     */
+    public function view(): ProseView
+    {
+        return match ($this) {
+            self::Home           => new HomeView(),
+            self::GettingStarted => new GettingStartedView(),
+            self::Rules          => new RulesView(),
+            self::Architecture   => new ArchitectureView(),
         };
     }
 }

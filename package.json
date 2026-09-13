@@ -11,6 +11,7 @@
         "check": "tsc -p tsconfig.json",
         "site:build": "cd site && tsc -p . && node ../tools/build-css.mjs && node ../tools/build-assets.mjs",
         "site:prod": "npm run site:build && cd site && node ../tools/build-prod.mjs",
+        "site:test": "vendor/bin/phpunit -c site/phpunit.xml.dist",
         "site:dev": "cd site && php -S localhost:8081 -t public ../tools/dev-router.php",
         "site:export": "cd site && php ../tools/export.php --out ../build/pages --base /phpanta/"
     },

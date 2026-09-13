@@ -41,11 +41,11 @@ an app:
 | routing | `RouterTest`, `RouteTest`, `RoutingFeatureTest` (typed placeholders, method sets, `OPTIONS`, groups, what a request says back), `RouteExportTest`, `LayerTest` (the order layers run in, a route's past its method gate, the five that ship) |
 | the markup tree | `MarkupTest` (building, escaping, the URL checks, parsing against a vocabulary) |
 | the export | `ExportTest`, `BasePathTest` |
-| text | `TextTest`, `LanguagesTest` |
+| text | `TextTest`, `LanguagesTest`, `LanguageAddressTest` (an address per language, in both modes, and a link that follows the page's language) |
 | collections, files and diagnostics | `SupportTest` |
 | the CLI layer | `CliTest` |
 | the rules | `BoundaryTest`, `GuidelineTest`, `NoDiscardTest` — see [below](#the-rules-the-framework-holds-itself-to) |
-| the framework's own site | `SitePagesTest`: every subheading in `site/data/` carries an anchor and links to it |
+| the framework's own site | none here: it has a suite of its own, see [below](#the-sites-own-suite) |
 
 Thirty-two fixtures sit beside the tests — `UpdateFixture`, `TextFixture`, `RoutePatternFixture`,
 `ExportFixturePath`, `ReadonlyFixture`, `CliOptionFixture`, `TagFixture`, `AttributeFixture`,
@@ -88,8 +88,24 @@ The suite is as strict as any suite built on it: `failOnWarning`, `failOnNotice`
 that needs a file permission to stop something first asks whether it did, and skips with the reason
 when the process is one no permission stops. `unshare -r vendor/bin/phpunit` runs the suite as root
 without being root, which is how that is checked. Checked out on its own, the Pages
-workflow (`.github/workflows/pages.yml`) runs the suite and `npm run check` before it builds and
-publishes the framework's own site.
+workflow (`.github/workflows/pages.yml`) runs the suite and `npm run check` before it builds the
+framework's own site, then the site's suite, then publishes it.
+
+## The site's own suite
+
+The framework's own site, in `site/`, is tested by a suite of its own: `site/phpunit.xml.dist`, run
+with `npm run site:test` once `npm run site:build` has written the manifest its shell reads. It
+cannot run inside the framework's suite — that one boots `TestApp`, and a process holds one app —
+so `site/test/bootstrap.php` boots the site instead. `SitePagesTest` renders every page at every
+address the export writes it at, through the site's own `App::handle()`, and pins:
+
+- each page's `<html lang>`, its two alternates, its language switch, a header and a footer marked
+  `data-language-bound`, and every on-site link leading to a page in the same language;
+- every subheading linked to its own anchor, with the same anchors in both languages;
+- a language the site does not offer, `rules.fr.html`, answered as the 404 it is;
+- every word of every catalog written in both languages, with the same placeholders and no brace a
+  `Sentence` would refuse;
+- nothing a reader reads left in one language on the page in the other, but for a name.
 
 ## The rules the framework holds itself to
 
@@ -126,8 +142,8 @@ Two rules, the same as in any suite built on this one:
 - **Uncovered lines are a decision, not a budget.** A change that adds a guard covers it in the same
   commit. A guard no test can reach is deleted rather than covered by reflection.
 
-**The framework's suite alone covers nearly all of `src/`'s lines.** The figure was 99.31%
-(3750 of 3776) when last derived on 2026-09-13, with `pdo_sqlite` loaded; without it the database
+**The framework's suite alone covers nearly all of `src/`'s lines.** The figure was 99.32%
+(3827 of 3853) when last derived on 2026-09-13, with `pdo_sqlite` loaded; without it the database
 tests skip and `Data/` reads as untested. Re-derive it
 with `XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-text` rather than trusting this.
 
