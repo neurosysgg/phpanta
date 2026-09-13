@@ -16,7 +16,7 @@ use Phpanta\Support\Collection;
  * assumed. Anything this class does not say is not written down anywhere, which is why it reports
  * per-path rather than in counts and why a file that could not be written is named rather than
  * summed. The one exception is {@link self::kept()}, and it proves the rule: an unchanged file is
- * the absence of an action, and naming all 185 of them would bury the three that changed.
+ * the absence of an action, and naming every one of them would bury the few that changed.
  *
  * Immutable and copy-returning like everything else here, so the applier threads one report through
  * its steps rather than mutating a running tally — see {@link Collection::with()}, whose naming
@@ -36,12 +36,15 @@ final readonly class UpdateReport
      * @param Collection<string> $written
      * @param Collection<string> $unchanged Paths the payload named whose bytes were already there.
      *                                      Counted rather than listed: nothing happened to them,
-     *                                      and 185 of them would bury the handful that changed.
+     *                                      and listing them would bury the handful that changed.
      * @param Collection<string> $deleted
      * @param Collection<string> $failed Paths that could not be written or removed. A non-empty one
      *                                   is what turns the response into a 500.
      * @param bool $applied False for a dry run, so a reader cannot mistake "nothing to do" for
      *                      "nothing was done".
+     * @param Collection<string> $notes What the run decided not to do, and why — a root the push did
+     *                                  not carry, a mirror that did not run. Not a path each, so not
+     *                                  a count; a sentence each.
      */
     public function __construct(
         private Collection $written = new Collection('string'),
@@ -49,6 +52,7 @@ final readonly class UpdateReport
         private Collection $deleted = new Collection('string'),
         private Collection $failed = new Collection('string'),
         private bool       $applied = true,
+        private Collection $notes = new Collection('string'),
     ) {}
 
     /**
@@ -66,20 +70,20 @@ final readonly class UpdateReport
             $this->deleted,
             $this->failed,
             $this->applied,
+            $this->notes,
         );
     }
 
     /**
      * A copy noting that $path was already current, so nothing was written.
      *
-     * **This is the member that keeps a push from disturbing a file it is not changing**, and on
-     * this host that is not an optimisation. Strato's webroot is NFS, and {@link File::write()}
-     * renames its temp file *onto* the target — so rewriting `public/index.php`, the script the
-     * request is running out of, makes the NFS client silly-rename the open inode aside as
-     * `.nfsXXXXXXXX` rather than unlinking it. That stray then reads as surplus to the mirror in
-     * the same request and cannot be deleted, because the handle keeping it alive is ours. One
-     * push, one undeletable file in the webroot, one spurious failure. Measured, not reasoned
-     * about: the first real push to production did exactly that.
+     * **This is the member that keeps a push from disturbing a file it is not changing**, and on an
+     * NFS-served host that is not an optimisation. {@link \Phpanta\Support\File::write()} renames its
+     * temp file *onto* the target — so rewriting `public/index.php`, the script the request is
+     * running out of, makes the NFS client silly-rename the open inode aside as `.nfsXXXXXXXX`
+     * rather than unlinking it. That stray then reads as surplus to the mirror in the same request
+     * and cannot be deleted, because the handle keeping it alive is ours. One push, one undeletable
+     * file in the webroot, one spurious failure. Measured, not reasoned about.
      *
      * @param string $path
      * @return self
@@ -93,6 +97,7 @@ final readonly class UpdateReport
             $this->deleted,
             $this->failed,
             $this->applied,
+            $this->notes,
         );
     }
 
@@ -111,6 +116,7 @@ final readonly class UpdateReport
             $this->deleted->with($path),
             $this->failed,
             $this->applied,
+            $this->notes,
         );
     }
 
@@ -130,6 +136,26 @@ final readonly class UpdateReport
             $this->deleted,
             $this->failed->with($path . ' — ' . $why),
             $this->applied,
+            $this->notes,
+        );
+    }
+
+    /**
+     * A copy noting something the run decided not to do, in a sentence.
+     *
+     * @param string $note
+     * @return self
+     */
+    #[NoDiscard('the report copies rather than accumulating; a dropped note is a decision nobody hears of')]
+    public function noted(string $note): self
+    {
+        return new self(
+            $this->written,
+            $this->unchanged,
+            $this->deleted,
+            $this->failed,
+            $this->applied,
+            $this->notes->with($note),
         );
     }
 
@@ -141,7 +167,7 @@ final readonly class UpdateReport
     #[NoDiscard('the report copies rather than accumulating; a dropped call still reads as applied')]
     public function dryRun(): self
     {
-        return new self($this->written, $this->unchanged, $this->deleted, $this->failed, false);
+        return new self($this->written, $this->unchanged, $this->deleted, $this->failed, false, $this->notes);
     }
 
     /**
@@ -172,6 +198,10 @@ final readonly class UpdateReport
                 $this->deleted->count(),
                 $this->failed->count(),
             ));
+
+        foreach ($this->notes as $note) {
+            $lines = $lines->with('note: ' . $note);
+        }
 
         foreach ([['+', $this->written], ['-', $this->deleted], ['!', $this->failed]] as [$mark, $paths]) {
             foreach ($paths as $path) {

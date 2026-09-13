@@ -57,6 +57,7 @@ final readonly class TarArchive
         $entries = new Collection(TarEntry::class);
         $length  = strlen($bytes);
         $offset  = 0;
+        $ended   = false;
 
         while ($offset + self::BLOCK <= $length) {
             $header = substr($bytes, $offset, self::BLOCK);
@@ -65,6 +66,7 @@ final readonly class TarArchive
             // follows it that this reader would trust anyway, and requiring the pair would make a
             // truncated-but-terminated archive parse further than a truncated one.
             if (trim($header, "\0") === '') {
+                $ended = true;
                 break;
             }
 
@@ -89,6 +91,22 @@ final readonly class TarArchive
 
             // Data is padded up to the next block boundary; a directory declares no data at all.
             $offset = $start + (int) ceil($size / self::BLOCK) * self::BLOCK;
+        }
+
+        // **The end-of-archive block is required, not assumed.** Without it, an archive cut off at a
+        // block boundary — a packing bug on the signing side, which a signature faithfully vouches
+        // for — reads as a complete, smaller tree, and the mirror then deletes everything that was
+        // in the part that did not arrive. A trailing partial block is the same fault a few bytes on.
+        if (!$ended) {
+            throw new UpdateException(
+                'the archive ends without an end-of-archive block, so it is truncated — whatever it '
+                . 'held after its last member never arrived',
+            );
+        }
+
+        // After the marker, tar pads with zeros to a record boundary and writes nothing else.
+        if (trim(substr($bytes, $offset), "\0") !== '') {
+            throw new UpdateException('the archive carries bytes after its end-of-archive block');
         }
 
         return $entries;

@@ -109,10 +109,13 @@ These fail silently — no error, no log, a page that looks fine.
 - **`data/update.pub` absent means `/api` is off; `data/site_auth.php` absent means the site gate is
   off.** The two files look alike and have opposite polarity.
 - `public/api/` must never exist, and an API action never reads a query parameter.
-- A write spends its serial **before** applying; a dry run and a read never spend one.
+- A write spends its serial **before** applying, under a lock it holds to the end; a second write
+  meanwhile is a 409 that spends nothing. A dry run and a read never spend one.
 - `App::webroot()` takes only `DOCUMENT_ROOT`'s basename and refuses a blank, relative,
   outside-the-deployment or nonexistent root.
 - The mirror is an enumerated delete: it never follows a symlink and never calls `Directory::remove()`.
+  It sweeps only a root the payload carries, and nothing after a failed write.
+- A signing key belongs to one deployment: `ApiTarget` refuses the default key for any other origin.
 - **The server writes a push in the order it is packed**: the framework, the site's source, the
   autoloader, the webroot, the stamped manifest last.
 - A push packs `phpanta/` out of the working tree, so `push-update` refuses a framework that is not

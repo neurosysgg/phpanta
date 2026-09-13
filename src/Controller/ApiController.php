@@ -15,6 +15,7 @@ use Phpanta\Http\PlainTextResponse;
 use Phpanta\Http\Request;
 use Phpanta\Http\Response;
 use Phpanta\Http\ResponseHeader;
+use Phpanta\Model\Api\SerialRefusal;
 use Phpanta\Service\ApiGate;
 use Phpanta\Support\Collection;
 
@@ -118,23 +119,28 @@ final readonly class ApiController implements Controller
         try {
             $handler = $action->handler($verified);
 
-            // Only an action that changes something consumes the serial. A read leaves it alone,
-            // and so does a dry run, so the very same credential can then be sent for real.
-            //
-            // **Recorded before the action runs, not after.** A write that could not arm the replay
-            // guard would leave a deployment updated and the credential able to update it again;
-            // arming first makes that a refusal with nothing written. It costs a serial on a
-            // deployment that cannot record one, which is a deployment that is not going to accept
-            // the next push either. See docs/history/api.md.
-            if ($handler->isWrite() && !$gate->accept($verified->envelope->serial)) {
-                return new PlainTextResponse(
-                    HttpStatusCode::InternalServerError,
-                    "the update serial could not be recorded, so nothing was written — this "
-                    . "payload would have been replayable\n",
-                );
+            // Only an action that changes something spends the serial. A read leaves it alone, and
+            // so does a dry run, so the very same credential can then be sent for real.
+            if (!$handler->isWrite()) {
+                return $handler->handle();
             }
 
-            return $handler->handle();
+            // **Spent before the action runs, not after**, and under a lock the write then holds.
+            // A write that could not arm the replay guard would leave a deployment updated and the
+            // credential able to update it again; arming first makes that a refusal with nothing
+            // written. It costs a serial on a deployment that cannot record one, which is a
+            // deployment that is not going to accept the next push either. See docs/history/api.md.
+            $spent = $gate->spend($verified->envelope->serial);
+
+            if ($spent instanceof SerialRefusal) {
+                return new PlainTextResponse($spent->status(), $spent->message());
+            }
+
+            try {
+                return $handler->handle();
+            } finally {
+                $spent->release();
+            }
         } catch (ApiException $e) {
             return new PlainTextResponse(
                 HttpStatusCode::UnprocessableContent,

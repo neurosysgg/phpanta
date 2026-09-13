@@ -62,6 +62,56 @@ final readonly class Url
     }
 
     /**
+     * An origin — `https://` and a host, a port if it has one, and nothing after it.
+     *
+     * The shape `--url` takes. A path there would be signed as `/api/…` and sent to `/sub/api/…`,
+     * and come back as the refusal that says nothing about why; a user part would be a credential in
+     * an address. Both are refused where they are typed. The host is lower-cased and a trailing slash
+     * dropped, so two spellings of one origin compare equal.
+     *
+     * @param string $origin
+     * @return self
+     * @throws InvalidArgumentException if it is not a bare https origin.
+     */
+    public static function origin(string $origin): self
+    {
+        $parsed = Uri::parse($origin);
+
+        $bare = $parsed !== null
+            && $parsed->getScheme() === self::SCHEME
+            && ($parsed->getHost() ?? '') !== ''
+            && $parsed->getUserInfo() === null
+            && ($parsed->getPath() === '' || $parsed->getPath() === '/')
+            && $parsed->getQuery() === null
+            && $parsed->getFragment() === null;
+
+        if (!$bare) {
+            throw new InvalidArgumentException(sprintf(
+                "An origin is https:// and a host, with no path, query, fragment or user part — got '%s'.",
+                $origin,
+            ));
+        }
+
+        $port = $parsed->getPort();
+        $host = strtolower((string) $parsed->getHost());
+
+        return new self(self::SCHEME . '://' . $host . ($port === null ? '' : ':' . $port));
+    }
+
+    /**
+     * The host, and `:port` where the address names one.
+     *
+     * @return string
+     */
+    public function authority(): string
+    {
+        $parsed = Uri::parse($this->url);
+        $port   = $parsed?->getPort();
+
+        return strtolower((string) $parsed?->getHost()) . ($port === null ? '' : ':' . $port);
+    }
+
+    /**
      * The address as it goes to the transport.
      *
      * `render()` rather than `__toString()`, the name every other wire form in this codebase uses

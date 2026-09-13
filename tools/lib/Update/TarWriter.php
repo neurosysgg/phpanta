@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\Tool\Update;
 
 use Phpanta\Support\Collection;
+use Phpanta\Support\Diagnostics;
 use Phpanta\Support\Directory;
 use Phpanta\Tool\Cli\UsageException;
 
@@ -13,20 +14,21 @@ use Phpanta\Tool\Cli\UsageException;
  *
  * **The other half of {@link \Phpanta\Support\TarArchive}, and deliberately not the same class.**
  * That one lives under `src/` because the server needs it; this one lives here because the server
- * must not have it. `deploy.sh` uploads `src/` with `--delete`, so a writer over there would ship
- * to Strato and sit in the webroot's tree as code that builds archives — next to the endpoint that
- * unpacks them. Splitting them costs one duplicated block size and buys a server that can only
- * read.
+ * must not have it. `src/` ships, so a writer over there would sit on the server as code that builds
+ * archives — next to the endpoint that unpacks them. Splitting them costs one duplicated block size
+ * and buys a server that can only read.
  *
- * **Written in PHP rather than shelled out to `tar`.** Shelling out is confined to one class in
- * this repository, the same way the outbound HTTP client is, and `test/basic_test.sh` checks both;
- * more to the point, GNU tar's output depends on its version and its flags — it will happily emit
- * pax headers or a long-name record, both of which the reader refuses on purpose. Writing the
- * blocks here means the archive is exactly what the reader accepts, by construction rather than by
- * hoping.
+ * **Written in PHP rather than shelled out to `tar`.** GNU tar's output depends on its version and
+ * its flags — it will happily emit pax headers or a long-name record, both of which the reader
+ * refuses on purpose. Writing the blocks here means the archive is exactly what the reader accepts,
+ * by construction rather than by hoping.
+ *
+ * **Reproducible**: the same files make the same bytes. Entries are sorted and every header carries
+ * the same mtime, so two packs of an unchanged tree differ only where a file did.
  *
  * Only regular files and directories are ever written, so a symlink in the tree is followed to its
- * contents or refused, never packed as a link.
+ * contents — and one that points nowhere is refused rather than packed as an empty file, which the
+ * server would then write over the real one.
  */
 final readonly class TarWriter
 {
@@ -51,6 +53,12 @@ final readonly class TarWriter
      */
     private const int MODE_FILE = 0o644;
     private const int MODE_DIRECTORY = 0o755;
+
+    /**
+     * The mtime every header carries: the epoch. Nothing reads it — the server writes files at the
+     * time it writes them — and a fixed value is what keeps an archive a function of its files.
+     */
+    private const int MTIME = 0;
 
     /**
      * Packs $files, keyed by the name each should carry in the archive.
@@ -129,8 +137,7 @@ final readonly class TarWriter
         if (strlen($name) > self::MAX_NAME) {
             throw new UsageException(sprintf(
                 "'%s' is %d bytes, over ustar's %d-byte name field. The reader joins `prefix` and "
-                . '`name` but this writer does not split them, because nothing in this repository '
-                . 'is close: the longest path is 63 bytes.',
+                . '`name` but this writer does not split them, because no tree it packs is close.',
                 $name,
                 strlen($name),
                 self::MAX_NAME,
@@ -147,7 +154,7 @@ final readonly class TarWriter
             self::octal(0, 7),
             self::octal(0, 7),
             self::octal($size, 11),
-            self::octal(time(), 11),
+            self::octal(self::MTIME, 11),
             '        ',
             $type,
             '',
@@ -199,20 +206,31 @@ final readonly class TarWriter
     }
 
     /**
-     * Every regular file under $directory, as {@link PackedFile}s named `$prefix/…`.
+     * Every regular file under $directory, as {@link PackedFile}s named `$prefix/…`. None where the
+     * directory is not there.
      *
      * @param Directory $directory
      * @param string $prefix The name the root takes in the archive — `public`, `src`.
      * @return Collection<PackedFile>
+     *
+     * @throws UsageException if a file under it cannot be read — a dangling symlink, a file this
+     *                        user may not open. Packed as the empty string it would be written over
+     *                        the server's copy as nothing at all.
      */
     public static function tree(Directory $directory, string $prefix): Collection
     {
         $files = new Collection(PackedFile::class);
 
         foreach (self::walk($directory->path) as $path) {
+            $contents = Diagnostics::muted(static fn(): string|false => file_get_contents($path));
+
+            if ($contents === false) {
+                throw new UsageException(sprintf('cannot read %s, so it cannot be packed', $path));
+            }
+
             $files = $files->with(new PackedFile(
                 $prefix . '/' . ltrim(substr($path, strlen($directory->path)), '/'),
-                (string) file_get_contents($path),
+                $contents,
             ));
         }
 
@@ -222,6 +240,10 @@ final readonly class TarWriter
     /**
      * Every regular file under $path, recursively, sorted so an archive is reproducible.
      *
+     * `scandir()` rather than `glob()`, because a glob reads its argument as a pattern: a project
+     * whose path holds a `[` or a `*` listed nothing, and a push of nothing is a push the server
+     * mirrors as "delete all of it".
+     *
      * @param string $path
      * @return list<string>
      */
@@ -229,13 +251,12 @@ final readonly class TarWriter
     {
         $paths = [];
 
-        foreach ((array) glob($path . '/{,.}*', GLOB_BRACE) as $entry) {
-            $entry = (string) $entry;
-            $name  = basename($entry);
-
+        foreach (Diagnostics::muted(static fn(): array|false => scandir($path)) ?: [] as $name) {
             if ($name === '.' || $name === '..') {
                 continue;
             }
+
+            $entry = $path . '/' . $name;
 
             if (is_dir($entry)) {
                 $paths = array_merge($paths, self::walk($entry));

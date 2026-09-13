@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Phpanta\Tool\Command;
 
+use Phpanta\Tool\Cli\Arity;
 use Phpanta\Tool\Cli\Command;
 use Phpanta\Tool\Cli\ExitCode;
 use Phpanta\Tool\Cli\Input;
 use Phpanta\Tool\Cli\Output;
-use Phpanta\Tool\Cli\Runner;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SebastianBergmann\CodeCoverage\CodeCoverage;
@@ -25,9 +25,9 @@ use Throwable;
 /**
  * The MergeCoverage command. Merges the two suites' coverage into one report.
  *
- * PHPUnit measures `test/unit/`; `tools/coverage-prepend.php` measures the dev server
- * `test/basic_test.sh` drives. They cover deliberately different things — see `docs/testing.md` —
- * so neither number alone says what the site's tests actually reach. This unions them.
+ * PHPUnit measures the unit suite; the coverage prepend measures the dev server an end-to-end script
+ * drives. They cover deliberately different things, so neither number alone says what a site's tests
+ * actually reach. This unions them.
  *
  * Normally run through `composer coverage`, which produces both inputs first.
  */
@@ -73,6 +73,16 @@ final readonly class MergeCoverage implements Command
     }
 
     /**
+     * At least one suite's coverage and the directory of the dev server's dumps.
+     *
+     * @return Arity
+     */
+    public function operands(): Arity
+    {
+        return Arity::atLeast(2);
+    }
+
+    /**
      * @param Input  $input
      * @param Output $output
      * @return ExitCode
@@ -80,12 +90,6 @@ final readonly class MergeCoverage implements Command
     public function run(Input $input, Output $output): ExitCode
     {
         $count = $input->operandCount();
-
-        if ($count < 2) {
-            $output->error(Runner::usage($this));
-
-            return ExitCode::Usage;
-        }
 
         // CodeCoverage insists on a driver even though nothing here collects: this command only
         // reads what the two suites already recorded. `composer coverage` sets the mode; a bare
@@ -166,9 +170,9 @@ final readonly class MergeCoverage implements Command
     /**
      * The same set `phpunit.xml.dist`'s `<source>` names: every `.php` file under `src/`.
      *
-     * `tools/` is deliberately not in it. The coverage figure is a claim about the shipped site, and
-     * folding in code whose job is to shell out to `ffprobe` would either drop the number or invite
-     * contrived tests to prop it up.
+     * `tools/` is deliberately not in it. The coverage figure is a claim about the shipped code, and
+     * folding in code whose job is to shell out would either drop the number or invite contrived
+     * tests to prop it up.
      *
      * @return Filter
      */

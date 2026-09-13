@@ -352,6 +352,177 @@ final class UpdateTest extends TestCase
     }
 
     /**
+     * **A root the push does not carry is left exactly as it is**, dry run and real run alike.
+     *
+     * The push from a clone whose submodule was never checked out carries no `phpanta/`, and a
+     * mirror that read that silence as "the framework should be empty" took the framework off the
+     * server — `/api` with it, so only a full deploy could put it back. What the push says nothing
+     * about, the mirror does nothing to, and the report says so in a sentence.
+     *
+     * @return void
+     */
+    public function testAPushLeavesAloneEveryRootItDoesNotCarry(): void
+    {
+        $framework = new Directory($this->sandbox . '/phpanta/src');
+        self::assertTrue($framework->create());
+        self::assertTrue($framework->file('App.php')->write('<?php // deployed'));
+
+        $source = new Directory($this->sandbox . '/src');
+        self::assertTrue($source->create());
+        self::assertTrue($source->file('Site.php')->write('<?php // deployed'));
+
+        $webroot = new Directory($this->sandbox . '/public');
+        self::assertTrue($webroot->create());
+        self::assertTrue($webroot->file('stale.js')->write('stale'));
+
+        $payload = ['public/index.php' => '<?php // new'];
+
+        $planned = $this->applier()->apply(
+            UpdateFixture::archive($payload),
+            self::manifest(apply: false, mirror: true),
+        );
+        self::assertStringNotContainsString('- phpanta/src/App.php', $planned->render());
+        self::assertStringNotContainsString('- src/Site.php', $planned->render());
+        self::assertStringContainsString('- public/stale.js', $planned->render());
+        self::assertStringContainsString('note: phpanta/ is not in this push', $planned->render());
+
+        $report = $this->applier()->apply(UpdateFixture::archive($payload), self::manifest(mirror: true));
+
+        self::assertTrue($report->isComplete(), $report->render());
+        self::assertSame(
+            '<?php // deployed',
+            $framework->file('App.php')->read(),
+            'the mirror deleted a root the push did not carry',
+        );
+        self::assertSame('<?php // deployed', $source->file('Site.php')->read());
+        self::assertFalse($webroot->file('stale.js')->exists(), 'the root the push did carry was not mirrored');
+        self::assertStringContainsString('note: src/ is not in this push', $report->render());
+    }
+
+    /**
+     * A run that could not write everything deletes nothing.
+     *
+     * The mirror removes the old half of a change on the understanding that the new half is there,
+     * and a failed write is the case where it is not.
+     *
+     * @return void
+     */
+    public function testTheMirrorDoesNotRunAfterAWriteFailed(): void
+    {
+        $webroot = new Directory($this->sandbox . '/public');
+        self::assertTrue($webroot->create());
+        self::assertTrue($webroot->file('blocked')->write('in the way'));
+        self::assertTrue($webroot->file('stale.txt')->write('still needed'));
+
+        $report = $this->applier()->apply(
+            UpdateFixture::archive(['public/fine.txt' => 'x', 'public/blocked/deep.txt' => 'y']),
+            self::manifest(mirror: true),
+        );
+
+        self::assertFalse($report->isComplete());
+        self::assertTrue($webroot->file('stale.txt')->exists(), 'the mirror ran after a write failed');
+        self::assertStringContainsString('the mirror did not run, because a write failed', $report->render());
+    }
+
+    /**
+     * A mirror under a path a glob would read as a pattern still sees what is there.
+     *
+     * The walk was a `glob()`, so a deployment under `[…]` listed nothing — and while a mirror that
+     * sees nothing deletes nothing, the writer's matching walk packed nothing, which is a push the
+     * mirror reads as "delete all of it".
+     *
+     * @return void
+     */
+    public function testTheMirrorReadsATreeWhosePathLooksLikeAPattern(): void
+    {
+        $above   = new Directory($this->sandbox . '/with [brackets] *');
+        $webroot = $above->directory('public');
+        self::assertTrue($webroot->create());
+        self::assertTrue($webroot->file('stale.js')->write('stale'));
+
+        $report = new UpdateApplier(new Deployment($above, $webroot))->apply(
+            UpdateFixture::archive(['public/keep.txt' => 'new']),
+            self::manifest(mirror: true),
+        );
+
+        self::assertTrue($report->isComplete(), $report->render());
+        self::assertFalse($webroot->file('stale.js')->exists(), 'the mirror could not see under a pattern-shaped path');
+    }
+
+    /**
+     * A name that is a file and a directory of another member is refused before anything is written.
+     *
+     * @return void
+     */
+    public function testAFileThatIsAlsoTheDirectoryOfAnotherIsRefused(): void
+    {
+        $this->expectException(UpdateException::class);
+        $this->expectExceptionMessage("'public/a' as a file and as the directory 'public/a/b' is under");
+
+        (void) $this->applier()->apply(
+            UpdateFixture::archive(['public/a' => 'x', 'public/a/b' => 'y']),
+            self::manifest(),
+        );
+    }
+
+    /**
+     * An archive cut off at a block boundary is refused, not read as a smaller tree.
+     *
+     * @return void
+     */
+    public function testAnArchiveWithNoEndBlockIsRefused(): void
+    {
+        $this->expectException(UpdateException::class);
+        $this->expectExceptionMessage('without an end-of-archive block');
+
+        TarArchive::parse(UpdateFixture::member('public/x.php', 'x'));
+    }
+
+    /**
+     * A partial block after the last member is the same fault a few bytes on.
+     *
+     * @return void
+     */
+    public function testATrailingPartialBlockIsRefused(): void
+    {
+        $this->expectException(UpdateException::class);
+        $this->expectExceptionMessage('without an end-of-archive block');
+
+        TarArchive::parse(UpdateFixture::member('public/x.php', 'x') . 'abc');
+    }
+
+    /**
+     * Past the marker there is padding and nothing else.
+     *
+     * @return void
+     */
+    public function testBytesAfterTheEndBlockAreRefused(): void
+    {
+        $this->expectException(UpdateException::class);
+        $this->expectExceptionMessage('bytes after its end-of-archive block');
+
+        TarArchive::parse(
+            UpdateFixture::member('public/x.php', 'x') . str_repeat("\0", UpdateFixture::BLOCK * 2) . 'trailing',
+        );
+    }
+
+    /**
+     * An archive that expands past the cap is refused rather than decoded until the process dies.
+     *
+     * @return void
+     */
+    public function testAnArchiveThatExpandsPastTheCapIsRefused(): void
+    {
+        $this->expectException(UpdateException::class);
+        $this->expectExceptionMessage('expands past');
+
+        (void) $this->applier()->apply(
+            (string) gzencode(str_repeat("\0", UpdateApplier::MAX_EXPANDED + 1)),
+            self::manifest(),
+        );
+    }
+
+    /**
      * The mirror never deletes *through* a symlink.
      *
      * A push cannot introduce one — {@link TarArchive} refuses the member type — so a symlink under

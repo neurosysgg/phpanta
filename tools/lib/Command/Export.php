@@ -9,6 +9,7 @@ use Phpanta\Http\HttpStatusCode;
 use Phpanta\Http\Request;
 use Phpanta\Http\ViewResponse;
 use Phpanta\Support\Directory;
+use Phpanta\Tool\Cli\Arity;
 use Phpanta\Tool\Cli\Command;
 use Phpanta\Tool\Cli\ExitCode;
 use Phpanta\Tool\Cli\Input;
@@ -87,6 +88,14 @@ final readonly class Export implements Command
     public function options(): array
     {
         return ExportOption::cases();
+    }
+
+    /**
+     * @return Arity
+     */
+    public function operands(): Arity
+    {
+        return Arity::none();
     }
 
     /**

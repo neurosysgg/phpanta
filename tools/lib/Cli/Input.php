@@ -5,16 +5,18 @@ declare(strict_types=1);
 namespace Phpanta\Tool\Cli;
 
 /**
- * The Input class. One command line, parsed against the {@link Option}s its command declares.
+ * The Input class. One command line, parsed against the {@link Option}s and the {@link Arity} its
+ * command declares.
  *
  * Replaces the two hand-rolled parsers this repo had grown, and fixes what both of them did with a
  * flag they did not recognise, which was nothing at all. A mistyped `--clover` meant
- * `tools/merge-coverage.php` reported success and wrote no report; that is now a
- * {@link UsageException} naming the flag.
+ * `merge-coverage` reported success and wrote no report; that is now a {@link UsageException}
+ * naming the flag. **Everything else a command did not ask for is refused the same way**: a short
+ * option, a value on a flag that takes none, an operand too many.
  *
- * `getopt()` is still not what this wants, for the reason `merge-coverage.php` gave when it declined
- * it: `getopt()` stops at the first non-option argument, so every flag written after a path is
- * silently dropped — and `composer coverage` passes both of its paths first.
+ * `getopt()` is still not what this wants, for the reason `merge-coverage` gave when it declined it:
+ * `getopt()` stops at the first non-option argument, so every flag written after a path is silently
+ * dropped — and `composer coverage` passes its paths first.
  */
 final readonly class Input
 {
@@ -29,13 +31,15 @@ final readonly class Input
     /**
      * Parses a command's arguments, rejecting anything it did not declare.
      *
-     * Accepts `--flag value` and `--flag=value` alike, because both get typed.
+     * Accepts `--flag value` and `--flag=value` alike, because both get typed. `--` ends the options:
+     * everything after it is an operand, however it is spelled.
      *
      * @param list<string> $arguments Everything after the script name.
-     * @param Command      $command   Consulted for the options it accepts.
+     * @param Command      $command   Consulted for the options and the operands it accepts.
      * @return self
      *
-     * @throws UsageException if a flag is unknown, or a value flag is given no value.
+     * @throws UsageException if a flag is unknown, short, given a value it does not take or not given
+     *                        one it does, or the operands are not as many as the command takes.
      */
     public static function parse(array $arguments, Command $command): self
     {
@@ -49,13 +53,31 @@ final readonly class Input
         $operands = [];
         $flags    = [];
         $count    = count($arguments);
+        $options  = true;
 
         for ($i = 0; $i < $count; $i++) {
             $argument = $arguments[$i];
 
-            if (!str_starts_with($argument, '--')) {
+            if ($options && $argument === '--') {
+                $options = false;
+                continue;
+            }
+
+            // A lone `-` is an operand by convention (standard input), and so is anything once `--`
+            // has ended the options.
+            if (!$options || !str_starts_with($argument, '-') || $argument === '-') {
                 $operands[] = $argument;
                 continue;
+            }
+
+            // One dash and a letter is a short option, which no command here declares. Taken as an
+            // operand, it is the word a command that reads none silently ignores — `push-update -n`
+            // was a real push. Refused, so the mistake reads as one.
+            if (!str_starts_with($argument, '--')) {
+                throw new UsageException(sprintf(
+                    "unknown option '%s' — options are spelled out in full, --like-this",
+                    $argument,
+                ));
             }
 
             $name  = substr($argument, 2);
@@ -72,6 +94,12 @@ final readonly class Input
             }
 
             if (!$option->takesValue()) {
+                // `--dry-run=no` reads as a dry run switched off and would be one switched on. A flag
+                // that takes no value refuses one rather than guessing which of the two was meant.
+                if ($value !== null) {
+                    throw new UsageException(sprintf("option '--%s' takes no value", $name));
+                }
+
                 $flags[$name] = true;
                 continue;
             }
@@ -88,6 +116,12 @@ final readonly class Input
             }
 
             $flags[$name] = $value;
+        }
+
+        $arity = $command->operands();
+
+        if (!$arity->allows(count($operands))) {
+            throw new UsageException($arity->refusal(count($operands)));
         }
 
         return new self($operands, $flags);

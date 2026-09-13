@@ -299,7 +299,9 @@ that serves them.
 **P-256 rather than Ed25519, by measurement rather than taste.** `ext/sodium` is absent on the
 development machine, and Ed25519 does not work through PHP's openssl binding at all — it fails with
 `Provider routines::invalid digest`, because the binding drives the digest-based API and Ed25519 is
-one-shot. P-256 was verified end to end on the live host before it was relied on.
+one-shot. P-256 was verified end to end on the live host before it was relied on, and `PublicKey`
+accepts that curve and no other: an EC key on P-384 or secp112r1 parses and verifies a SHA-256
+signature just as happily, which would widen the algorithm without anybody having decided to.
 
 **Its absence is the off switch, with the opposite polarity to `data/site_auth.php`.** No key file,
 no endpoint, for everyone, forever. So a fresh clone and every machine that has not deliberately
@@ -351,7 +353,10 @@ discovered rather than read:
 
 **Cross-deployment replay is closed by key separation rather than by an audience field.**
 `data/update.pub` is gitignored, per-deployment and uploaded by hand, so no two deployments hold the
-same key and a credential minted for one verifies nowhere else. An `aud` field would have to be
+same key and a credential minted for one verifies nowhere else. The tools hold the signing side to
+it: `ApiTarget` gives every origin but the default one a key of its own, and refuses the default key
+for any other origin — by path or by content, so a copy under another name is refused as well. An
+`aud` field would have to be
 checked against something the server knows independently of the request, and `Host` is whatever the
 caller sent — so it would bind nothing. If a second deployment ever shares this key, that is the
 field to add.
@@ -375,6 +380,15 @@ refusal with nothing written, rather than a deployment that has been updated by 
 could update it again. It also means a push that fails partway has still spent its serial, which is
 correct: the bytes that produced it must never be accepted twice, and a corrected payload is
 different bytes with a fresh `time()` on them anyway. ([history](https://github.com/neurosysgg/neurosys-webspace/blob/master/docs/history/api.md))
+
+**A write holds a lock from spending to the end of the action.** `ApiGate::spend()` takes an
+exclusive, non-blocking `flock()` on `.update-serial.lock` beside the serial, asks freshness again
+under it, and records the larger of the two serials — so two overlapping writes can neither run at
+once (each would mirror over the other) nor move the record backwards (which would reopen the newer
+credential to replay). A write that finds the lock held is a **`409`** that spends nothing and
+touches nothing; the caller is already verified by then, so the sentence is allowed. Reads never
+lock. A lock file is never deleted, since deleting it would let two processes hold locks on two
+inodes under one name.
 
 **Why a header is acceptable here.** `Authorization` is a `ServerVariable`, not a `RequestHeader`,
 so it has no TypeScript mirror and puts nothing in the browser's bundle. The live risk is that a
@@ -413,7 +427,13 @@ name writes nothing at all:
   traversal guard;
 - the ustar header checksum is verified, because a signature says the bytes are ours and the
   checksum says they are a tar — and in a format that is nothing but offsets, bad framing means every
-  name after it is read out of the middle of somebody's file.
+  name after it is read out of the middle of somebody's file;
+- the archive must end in its zero block, with no partial block after it, so a truncated archive is
+  refused rather than read as a shorter one;
+- a name that is a file and also the directory of another member (`a` and `a/b`) is refused, since
+  one of the two writes would fail after the other had landed;
+- the gzip layer is decoded under `UpdateApplier::MAX_EXPANDED`, and the length is asked as well,
+  because `gzdecode()`'s cap is only as fine as zlib's output buffer.
 
 Each file then lands through `File::write()`, which writes beside the target and renames over it, so
 every file appears atomically and within one filesystem. A file whose bytes are already there is
@@ -422,6 +442,12 @@ what a payload omits is an **enumerated delete**: the tree is walked, diffed, an
 is checked by the same rules an added path passes before `File::delete()` is called on it, one named
 file at a time. `Directory::remove()` is never used for it — that method deletes the files a
 directory holds, which is right for tearing down a fixture and catastrophic here.
+
+**The mirror sweeps only a root the payload carries a file under**, and **nothing after a write that
+failed.** A root the push did not carry is left exactly as it is, never read as "delete all of it";
+a failed write leaves the old tree's leftovers where they are rather than deleting around a version
+that did not land. The report says which in a `note:` line, so a dry run shows it first. The walk is
+`scandir()` rather than a glob, so a deployment path holding `[` or `*` lists its files.
 
 **The walk never follows a symlink.** `UpdateApplier`'s walk and sweep ask `!is_link()` before
 descending, so a stray link under a root is a leaf, and unlinking it removes the link and not what

@@ -20,6 +20,7 @@ use Phpanta\Service\ApiGate;
 use Phpanta\Service\Health\DataFileRequirement;
 use Phpanta\Service\Health\LogDirectoryRequirement;
 use Phpanta\Service\Health\WebrootRequirement;
+use Phpanta\Service\UpdateApplier;
 
 /**
  * Builds and returns what this installation needs of its host — everything `health v1` checks.
@@ -46,15 +47,15 @@ final class RequirementInitialization
     /**
      * The least `memory_limit` a push fits in.
      *
-     * **Derived from {@link ApiGate::MAX_BODY} rather than written out**, because a push is the
-     * largest thing a request here holds. At its peak three copies of about that size coexist: the
-     * body as read, the tar `gzdecode()` makes of it, and each file's bytes cut out of the tar. An
-     * incompressible payload at the cap is therefore about three times it, and the fourth is the
-     * interpreter and this codebase. The decoded size has no cap of its own — a key holder can send
-     * a payload that expands past any floor — which the pentest considered and accepted, so this is
-     * the floor an honest push needs rather than a bound on what a push can ask for.
+     * **Derived from the two caps rather than written out**, because a push is the largest thing a
+     * request here holds, and both of its sizes are bounded before they are held. At its peak four
+     * things coexist: the body as read ({@link ApiGate::MAX_BODY} at most), the tar `gzdecode()`
+     * makes of it ({@link \Phpanta\Service\UpdateApplier::MAX_EXPANDED} at most, the cap it is
+     * decoded under), each file's bytes cut out of that tar (as much again), and the interpreter and
+     * the codebase (about a body's worth). Both caps being enforced, this is a bound on what any push
+     * can make a request hold, not only the floor an honest one needs.
      */
-    private const int PUSH_MEMORY = 4 * ApiGate::MAX_BODY;
+    private const int PUSH_MEMORY = 2 * ApiGate::MAX_BODY + 2 * UpdateApplier::MAX_EXPANDED;
 
     /**
      * The least `max_execution_time` a push fits in, in seconds.

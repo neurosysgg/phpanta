@@ -50,12 +50,21 @@ final readonly class PrivateKey
 
         if ($pem === null) {
             throw new UsageException(sprintf(
-                "cannot read the private key at %s. Generate the pair with:\n"
-                . "  openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out %s\n"
-                . '  openssl pkey -in %s -pubout -out data/update.pub',
+                "cannot read the private key at %s. Generate the pair with:\n%s",
                 $file->path,
+                self::generation($file),
+            ));
+        }
+
+        // Refused rather than warned about, the way ssh refuses an unprotected identity: a key
+        // anyone else on this machine can read is a key anyone else on this machine can push with.
+        $mode = Diagnostics::muted(fn(): int|false => fileperms($file->path));
+
+        if ($mode !== false && ($mode & 0o077) !== 0) {
+            throw new UsageException(sprintf(
+                '%s can be read by other users (mode %o) — `chmod 600` it before it signs anything',
                 $file->path,
-                $file->path,
+                $mode & 0o777,
             ));
         }
 
@@ -66,6 +75,25 @@ final readonly class PrivateKey
         }
 
         return new self($key);
+    }
+
+    /**
+     * The two commands that mint a key pair at $file, as lines to paste.
+     *
+     * Under `umask 077`, so the private half is never on disk at the default mode even for the
+     * moment between writing it and a `chmod`. The public half goes to standard output, because
+     * which deployment's `data/update.pub` it becomes is the reader's to say, not this one's.
+     *
+     * @param File $file
+     * @return string
+     */
+    public static function generation(File $file): string
+    {
+        $path = escapeshellarg($file->path);
+
+        return "  (umask 077; mkdir -p " . escapeshellarg($file->directory()->path)
+            . " && openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out $path)\n"
+            . "  openssl pkey -in $path -pubout    # → that deployment's data/update.pub";
     }
 
     /**

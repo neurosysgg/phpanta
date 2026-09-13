@@ -9,9 +9,10 @@ use Phpanta\Http\Api\ApiService;
 use Phpanta\Http\Api\ApiVersion;
 use Phpanta\Http\HttpMethod;
 use Phpanta\Http\HttpStatusCode;
-use Phpanta\Support\File;
+use Phpanta\Tool\Api\ApiTarget;
 use Phpanta\Tool\Api\PrivateKey;
 use Phpanta\Tool\Api\SignedRequest;
+use Phpanta\Tool\Cli\Arity;
 use Phpanta\Tool\Cli\Command;
 use Phpanta\Tool\Cli\ExitCode;
 use Phpanta\Tool\Cli\Input;
@@ -21,7 +22,6 @@ use Phpanta\Tool\Cli\UsageException;
 use Phpanta\Tool\Http\CurlTransport;
 use Phpanta\Tool\Http\Transport;
 use Phpanta\Tool\Http\TransportException;
-use Phpanta\Tool\Http\Url;
 
 /**
  * The ApiCall command. One signed call to `/api`, named on the command line.
@@ -50,6 +50,8 @@ use Phpanta\Tool\Http\Url;
  * produce one. A `--body-file` would be the beginning of a general-purpose HTTP client, which is
  * not what this is — an action with a body is an action whose payload somebody has to build, and
  * that is a command of its own.
+ *
+ * Which deployment it calls, and with which key, is {@link ApiTarget}'s to decide.
  */
 final readonly class ApiCall implements Command
 {
@@ -58,8 +60,8 @@ final readonly class ApiCall implements Command
      *
      * @param string         $origin    Which deployment a call goes to unless `--url` says otherwise — an
      *                                   origin, not an endpoint. The site's own entry script says which.
-     * @param string         $keyPath   Where the private key is unless `--key` says otherwise, relative to
-     *                                   `$HOME` — outside the repository entirely.
+     * @param string         $keyPath   That deployment's private key, relative to `$HOME` — outside the
+     *                                   repository entirely. Any other origin signs with its own.
      * @param Transport|null $transport A test seam; production sends over curl.
      */
     public function __construct(
@@ -101,18 +103,20 @@ final readonly class ApiCall implements Command
     }
 
     /**
+     * @return Arity
+     */
+    public function operands(): Arity
+    {
+        return Arity::exactly(3);
+    }
+
+    /**
      * @param Input $input
      * @param Output $output
      * @return ExitCode
      */
     public function run(Input $input, Output $output): ExitCode
     {
-        if ($input->operandCount() !== 3) {
-            $output->error(sprintf("%s: %s\n", $this->name(), $this->usage()));
-
-            return ExitCode::Usage;
-        }
-
         $service = ApiService::tryFrom($input->operand(0) ?? '');
         $version = ApiVersion::tryFrom($input->operand(1) ?? '');
         $action  = $service?->action($version ?? ApiVersion::V1, $input->operand(2) ?? '');
@@ -140,14 +144,22 @@ final readonly class ApiCall implements Command
         }
 
         try {
+            $target = ApiTarget::resolve(
+                $input->value(ApiCallOption::Url),
+                $input->value(ApiCallOption::Key),
+                $this->origin,
+                $this->keyPath,
+                ApiTarget::home(),
+            );
+
             $request = SignedRequest::build(
-                new Url($input->value(ApiCallOption::Url) ?? $this->origin),
+                $target->origin,
                 $service,
                 $version,
                 $action,
                 '',
                 [],
-                PrivateKey::fromFile($this->key($input)),
+                PrivateKey::fromFile($target->key),
             );
 
             $response = ($this->transport ?? new CurlTransport())->send($request);
@@ -180,28 +192,5 @@ final readonly class ApiCall implements Command
             : sprintf("\nanswered %d.\n", $response->status));
 
         return ExitCode::Failure;
-    }
-
-    /**
-     * The private key, from `--key` or from the default under `$HOME`.
-     *
-     * @param Input $input
-     * @return File
-     *
-     * @throws UsageException if `--key` was not given and `$HOME` is not set.
-     */
-    private function key(Input $input): File
-    {
-        $given = $input->value(ApiCallOption::Key);
-        if ($given !== null) {
-            return new File($given);
-        }
-
-        $home = getenv('HOME');
-        if (!is_string($home) || $home === '') {
-            throw new UsageException('HOME is not set, so --key must name the private key.');
-        }
-
-        return new File($home . '/' . $this->keyPath);
     }
 }

@@ -46,6 +46,17 @@ interface Command
     public function options(): array;
 
     /**
+     * How many operands this command takes.
+     *
+     * Not decoration either, for the reason {@link self::options()} is not: {@link Input} refuses a
+     * count outside it, so a stray word is a usage error rather than something a command that reads
+     * no operands quietly ignores.
+     *
+     * @return Arity
+     */
+    public function operands(): Arity;
+
+    /**
      * Runs the command.
      *
      * @param Input  $input

@@ -18,13 +18,17 @@ use Phpanta\Support\Directory;
  *   that has no framework yet, and a framework the push never saw on one that has.
  * - **Edited and not committed.** Editing the framework in place is the point of vendoring it this
  *   way, and an edit that was never committed exists nowhere but on this machine and the server. An
- *   untracked file counts: the push packs every file under `src/`, tracked or not.
+ *   untracked file counts, and so does an ignored one: the push packs every file under `src/`,
+ *   whatever git thinks of it.
  * - **Committed and not recorded.** A framework commit the site's HEAD does not record is on the
  *   server and in no commit of the site, so no checkout of the site reproduces what is deployed.
  *
  * A `phpanta/` that is not a submodule of the site's HEAD — copied in, freshly added and not yet
  * committed, or in a site that is not a git repository — has nothing to be compared with, and
- * passes. `push-update --any-framework` is the deliberate way past a refusal.
+ * passes. **A git that cannot answer does not pass**: git missing from the path, a repository it
+ * refuses to read as "dubious ownership", a `.git` that points nowhere. Each of those used to read as
+ * "not a submodule" and let anything through. `push-update --any-framework` is the deliberate way
+ * past a refusal.
  */
 final readonly class FrameworkCheckout
 {
@@ -48,12 +52,24 @@ final readonly class FrameworkCheckout
             return 'phpanta/ is not checked out — run `git submodule update --init`.';
         }
 
+        // Not a repository at all: nothing records a framework, so there is nothing to disagree with.
+        if (!file_exists($this->root->path . '/.git')) {
+            return null;
+        }
+
+        if ($this->git($this->root, 'rev-parse', '--git-dir') === null) {
+            return 'git cannot read this repository, so which framework it records cannot be checked'
+                . ' — run `git status` to see why.';
+        }
+
         $recorded = $this->recorded();
         if ($recorded === null) {
             return null;
         }
 
-        $changes = $this->git($framework, 'status', '--porcelain');
+        // --ignored, because the push packs every file under src/ and git's opinion of a file is not
+        // the push's: a stray `*.orig` a global excludes file hides would still ship.
+        $changes = $this->git($framework, 'status', '--porcelain', '--ignored', '--', 'src', 'autoload.php');
         if ($changes === null) {
             return 'phpanta/ is a submodule git cannot read — run `git -C phpanta status` to see why.';
         }
@@ -76,7 +92,8 @@ final readonly class FrameworkCheckout
     }
 
     /**
-     * The commit the site's HEAD records for `phpanta/`, or null when it records no submodule there.
+     * The commit the site's HEAD records for `phpanta/`, or null when it records no submodule there —
+     * including a repository with no commit yet, which records nothing.
      *
      * @return string|null
      */

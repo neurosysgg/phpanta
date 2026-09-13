@@ -308,6 +308,19 @@ abstract class App
             ));
         }
 
+        $name = basename(rtrim($root, '/'));
+
+        // `.` and `..` satisfy the containment check below, because it reasons about the parent —
+        // and `/…/deployment/.` *is* the deployment, the directory the docblock above names as the
+        // catastrophic webroot. `..` names the directory above it. Neither is a webroot's name.
+        if ($name === '.' || $name === '..') {
+            throw new UpdateException(sprintf(
+                "DOCUMENT_ROOT is '%s', which ends in a dot segment rather than naming a directory. "
+                . 'Refusing rather than resolving it: it names the deployment or the directory above it.',
+                $root,
+            ));
+        }
+
         // The basename is only safe to graft onto above() once the two are known to be the same
         // tree, and that is checked rather than assumed. Without this, a DOCUMENT_ROOT pointing
         // anywhere else whose last segment happened to be `public` would resolve to *this*

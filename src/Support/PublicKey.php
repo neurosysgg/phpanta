@@ -48,6 +48,9 @@ final readonly class PublicKey
      */
     private const int VERIFIED = 1;
 
+    /** P-256, as openssl names it — the one curve this class documents, and so the one it accepts. */
+    private const string CURVE = 'prime256v1';
+
     /**
      * Constructs an instance of {@link self}.
      *
@@ -86,6 +89,18 @@ final readonly class PublicKey
                 'the update key parsed but is not an EC key, so it can verify nothing this site '
                 . 'signs. Regenerate it with -algorithm EC -pkeyopt ec_paramgen_curve:P-256.',
             );
+        }
+
+        // The curve as well as the type. An EC key on any other curve parses, and verifies a SHA-256
+        // signature just as happily — P-384 and secp112r1 alike — which would widen the algorithm
+        // without anybody having decided to.
+        $curve = $details['ec']['curve_name'] ?? null;
+        if ($curve !== self::CURVE) {
+            throw new UpdateException(sprintf(
+                "the update key is an EC key on %s, not P-256. Regenerate it with -algorithm EC "
+                . '-pkeyopt ec_paramgen_curve:P-256.',
+                is_string($curve) ? $curve : 'an unnamed curve',
+            ));
         }
 
         return new self($key);

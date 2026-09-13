@@ -26,29 +26,44 @@ use Phpanta\Support\TarEntry;
  *
  * **Everything is validated before anything is written.** The archive is expanded and every member
  * checked in memory first, so a payload with one bad name writes nothing at all rather than the
- * files that happened to come before it. That is affordable because the payload is small — about
- * 250 KB compressed, 810 KB expanded, against a 512 MB limit the live host reports — and it is
- * why there is no staging directory: staging exists to make a half-run recoverable, and a run that
- * cannot start half-way needs no recovery. It would also have cost something real, since
+ * files that happened to come before it. That is affordable because the payload is small — a few
+ * hundred kilobytes compressed, under a megabyte expanded, against {@link self::MAX_EXPANDED} — and
+ * it is why there is no staging directory: staging exists to make a half-run recoverable, and a run
+ * that cannot start half-way needs no recovery. It would also have cost something real, since
  * {@link Directory::temporary()} lives under `sys_get_temp_dir()` and a `rename()` across
  * filesystems fails outright.
  *
  * **Each file lands through {@link File::write()}**, which already writes beside the target and
  * renames over it. Every file therefore appears atomically and always within one filesystem, and
- * the only window left is between files — which the site's caching design already tolerates, since
- * assets are content-addressed and documents are `no-cache`.
+ * the only window left is between files — which a site's caching design has to tolerate: assets
+ * content-addressed, documents `no-cache`.
  *
  * **The mirror is an enumerated delete, never a recursive one.** What is on disk is walked, diffed
  * against the payload, and each surplus path is checked by the same rules an added path passes
- * before {@link File::delete()} is called on it — one named file at a time.
+ * before {@link File::delete()} is called on it — one named file at a time. It walks **only the roots
+ * the payload carries**: a push with nothing under `phpanta/` says nothing about `phpanta/`, and
+ * reading that silence as "delete all of it" is how a push from a clone without the framework
+ * checked out would take the framework off the server. And it runs **only after every write
+ * succeeded**, because deleting the old half of a change whose new half did not land leaves neither.
  *
  * **This class is generous with detail, unlike everything in {@link ApiGate}.** Every refusal
  * below says exactly what was wrong, because nothing reaches here without having produced a valid
- * signature first. It is also the only account of the run there will be: on the live host
- * `display_errors` is off and `error_log` is the empty string, so a warning goes nowhere at all.
+ * signature first. It is also the only account of the run there will be: on a host with
+ * `display_errors` off and no `error_log`, a warning goes nowhere at all.
  */
 final readonly class UpdateApplier
 {
+    /**
+     * The most bytes an archive may expand to.
+     *
+     * The body is capped by {@link ApiGate::MAX_BODY} before it is read, and this caps what that
+     * body becomes — without it, an eight-megabyte archive of zeros expands until the process dies
+     * of `memory_limit`, a bare 500 with the serial already spent. Twice the body's cap, which is
+     * about twenty times what a real tree expands to; the memory floor
+     * {@link \Phpanta\Support\RequirementInitialization} declares is derived from it.
+     */
+    public const int MAX_EXPANDED = 2 * ApiGate::MAX_BODY;
+
     /**
      * A member name this site will write.
      *
@@ -87,9 +102,16 @@ final readonly class UpdateApplier
     #[NoDiscard('the report is the endpoint\'s entire response; dropping it sends an empty 200')]
     public function apply(string $archive, UpdateManifest $manifest): UpdateReport
     {
-        $tar = Diagnostics::muted(static fn(): string|false => gzdecode($archive));
-        if ($tar === false) {
-            throw new UpdateException('the update archive is not gzip, or is corrupt');
+        // Decoded under a cap rather than whole. The cap is only as fine as zlib's output buffer —
+        // gzdecode() hands back a result a chunk past it rather than refusing — so the length is
+        // asked as well. It answers false for an archive far past the cap exactly as it does for
+        // one that is not gzip, so the sentence names both.
+        $tar = Diagnostics::muted(static fn(): string|false => gzdecode($archive, self::MAX_EXPANDED));
+        if ($tar === false || strlen($tar) > self::MAX_EXPANDED) {
+            throw new UpdateException(sprintf(
+                'the update archive is not gzip, is corrupt, or expands past %d bytes',
+                self::MAX_EXPANDED,
+            ));
         }
 
         // Names are checked before the deployment is resolved, so a payload this site would refuse
@@ -104,7 +126,20 @@ final readonly class UpdateApplier
 
         $report = $this->write($files, $deployment);
 
-        return $manifest->mirror ? $this->mirror($files, $report, $deployment) : $report;
+        if (!$manifest->mirror) {
+            return $report;
+        }
+
+        // A run that could not write everything deletes nothing. The mirror removes the old half of
+        // a change on the understanding that the new half is already there, and a failed write is
+        // exactly the case where it is not — a stylesheet that did not land, its predecessor then
+        // deleted, and a site serving neither. The report names what failed; the next push, or
+        // deploy.sh, finishes the job with both halves still on disk.
+        if (!$report->isComplete()) {
+            return $report->noted('the mirror did not run, because a write failed — nothing was deleted');
+        }
+
+        return $this->mirror($files, $report, $deployment);
     }
 
     /**
@@ -135,6 +170,25 @@ final readonly class UpdateApplier
 
             if (!$entry->isDirectory) {
                 $files = $files->with($entry->name, new UpdateFile($root, $entry->name, $entry->contents));
+            }
+        }
+
+        // A name that is a file and also a directory some other file sits under is two members that
+        // cannot both be written — whichever lands second fails, after the first has. Refused here,
+        // before anything is written, because "passes every rule or writes nothing" is the promise.
+        foreach ($files as $name => $file) {
+            $ancestor = '';
+
+            foreach (explode('/', dirname($name)) as $segment) {
+                $ancestor = $ancestor === '' ? $segment : $ancestor . '/' . $segment;
+
+                if ($files->find($ancestor) !== null) {
+                    throw new UpdateException(sprintf(
+                        "the archive holds '%s' as a file and as the directory '%s' is under",
+                        $ancestor,
+                        $file->name,
+                    ));
+                }
             }
         }
 
@@ -253,6 +307,11 @@ final readonly class UpdateApplier
         }
 
         foreach (UpdateRoot::cases() as $root) {
+            if (!self::carries($files, $root)) {
+                $report = self::untouched($report, $root, $deployment);
+                continue;
+            }
+
             foreach ($this->surplusIn($root, $files, $deployment) as $name) {
                 $report = $report->removed($name);
             }
@@ -299,8 +358,8 @@ final readonly class UpdateApplier
      * True if the destination already holds exactly these bytes.
      *
      * **A push writes what changed, not what it carries**, which is `rsync -c`'s rule and is here
-     * for a sharper reason than saving four filesystem operations. Strato serves off NFS, and
-     * {@link File::write()} renames its temp file onto the target — so rewriting an identical
+     * for a sharper reason than saving four filesystem operations. On an NFS-served host,
+     * {@link File::write()} renaming its temp file onto the target means rewriting an identical
      * `public/index.php` while the request is executing out of it makes the NFS client silly-rename
      * the open inode aside as `.nfsXXXXXXXX` instead of unlinking it. The mirror then meets that
      * stray as a surplus path in the same request and cannot remove it, because the handle holding
@@ -320,7 +379,8 @@ final readonly class UpdateApplier
     }
 
     /**
-     * Deletes what is on disk and not in the payload, then sweeps the directories that emptied.
+     * Deletes what is on disk and not in the payload, then sweeps the directories that emptied —
+     * under the roots the payload carries, and no others.
      *
      * @param Collection<UpdateFile> $files
      * @param UpdateReport $report
@@ -334,6 +394,11 @@ final readonly class UpdateApplier
         // root they are under is a question with an answer already in hand — and asking it anyway
         // produced a null branch that could not happen and would have skipped a delete in silence.
         foreach (UpdateRoot::cases() as $root) {
+            if (!self::carries($files, $root)) {
+                $report = self::untouched($report, $root, $deployment);
+                continue;
+            }
+
             foreach ($this->surplusIn($root, $files, $deployment) as $name) {
                 $report = $deployment->destination($root, $name)->delete()
                     ? $report->removed($name)
@@ -341,9 +406,43 @@ final readonly class UpdateApplier
             }
         }
 
-        $this->sweep($deployment);
+        $this->sweep($files, $deployment);
 
         return $report;
+    }
+
+    /**
+     * Whether the payload holds at least one file under $root.
+     *
+     * **This is the question the mirror asks before it deletes anything under a root**, and the
+     * answer "no" means the push says nothing about that root — not that the root should be empty.
+     * The two readings differ by exactly one deployed framework: a push from a clone whose submodule
+     * was never checked out carries no `phpanta/`, and a mirror that took the silence as an
+     * instruction would delete the framework every request runs on, `/api` included, leaving only a
+     * full deploy to put it back.
+     *
+     * @param Collection<UpdateFile> $files
+     * @param UpdateRoot $root
+     * @return bool
+     */
+    private static function carries(Collection $files, UpdateRoot $root): bool
+    {
+        return $files->first(static fn(UpdateFile $file): bool => $file->root === $root) !== null;
+    }
+
+    /**
+     * $report, noting that $root was left as it is — where there is anything there to leave.
+     *
+     * @param UpdateReport $report
+     * @param UpdateRoot $root
+     * @param Deployment $deployment
+     * @return UpdateReport
+     */
+    private static function untouched(UpdateReport $report, UpdateRoot $root, Deployment $deployment): UpdateReport
+    {
+        return $deployment->directory($root)?->exists() === true
+            ? $report->noted(sprintf('%s/ is not in this push, so the mirror left it as it is', $root->value))
+            : $report;
     }
 
     /**
@@ -429,7 +528,7 @@ final readonly class UpdateApplier
     }
 
     /**
-     * Removes directories the mirror emptied.
+     * Removes directories the mirror emptied, under the roots the payload carries.
      *
      * **Deliberately `rmdir()` rather than {@link Directory::remove()}, and the difference is the
      * whole point.** That method takes away the files a directory holds *and then* the directory —
@@ -441,14 +540,15 @@ final readonly class UpdateApplier
      * Deepest first, so a directory whose only contents were themselves emptied directories goes
      * too.
      *
+     * @param Collection<UpdateFile> $files
      * @param Deployment $deployment
      * @return void
      */
-    private function sweep(Deployment $deployment): void
+    private function sweep(Collection $files, Deployment $deployment): void
     {
         foreach (UpdateRoot::cases() as $root) {
             $directory = $deployment->directory($root);
-            if ($directory === null || !$directory->exists()) {
+            if ($directory === null || !$directory->exists() || !self::carries($files, $root)) {
                 continue;
             }
 
@@ -490,22 +590,25 @@ final readonly class UpdateApplier
     /**
      * One directory's entries, dotfiles included and `.`/`..` excluded.
      *
+     * `scandir()` rather than `glob()`: a glob reads its argument as a pattern, so a deployment whose
+     * path holds a `[` or a `*` would list nothing — and a mirror that sees nothing on disk deletes
+     * nothing, where the writer's matching walk would pack nothing and the mirror would then delete
+     * everything. It also needs no `GLOB_BRACE`, which some C libraries do not have.
+     *
      * @param Directory $directory
      * @return list<string>
      */
-    #[BareArray("glob()'s own shape. This is the door the two recursive walks above share.")]
+    #[BareArray("scandir()'s own shape. This is the door the two recursive walks above share.")]
     private function entries(Directory $directory): array
     {
         $entries = [];
 
-        foreach ((array) glob($directory->path . '/{,.}*', GLOB_BRACE) as $path) {
-            $path = (string) $path;
-
-            if (basename($path) === '.' || basename($path) === '..') {
+        foreach (Diagnostics::muted(static fn(): array|false => scandir($directory->path)) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..') {
                 continue;
             }
 
-            $entries[] = $path;
+            $entries[] = $directory->path . '/' . $entry;
         }
 
         return $entries;

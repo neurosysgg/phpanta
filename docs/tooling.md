@@ -10,6 +10,12 @@ declared: a flag dropped in silence reports success and does nothing, which for 
 would mean a mistyped `--clover` writing no report. `getopt()` is not the answer: it stops at the
 first non-option argument, and `composer coverage` passes both of its paths first.
 
+**`Command::operands()` does the same for what is left**: an `Arity` — `none()`, `exactly(n)`,
+`atLeast(n)`, `between(min, max)` — that `Input` holds the count to before the command runs, so a
+stray word is refused rather than ignored. `Input` also refuses a value on a boolean flag
+(`--dry-run=no` would otherwise read as `--dry-run`, the opposite of what was typed) and any `-x`
+short form, and it reads `--` as the end of the options.
+
 The verify script asserts every class under `tools/lib/` loads, the way it already does for `src/`.
 Nothing else reaches them — the CLI layer is outside the coverage source and the commands are run by
 hand — so a namespace disagreeing with its path would otherwise surface the first time someone ran

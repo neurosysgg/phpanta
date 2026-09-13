@@ -134,6 +134,45 @@ final class FrameworkCheckoutTest extends TestCase
     }
 
     /**
+     * A git that cannot read the site does not pass as "not a submodule".
+     *
+     * A `.git` pointing nowhere stands in for every way git can fail to answer — missing from the
+     * path, refusing a repository as "dubious ownership" — each of which used to let anything through.
+     *
+     * @return void
+     */
+    public function testAGitThatCannotReadTheSiteIsRefused(): void
+    {
+        $site = new Directory($this->sandbox . '/unreadable');
+        self::assertTrue($site->directory('phpanta')->create());
+        self::assertTrue($site->directory('phpanta')->file('autoload.php')->write("<?php\n"));
+        self::assertTrue($site->file('.git')->write('gitdir: ' . $this->sandbox . "/nowhere\n"));
+
+        self::assertStringContainsString('git cannot read', (string) new FrameworkCheckout($site)->refusal());
+    }
+
+    /**
+     * An ignored file under `src/` ships too, so it is a change like any other.
+     *
+     * @return void
+     */
+    public function testAnIgnoredFileIsRefused(): void
+    {
+        $site      = $this->site();
+        $framework = $site->directory('phpanta');
+
+        self::assertTrue($framework->file('.gitignore')->write("*.orig\n"));
+        $this->git($framework->path, 'add', '.gitignore');
+        $this->git($framework->path, 'commit', '-q', '-m', 'ignore leftovers');
+        $this->git($site->path, 'commit', '-q', '-a', '-m', 'the site records it');
+        self::assertNull(new FrameworkCheckout($site)->refusal(), 'the recorded checkout stopped passing');
+
+        self::assertTrue($framework->directory('src')->file('Thing.php.orig')->write("<?php // leftover\n"));
+
+        self::assertStringContainsString('src/Thing.php.orig', (string) new FrameworkCheckout($site)->refusal());
+    }
+
+    /**
      * The command refuses before it signs or sends anything, dry run or not — and `--any-framework`
      * is the way past.
      *

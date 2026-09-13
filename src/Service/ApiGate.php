@@ -12,8 +12,10 @@ use Phpanta\Http\AuthScheme;
 use Phpanta\Http\Request;
 use Phpanta\Model\Api\ApiCredential;
 use Phpanta\Model\Api\ApiEnvelope;
+use Phpanta\Model\Api\SerialRefusal;
 use Phpanta\Model\Api\VerifiedRequest;
 use Phpanta\Support\File;
+use Phpanta\Support\FileLock;
 use Phpanta\Support\PublicKey;
 
 /**
@@ -176,24 +178,50 @@ final readonly class ApiGate
     }
 
     /**
-     * Records $serial as the highest accepted, so it and everything before it cannot be replayed.
+     * Spends $serial for a write, and answers the lock the write then runs under.
      *
-     * Called by the controller *after* a run that wrote something, and deliberately not after a
-     * read or a dry run: neither changes anything, so leaving the serial where it is lets the same
-     * credential be sent again for real, and a captured dry run replayed on its own still does
-     * nothing.
+     * Called by the controller for a write *before* it runs, and never for a read or a dry run:
+     * neither changes anything, so leaving the serial where it is lets the same credential be sent
+     * again for real, and a captured dry run replayed on its own still does nothing.
      *
-     * Answers whether the record was actually written, because a serial that could not be stored
-     * is replay protection that is quietly off — the next identical payload would be accepted
-     * again. The caller reports that rather than ignoring it.
+     * **Three steps, under one lock the caller holds until the write has finished**:
+     *
+     * - The lock, beside the serial and non-blocking. Two writes in flight at once would each write
+     *   and mirror over the other — deleting the files the other just wrote — so the second is
+     *   refused rather than queued; see {@link FileLock}.
+     * - Freshness, asked again. {@link self::accepts()} asked it before the body was read, and
+     *   another write may have recorded a newer serial since. Unasked, two overlapping writes both
+     *   pass, the older one's record lands last, and the serial moves *backwards* — which hands the
+     *   newer credential a replay window.
+     * - The record. A serial that cannot be stored is replay protection quietly off, so that is a
+     *   refusal too, before anything is written.
      *
      * @param int $serial
-     * @return bool
+     * @return FileLock|SerialRefusal The lock to release once the write has run, or why nothing may.
      */
-    #[NoDiscard('a serial that failed to store is replay protection silently switched off')]
-    public function accept(int $serial): bool
+    #[NoDiscard('a lock nobody holds is released at once, and a refusal dropped is a write run unguarded')]
+    public function spend(int $serial): FileLock|SerialRefusal
     {
-        return ($this->serial ?? App::current()->updateSerial())->write((string) $serial . "\n", 0o600);
+        $record = $this->serial ?? App::current()->updateSerial();
+        $lock   = FileLock::exclusive(new File($record->path . '.lock'));
+
+        if ($lock === null) {
+            return SerialRefusal::Busy;
+        }
+
+        if (!$this->isFresh($serial)) {
+            $lock->release();
+
+            return SerialRefusal::Stale;
+        }
+
+        if (!$record->write($serial . "\n", 0o600)) {
+            $lock->release();
+
+            return SerialRefusal::Unrecorded;
+        }
+
+        return $lock;
     }
 
     /**
