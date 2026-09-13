@@ -49,7 +49,7 @@ enum ResponseHeader: string implements HeaderName
      * Two answers on this site, and they are opposites. Every public document says `no-cache`,
      * which is not `no-store`: keep it, but ask before reusing it — see {@link ViewResponse}.
      * The one page behind a gate says `no-store, private` instead, and {@link
-     * \NeuroSYS\Controller\StatsController} sets that itself.
+     * StatsController} sets that itself.
      */
     case CacheControl = 'Cache-Control';
 

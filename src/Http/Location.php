@@ -14,7 +14,7 @@ use Phpanta\View\Html\Element;
  * The one header value on this site that carries a URL, and therefore the one where the type buys a
  * check rather than only a grammar: {@link self::verify()} refuses anything that is not an absolute
  * `https://` address or a path on this site. That is narrower than the spec allows, and narrower on
- * purpose, for the same reason {@link \NeuroSYS\Model\Profile} is narrower than an `href` in
+ * purpose, for the same reason `Profile` is narrower than an `href` in
  * general. A redirect here goes to the file host, off-origin and over TLS, or — after a language
  * switch — back to a page of this site; anything else is a mistake rather than a case to support.
  *
@@ -39,7 +39,7 @@ final readonly class Location implements HeaderValue
      *
      * `\S` throughout so no whitespace survives anywhere, and `\z` rather than `$` because `$` also
      * matches before a trailing newline — the same two details, for the same two reasons, as
-     * {@link \NeuroSYS\Model\Profile::URL_PATTERN}. A newline in particular is what would turn a
+     * `Profile::URL_PATTERN`. A newline in particular is what would turn a
      * redirect into header injection if PHP's own `header()` did not already refuse one.
      */
     private const string URL_PATTERN = '#^https://[^\s/]+(?:[/?\#]\S*)?\z#i';

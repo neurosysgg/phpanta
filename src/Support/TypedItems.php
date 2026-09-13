@@ -98,7 +98,7 @@ use ReflectionNamedType;
  *
  * **What deliberately did not follow it in is `tools/lib/Dsp/`.** Those three classes are a port of
  * `c-µdsp` whose stated contract is that the caller owns the buffer, and
- * {@link \NeuroSYS\Tool\Dsp\Fft::transform()} is the codebase's only genuine in-place mutation:
+ * `Fft::transform()` is the codebase's only genuine in-place mutation:
  * its butterfly reads and writes four arbitrary indices of two arrays per iteration, which no
  * immutable collection expresses and no per-element callback can see. Measured at 512 floats a
  * window, rebuilding a collection per window costs 354 ms against `array_fill`'s 1 ms. The port
@@ -150,14 +150,14 @@ trait TypedItems
      * it would let the escape hatch back in under the type's own name. That refusal is load-bearing
      * rather than tidy: it is what forced {@link \Phpanta\Http\Security\CspSourceList} to exist,
      * and it is why two callbacks on this site map to a `JsonSerializable` and a
-     * {@link \NeuroSYS\Model\Production\SectionPosition} rather than to an `array`.
+     * `SectionPosition` rather than to an `array`.
      */
     private const array SCALARS = ['string', 'int', 'float', 'bool'];
 
     /**
      * Constructs an instance of {@link self}.
      *
-     * **The declared type is checked here, and that is the same move {@link \NeuroSYS\Model\Link\HiDriveLink}
+     * **The declared type is checked here, and that is the same move `HiDriveLink`
      * makes on a share id.** {@link self::guard()} asks `instanceof`, which answers `false` for a
      * string naming no class rather than complaining about it — so without this check,
      * `new Collection('Reelase')` would not be an error but a collection that silently rejects
@@ -277,7 +277,7 @@ trait TypedItems
      * **An object is compared by identity and not by value**, for the same reason and a stronger
      * one: a value object here declares no equality, so the only honest question about two of them
      * is whether they are the same object. A caller wanting value equality maps to the value first,
-     * which is what both callers do — {@link \NeuroSYS\Model\Demo::verify()} reduces its tracks to
+     * which is what both callers do — `Demo::verify()` reduces its tracks to
      * their labels and {@link \Phpanta\Http\Security\ContentSecurityPolicy::hosts()} reduces its
      * sources to their origins, and each asks this afterwards.
      *
@@ -322,7 +322,7 @@ trait TypedItems
      * **The element type is read off $callback's own return declaration**, which is why this takes
      * no type argument. A `class-string` parameter beside a callback that already declares
      * `: string` would be the same fact written twice, and the second copy is the one that goes
-     * stale — the drift {@link \NeuroSYS\Site} exists to stop. Stating it once also puts it where
+     * stale — the drift `Site` exists to stop. Stating it once also puts it where
      * PHP itself enforces it, which is the stronger of the two checks: a callback that returns the
      * wrong thing is a `TypeError` at the `return`, naming the function, before this class sees the
      * value at all.
@@ -403,7 +403,7 @@ trait TypedItems
     /**
      * The first item $predicate accepts, or the first item at all, or null for neither.
      *
-     * Replaces the `foreach`-and-return that {@link \NeuroSYS\Model\Release::findFormat()} was
+     * Replaces the `foreach`-and-return that `Release::findFormat()` was
      * written as. Null rather than an exception for the same reason `find()` answers null: not
      * finding something is a normal answer to a search.
      *
@@ -432,7 +432,7 @@ trait TypedItems
     /**
      * The last item, or null for an empty collection.
      *
-     * Here because {@link \NeuroSYS\Model\Production\Arrangement::lastStart()} was the one
+     * Here because `Arrangement::lastStart()` was the one
      * remaining place in `src/` that unwrapped a collection to get at an array — not to do anything
      * with the array, but because `end()` was the only way to ask this question.
      *
@@ -440,7 +440,7 @@ trait TypedItems
      * a write to the store from a method that promises to be a read.
      *
      * **No predicate, unlike {@link self::first()}**, and the asymmetry is deliberate rather than
-     * an omission. `first()` has one because {@link \NeuroSYS\Model\Release::findFormat()} is a
+     * an omission. `first()` has one because `Release::findFormat()` is a
      * search; nothing here searches backwards. PHP gives `array_find()` and no `array_find_last()`,
      * so the predicate form would be a hand-rolled reverse loop written for nobody — and the day
      * something wants one, `where(…)->last()` already answers it.
@@ -463,7 +463,7 @@ trait TypedItems
      *
      * **The one member laziness made necessary, and it exists for callbacks that do work.** Every
      * other callback on this site is pure, so when it runs cannot be observed;
-     * {@link \NeuroSYS\Tool\Demo\DemoStage::write()} is the exception — its `where()` predicate
+     * `DemoStage::write()` is the exception — its `where()` predicate
      * transcodes a mix with ffmpeg and reports whether that worked. Left pending, that filter is a
      * method called `write()` which writes nothing: the first thing to ask a question runs it, an
      * {@link self::isEmpty()} stops at the first failure with every source behind it unstaged, and

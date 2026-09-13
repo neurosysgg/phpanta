@@ -14,7 +14,7 @@ namespace Phpanta\View\Html;
  *
  * `_blank` travels with {@link LinkRel::NoOpener}: opening in a new browsing context is what gives
  * the opened page a `window.opener` handle in the first place, so the two are written together at
- * {@link \NeuroSYS\Layout::profileLink()} and neither is much use without the other.
+ * `Layout::profileLink()` and neither is much use without the other.
  */
 enum LinkTarget: string
 {

@@ -9,7 +9,7 @@ use Phpanta\Exception\SecurityPolicyException;
 /**
  * The CspHost class. A single origin allowed by a CSP directive.
  *
- * Mirrors {@link \NeuroSYS\Model\Link\HiDriveLink}: the shape is validated where it is written,
+ * Mirrors `HiDriveLink`: the shape is validated where it is written,
  * so a paste that carries a path or a trailing slash throws on boot instead of producing a
  * directive the browser drops on the floor. A CSP host source is an *origin* — scheme, host and
  * optional port — and nothing else; `https://my.hidrive.com/api/sharelink` matches nothing.

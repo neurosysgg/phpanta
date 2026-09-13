@@ -15,15 +15,15 @@ use BackedEnum;
  * is_string($body['permalink_url'] ?? null) ? $body['permalink_url'] : ''
  * ```
  *
- * That shape appeared nine times across {@link \NeuroSYS\Tool\SoundCloud\UploadedTrack} and
- * {@link \NeuroSYS\Tool\SoundCloud\AccessToken}, spelling the key twice each time, and it is the
+ * That shape appeared nine times across `UploadedTrack` and
+ * `AccessToken`, spelling the key twice each time, and it is the
  * kind of repetition {@link \Phpanta\Support\TypedItems}'s `guard()` was written to end elsewhere.
  *
  * **The key is a {@link BackedEnum} and never a string**, which is the whole point rather than a
  * convenience: `FormField::of()` accepts either because a field name is sometimes an OAuth parameter
  * this repo deliberately leaves as a literal, but a response key has no such case — every one is
- * named by {@link \NeuroSYS\Tool\SoundCloud\TrackKey} or
- * {@link \NeuroSYS\Tool\SoundCloud\TokenKey}. Accepting a string would reopen exactly the hole those
+ * named by `TrackKey` or
+ * `TokenKey`. Accepting a string would reopen exactly the hole those
  * two enums were written to close.
  *
  * **Two readers, not three.** An `enum()` would need a `class-string` argument to say what it

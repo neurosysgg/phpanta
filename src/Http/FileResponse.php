@@ -24,7 +24,7 @@ use Phpanta\Support\File;
  * {@link ResponseHeader::AcceptRanges} is what tells the element to offer the scrubber at all.
  *
  * **It never sends a validator and never answers a 304**, the same decision
- * {@link \NeuroSYS\Controller\StatsController} takes for the same reason: this is reached by
+ * `StatsController` takes for the same reason: this is reached by
  * handing over a password, so it says `no-store, private` and there is nothing to revalidate
  * against. Adding an `ETag` to a response we just asked not to be stored would be arguing with
  * ourselves — and here it would also be arguing with the range, since a validator on a partial

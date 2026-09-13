@@ -89,7 +89,7 @@ final readonly class Element implements Node
      *
      * Keyed rather than listed, which is what keeps **the last write and the declaration order**:
      * setting `class` twice leaves one attribute, where the first one was written. Not promoted,
-     * for the reason {@link \NeuroSYS\Model\Embed\SoundCloudEmbed::$options} is not — the default
+     * for the reason `SoundCloudEmbed::$options` is not — the default
      * is a `new`, and a parameter default has to be a constant expression.
      *
      * @var SearchableCollection<Attribute>

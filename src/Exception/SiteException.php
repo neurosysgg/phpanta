@@ -30,7 +30,7 @@ use Throwable;
  *
  * One caller today: the handler at the door in `public/index.php`, which logs a fault from this
  * repository differently from one raised underneath it. That is the whole reason it exists — see
- * {@link \NeuroSYS\Test\Unit\GuidelineTest::testEveryExceptionThrownUnderSrcIsOneOfOurs()} for the
+ * `GuidelineTest::testEveryExceptionThrownUnderSrcIsOneOfOurs()` for the
  * rule that keeps the set closed.
  */
 interface SiteException extends Throwable

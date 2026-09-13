@@ -182,7 +182,7 @@ readonly class Request
      * **Only the path, because a malformed target is not a 404.** {@link \Phpanta\Support\Route::matches()}
      * compiles `{slug}` into `([^/]+)`, which matches anything at all, so every placeholder route
      * matches one, and whatever followed the `?` would arrive inside a captured value: the whole
-     * of `/demos/x"y?a=1` would reach {@link \NeuroSYS\Controller\DemoController} with a slug of
+     * of `/demos/x"y?a=1` would reach `DemoController` with a slug of
      * `x"y?a=1`, and a demo's slug names its realm, so a query string would reach a response
      * header. {@link \Phpanta\Service\Auth::demoRealm()} and {@link BasicChallenge} close the
      * other half of that. See docs/history/security.md.

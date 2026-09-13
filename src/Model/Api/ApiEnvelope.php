@@ -33,7 +33,7 @@ use Phpanta\Exception\ApiException;
  * slash is stripped, a query string is already gone, and an absolute-form target has its authority
  * discarded — so `/api/update/v1/patch` and `/api/update/v1/patch/` are one signed path. It is
  * compared against that string directly and never against a path rebuilt from the router's
- * captures, because {@link \NeuroSYS\Support\SitePath::to()} `rawurlencode`s each value and is
+ * captures, because `SitePath::to()` `rawurlencode`s each value and is
  * therefore *not* the inverse of {@link \Phpanta\Support\Route::matches()}: a capture of `%70atch`
  * would come back out as `%2570atch`, and two spellings of one address is the failure this whole
  * arrangement exists to avoid.

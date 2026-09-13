@@ -16,7 +16,7 @@ namespace Phpanta\Tool\Http;
  *
  * It is deliberately not a general HTTP abstraction. Three shapes of request go out of this repo
  * — a form-encoded token exchange, a multipart upload, and the bare `GET` {@link
- * \NeuroSYS\Tool\SoundCloud\Client::track()} reads a secret token back with — and this is the
+ * Client::track()} reads a secret token back with — and this is the
  * interface that carries exactly those. They are the three {@link Request} has a factory for, and
  * a fourth shape means a fourth factory rather than a wider interface here.
  */

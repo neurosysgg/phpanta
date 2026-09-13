@@ -50,7 +50,7 @@ enum AuthScheme: string
      *
      * **The digit is a format version and is deliberately not the API's.** `/api/{service}/v1/…`
      * versions what is being asked for; this versions how the asking is signed, and the two move
-     * for different reasons. It is the same argument {@link \NeuroSYS\Model\Waveform}'s magic
+     * for different reasons. It is the same argument `Waveform`'s magic
      * makes, and this token *is* the magic: the credential needs no magic bytes of its own when the
      * scheme it arrives under already says which reader to use.
      *

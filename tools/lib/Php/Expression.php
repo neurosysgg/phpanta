@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\Tool\Php;
 
 /**
- * The Expression interface. One piece of the PHP source {@link \NeuroSYS\Tool\Release\EntryWriter}
+ * The Expression interface. One piece of the PHP source `EntryWriter`
  * emits.
  *
  * This exists for the reason the markup tree exists, and the objection is the same one: nothing

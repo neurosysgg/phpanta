@@ -38,7 +38,7 @@ enum Language: string
      *
      * § 5 DDG and § 18 Abs. 2 MStV are met in German, which is why the imprint and the privacy
      * policy always carry their German half, whichever language leads. See
-     * {@link \NeuroSYS\View\ImprintView}.
+     * `ImprintView`.
      */
     case German = 'de';
 

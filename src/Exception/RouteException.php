@@ -7,7 +7,7 @@ namespace Phpanta\Exception;
 use LogicException;
 
 /**
- * The RouteException class. Thrown when a {@link \NeuroSYS\Support\SitePath} is asked for an address
+ * The RouteException class. Thrown when a `SitePath` is asked for an address
  * it cannot build — a pattern given the wrong number of values for its placeholders.
  *
  * **Extends `LogicException` for the reason {@link MarkupException} does**, and it is the same

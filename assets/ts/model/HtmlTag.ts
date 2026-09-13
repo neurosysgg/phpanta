@@ -1,5 +1,5 @@
 /**
- * Mirrors NeuroSYS\View\Html\HtmlTag — the standard elements this site emits.
+ * Mirrors HtmlTag — the standard elements this site emits.
  *
  * The client creates most of these: the gate builds a <p>, a <button> and a <small>, the player an
  * <iframe> and a <div>, and Navigation a <textarea> to decode entities out of a title.

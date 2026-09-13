@@ -111,7 +111,7 @@ readonly class ViewResponse implements Response
      * here more than it would elsewhere:
      *
      * - A document embeds every versioned asset URL — the stylesheet, the entry script and whatever
-     *   preloads there are, straight out of {@link \NeuroSYS\AssetManifest}. That is two URLs on the
+     *   preloads there are, straight out of `AssetManifest`. That is two URLs on the
      *   bundled tree that ships and forty-nine on the debug tree, and the argument is the same
      *   either way: it takes one. A stale document
      *   therefore names *last build's* URLs, and `public/.htaccess` marked those `immutable` for a
@@ -137,7 +137,7 @@ readonly class ViewResponse implements Response
      * headers it read — none, today.
      *
      * **A caller that supplied its own `Cache-Control` gets none of this**, and no 304 either.
-     * That is {@link \NeuroSYS\Controller\StatsController}, which says `no-store, private` because
+     * That is `StatsController`, which says `no-store, private` because
      * it sits behind a password; adding a validator to a response we just asked not to be stored
      * would be arguing with ourselves.
      *

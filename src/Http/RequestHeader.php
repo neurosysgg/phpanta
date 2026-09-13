@@ -29,7 +29,7 @@ enum RequestHeader: string implements HeaderName
      * 304. It is mirrored in `assets/ts/model/RequestHeader.ts` all the same, because that mirror
      * is compared case for case and in order; a case with no reader on one side is the same
      * arrangement as {@link ResponseHeader::PoweredBy}, which names a header the site never sends,
-     * and {@link \NeuroSYS\Model\Embed\EmbedAttribute::Loaded}, which no view may emit.
+     * and `EmbedAttribute::Loaded`, which no view may emit.
      *
      * Naming it is the point. The alternative is reading `HTTP_IF_NONE_MATCH` off `$_SERVER` as a
      * bare string, which is the thing this enum exists to stop.
@@ -85,7 +85,7 @@ enum RequestHeader: string implements HeaderName
     /**
      * The page the visitor was on when they followed a link here.
      *
-     * Read by one route, {@link \NeuroSYS\Controller\LanguageController}, for one thing: which page
+     * Read by one route, `LanguageController`, for one thing: which page
      * to send a visitor back to after they switch language. Only its path is taken, and only after
      * {@link \Phpanta\View\Html\Element::staysOnThisOrigin()} agrees the path stays here; it is
      * never stored and never logged. The site's own `Referrer-Policy` is

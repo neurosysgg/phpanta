@@ -10,7 +10,7 @@ namespace Phpanta\View\Html;
  * A class rather than an enum for the reason {@link \Phpanta\Http\Security\StrictTransportSecurity}
  * and {@link \Phpanta\Http\MimeType} are: the value carries **parameters**, and a case cannot hold
  * one. `width=device-width, initial-scale=1.0` is a comma-separated descriptor list — a grammar,
- * which as a string would be assembled inside the `->attr(…)` call in {@link \NeuroSYS\Layout::head()},
+ * which as a string would be assembled inside the `->attr(…)` call in `Layout::head()`,
  * precisely where a grammar cannot be checked. A grammar is what earns a type here, not what
  * excuses one — the same argument {@link \Phpanta\Http\HeaderValue} makes on the header side.
  *
@@ -25,7 +25,7 @@ final readonly class ViewportContent implements AttributeValue
      * Constructs an instance of {@link self}.
      *
      * Both parameters carry the site's own answer as their default, so the one call site names them
-     * for legibility rather than out of necessity — the same way a {@link \NeuroSYS\Model\Release}
+     * for legibility rather than out of necessity — the same way a `Release`
      * spells out `title:` and `bpm:`.
      *
      * @param ViewportWidth $width        How wide to pretend the screen is.

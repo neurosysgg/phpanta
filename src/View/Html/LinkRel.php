@@ -19,7 +19,7 @@ use Phpanta\Support\Collection;
  *
  * - **`Stylesheet` and `ModulePreload` are what a resource is *for*.** Misspell either and the
  *   browser fetches nothing and says nothing: an unstyled page, or forty-one preload hints that
- *   quietly stop preloading and leave the module waterfall {@link \NeuroSYS\Layout::modulePreloads()}
+ *   quietly stop preloading and leave the module waterfall `Layout::modulePreloads()`
  *   exists to flatten. Neither reaches a console.
  * - **`NoOpener` and `NoReferrer` are a security boundary**, on every outbound profile link in the
  *   footer. `noopener` is what stops the opened page reaching back through `window.opener`;
@@ -39,7 +39,7 @@ enum LinkRel: string
      *
      * Deliberately not `preload` with `as="script"`: that one fetches the bytes and stops there,
      * so the module is still parsed and instantiated on demand. See
-     * {@link \NeuroSYS\Layout::modulePreloads()}.
+     * `Layout::modulePreloads()`.
      */
     case ModulePreload = 'modulepreload';
 

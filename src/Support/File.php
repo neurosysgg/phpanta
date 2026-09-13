@@ -34,7 +34,7 @@ final readonly class File
      * Constructs an instance of {@link self}.
      *
      * @param string $path An absolute path. Nothing here resolves a relative one, because every
-     *                     path in this codebase comes from {@link \NeuroSYS\Site} or from an
+     *                     path in this codebase comes from `Site` or from an
      *                     argv, and a path resolved against a working directory is a path that
      *                     means something different depending on where a command was run.
      */
@@ -63,7 +63,7 @@ final readonly class File
      * controls — into one string before the caller can weigh it. Given a limit, only that many
      * bytes are ever read, so the ceiling is the one the caller states rather than the one the SAPI
      * inherited. Null reads the file whole, which is every other caller: their paths come from
-     * {@link \NeuroSYS\Site} and are as long as they are.
+     * `Site` and are as long as they are.
      *
      * @param int|null $limit The most bytes to read, or null for the whole file.
      * @return string|null
@@ -236,7 +236,7 @@ final readonly class File
      * The file's extension, lower-cased and without the dot, or `''` where it has none.
      *
      * Lower-cased because every caller compares it against something lower-case — a
-     * {@link \NeuroSYS\Model\ReleaseFormat} value, a list of image extensions — and a `.FLAC` off a
+     * `ReleaseFormat` value, a list of image extensions — and a `.FLAC` off a
      * camera or a Windows share is the same format as a `.flac`.
      *
      * @return string

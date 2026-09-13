@@ -10,7 +10,7 @@ use Phpanta\Exception\InvalidValueException;
  * The PasswordHash class. A bcrypt digest, checked to be one.
  *
  * It sits in `Support/` for the reason {@link Charset} does: two layers read it and neither owns
- * it. {@link \NeuroSYS\Model\Demo} declares one in `data/demos.php`, and
+ * it. `Demo` declares one in `data/demos.php`, and
  * {@link \Phpanta\Service\Auth} is what compares against it — so it belongs to neither
  * `Model/` nor `Service/`.
  *
@@ -19,7 +19,7 @@ use Phpanta\Exception\InvalidValueException;
  * the same face: one is a visitor typing the wrong thing, the other is a credential that will never
  * open for anybody and says so to nobody. A truncated paste is the ordinary way to get the second,
  * and it presents as a password that "stopped working". So the shape is asked about once, where it
- * is written down, the way {@link \NeuroSYS\Model\Link\HiDriveLink} asks about a share id.
+ * is written down, the way `HiDriveLink` asks about a share id.
  *
  * Bcrypt specifically rather than "any algorithm PHP knows": it is what
  * `password_hash($p, PASSWORD_BCRYPT)` produces, which is what every credential here is minted

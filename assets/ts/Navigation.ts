@@ -122,7 +122,7 @@ export class Navigation {
    * The assignment at the end is `innerHTML`, and that is the one assumption this file rests on:
    * the fragment is same-origin (onClick refuses anything else, and popstate can only reach a URL
    * the browser already navigated to) and it is built by the server's markup tree, where every
-   * value is escaped by NeuroSYS\View\Html\Text and every URL attribute is scheme-checked. So the
+   * value is escaped by Text and every URL attribute is scheme-checked. So the
    * string being parsed here is one this codebase generated, not one it received.
    *
    * Worth stating because it is inherited rather than enforced: the guarantee lives on the server,

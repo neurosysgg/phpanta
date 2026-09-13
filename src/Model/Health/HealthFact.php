@@ -55,7 +55,7 @@ final readonly class HealthFact
      *
      * @param string $name What is being reported. Wherever the fact has a vocabulary of its own
      *                     this is that vocabulary's backing value rather than a literal — a
-     *                     {@link PhpSetting}, a {@link PhpExtension}, a {@link \NeuroSYS\DataFile}
+     *                     {@link PhpSetting}, a {@link PhpExtension}, a `DataFile`
      *                     — so a name in the report is a name in the code.
      * @param string $value Its value, or `''` where there is none to be had. Empty and absent
      *                      collapse the way {@link \Phpanta\Support\File::read()} collapses them:

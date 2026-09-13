@@ -30,7 +30,7 @@ final readonly class UpdatePatch implements ApiHandler
      *
      * @param UpdateManifest $manifest What this push asks for, already read out of the signed bytes.
      * @param string $archive The gzipped tar, already matched against the envelope's digest.
-     * @param UpdateApplier|null $applier A test seam, the way {@link \NeuroSYS\Controller\DemoAudioController}'s
+     * @param UpdateApplier|null $applier A test seam, the way `DemoAudioController`'s
      *                                    repository is. Production passes nothing, which is what
      *                                    makes {@link UpdateApplier} resolve the live deployment.
      */

@@ -16,7 +16,7 @@ use Phpanta\Exception\GuidelineException;
  * hangs on the method the call is inside rather than on the call itself — a line number is not
  * something an attribute can name, and a method is the smallest thing that is.
  *
- * **The rule is not "no `array_*`".** {@link \NeuroSYS\Test\Unit\GuidelineTest} carries a table of
+ * **The rule is not "no `array_*`".** `GuidelineTest` carries a table of
  * the array functions a {@link Collection} has a member for — `array_map` against `map()`,
  * `array_unique` against `unique()`, and four more — and only those are asked about. `array_slice`,
  * `array_shift` and `array_merge` are not on it, because no member answers them and a rule that

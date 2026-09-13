@@ -73,7 +73,7 @@ enum ServerVariable: string
     /**
      * Where a download was clicked from, and the one case that could have been derived.
      *
-     * It is not, because {@link \NeuroSYS\Service\DownloadLogger} has no {@link Request} and must
+     * It is not, because `DownloadLogger` has no {@link Request} and must
      * not be given one: the read has to stay *behind* the `DOWNLOAD_LOGGING` guard, and a value
      * passed as an argument is evaluated in front of it. The switch is off, so this reads nothing
      * at all today — and a test asserts that, which an argument would quietly falsify.

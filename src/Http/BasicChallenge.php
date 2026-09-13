@@ -46,7 +46,7 @@ use Phpanta\Exception\SecurityPolicyException;
  * The check throws, so it reports a realm built wrong *in this repository* — the mistake a caller
  * can make. What a *visitor* can send is dealt with one layer out, by `demoRealm()` encoding the
  * slug, so a hostile target is still answered with a 401 rather than with the 500 this would
- * otherwise turn it into. Same two-layer arrangement as {@link \NeuroSYS\Model\Profile::$url},
+ * otherwise turn it into. Same two-layer arrangement as `Profile::$url`,
  * where the constructor catches the authoring mistake and the renderer is the backstop.
  */
 final readonly class BasicChallenge implements HeaderValue
@@ -57,7 +57,7 @@ final readonly class BasicChallenge implements HeaderValue
      * HTAB, SP, `!`, `#`–`[`, `]`–`~` — which is every printable ASCII character except the two a
      * quoted-string cannot carry unescaped, `"` and `\`. `obs-text` is deliberately left out even
      * though the grammar permits it: RFC 7617 §2.2 says a realm should be US-ASCII, and every realm
-     * this site builds is {@link \NeuroSYS\Site::NAME} plus a slug.
+     * this site builds is `Site::NAME` plus a slug.
      *
      * **The `+` rather than `*` is part of the check.** `realm=""` is legal and meaningless — an
      * empty realm keys every credential on the origin together, which is precisely the failure this
@@ -78,7 +78,7 @@ final readonly class BasicChallenge implements HeaderValue
      * Constructs an instance of {@link self}.
      *
      * @param string $realm What the browser labels and keys the saved credentials by. The site and
-     *                      admin gates pass {@link \NeuroSYS\Site::NAME}; a demo passes that plus
+     *                      admin gates pass `Site::NAME`; a demo passes that plus
      *                      its own slug.
      *
      * @throws SecurityPolicyException if it is empty or holds anything but `qdtext`.

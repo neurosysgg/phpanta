@@ -10,7 +10,7 @@ use Phpanta\Http\Header;
 /**
  * The CurlTransport class. Every network request this repo makes, in one place.
  *
- * The same arrangement {@link \NeuroSYS\Tool\Release\Probe} has for shelling out: one class holds
+ * The same arrangement `Probe` has for shelling out: one class holds
  * the calls, so the options are stated once and a machine without the extension fails the same way
  * everywhere rather than differently at each call site. `test/basic_test.sh` pins it — a `curl_`
  * anywhere else under `tools/lib/` fails the build.

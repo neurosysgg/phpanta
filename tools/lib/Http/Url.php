@@ -34,7 +34,7 @@ use Uri\Rfc3986\Uri;
  * which is the same shape of answer as a scheme that is not `https`.
  *
  * `InvalidArgumentException` rather than a named one, because that is exactly what this is: every
- * address here is built from a constant in {@link \NeuroSYS\Tool\SoundCloud\Endpoint}, so a refusal
+ * address here is built from a constant in `Endpoint`, so a refusal
  * is a mistake in this repository's own source rather than a condition a run can encounter. Same
  * reasoning as {@link \Phpanta\Support\TypedItems}'s plain `TypeError`.
  */

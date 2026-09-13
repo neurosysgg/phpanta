@@ -15,7 +15,7 @@ namespace Phpanta\View\Html;
  * **The one this site writes is {@link self::None}, and on a demo page that is a decision rather
  * than a default.** The attribute's own default is `metadata`, which fetches the beginning of every
  * track on the page whether or not anybody plays one. Here every one of those fetches goes through
- * {@link \NeuroSYS\Controller\DemoAudioController} — a PHP process on shared hosting reading a file
+ * `DemoAudioController` — a PHP process on shared hosting reading a file
  * off disk — for a page that routinely carries four mixes of the same track. `none` means a demo
  * page costs one request until a listener asks for audio.
  */

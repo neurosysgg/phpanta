@@ -12,7 +12,7 @@ namespace Phpanta\View\Html;
  * than a name and would be a second parameter on {@link ViewportContent} rather than a case here.
  *
  * **`ViewportWidth` and not `Width`**, because {@link HtmlAttribute::Width} is an attribute *name*
- * in this same namespace and {@link \NeuroSYS\Layout} would import both. The two mean entirely
+ * in this same namespace and `Layout` would import both. The two mean entirely
  * different things and would sit four lines apart in the import list.
  *
  * The failure is the one {@link MetaName::Viewport} describes and is worth repeating here, since

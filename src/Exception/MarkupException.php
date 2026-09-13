@@ -22,7 +22,7 @@ use LogicException;
  *   element can be: a void element with children, a URL naming a scheme the site does not emit.
  * - {@link ParserException} — {@link \Phpanta\View\Html\MarkupParser} refusing markup that names an
  *   element or an attribute this site does not have, or that does not parse cleanly at all.
- * - {@link TerminalException} — {@link \NeuroSYS\View\Terminal\Terminal} unable to hand its rows to
+ * - {@link TerminalException} — `Terminal` unable to hand its rows to
  *   the element that draws them.
  *
  * **The parser's kind is the same category as the others, which is worth saying rather than

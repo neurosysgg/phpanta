@@ -14,9 +14,9 @@ use InvalidArgumentException;
  * empty reason, and the last two refuse an empty subject as well.
  *
  * **It is thrown where the mistake is, which is the whole point of the attributes checking
- * themselves at all.** {@link \NeuroSYS\Test\Unit\GuidelineTest} would notice the same fault, and
+ * themselves at all.** `GuidelineTest` would notice the same fault, and
  * would report it against a list of forty other entries; the constructor reports it against the
- * line that is wrong. The same division of labour {@link \NeuroSYS\Model\Link\HiDriveLink} has with
+ * line that is wrong. The same division of labour `HiDriveLink` has with
  * its own tests, arrived at for the same reason.
  *
  * **Extends `InvalidArgumentException`** — an argument to a constructor is wrong, which is what

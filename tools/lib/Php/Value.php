@@ -12,7 +12,7 @@ use UnitEnum;
  * Scalars go through `var_export()`, which is the whole point: quoting and escaping a string for
  * PHP source is a solved problem with a function in the language.
  *
- * **An enum renders as its short name**, `Genre::Dubstep`, not the `\NeuroSYS\Model\Genre::Dubstep`
+ * **An enum renders as its short name**, `Genre::Dubstep`, not the `Genre::Dubstep`
  * that `var_export()` would give. `data/releases.php` imports its enums at the top and every entry
  * beside this one is written that way, so a fully-qualified case would be correct and out of place.
  * The short name is taken off the case itself rather than typed, so it cannot disagree with the

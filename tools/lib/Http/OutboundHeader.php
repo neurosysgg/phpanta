@@ -39,7 +39,7 @@ enum OutboundHeader: string implements HeaderName
      * The bearer credential.
      *
      * SoundCloud's scheme is `OAuth`, not `Bearer` — see
-     * {@link \NeuroSYS\Tool\SoundCloud\Client}, which is the only thing that fills this in.
+     * `Client`, which is the only thing that fills this in.
      */
     case Authorization = 'Authorization';
 

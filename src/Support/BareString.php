@@ -11,7 +11,7 @@ use Phpanta\Exception\GuidelineException;
  * The BareString attribute. Excuses one string literal from the rule that a name is an enum case,
  * and says why.
  *
- * The rule {@link \NeuroSYS\Test\Unit\GuidelineTest} enforces is not "no literals" — a tagline, a
+ * The rule `GuidelineTest` enforces is not "no literals" — a tagline, a
  * heading and an exception message are all text and none of them is a name. It is narrower and
  * catches only the two shapes where a literal is a vocabulary written out:
  *

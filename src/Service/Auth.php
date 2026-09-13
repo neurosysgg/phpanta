@@ -23,7 +23,7 @@ use Phpanta\Support\PasswordHash;
  * cannot be asserted against in-process, so everything worth asserting lives in
  * {@link self::accepts()}, and the two `require*` methods are only the challenge around it.
  *
- * That split is what the {@link \NeuroSYS\Test\Unit\AdminTest} needs to exist. Before it, the
+ * That split is what the `AdminTest` needs to exist. Before it, the
  * credential comparison had never run under either suite: `data/admin.php` ships with an empty
  * `pass_hash`, so the guard short-circuits and neither `hash_equals()` nor `password_verify()`
  * is reached — which means the two `/admin/stats → 401` checks in `test/basic_test.sh` prove the

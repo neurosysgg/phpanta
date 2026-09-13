@@ -1,5 +1,5 @@
 /**
- * Mirrors NeuroSYS\Text\Language — the languages the site is written in.
+ * Mirrors Language — the languages the site is written in.
  *
  * The server decides which one a page is in and states it on <html lang>; the client reads it there
  * rather than deciding again, so words an element writes for itself are in the page's language too.
