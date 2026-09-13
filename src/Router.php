@@ -7,8 +7,9 @@ namespace Phpanta;
 use Phpanta\Controller\Controller;
 use Phpanta\Controller\Layered;
 use Phpanta\Controller\UnroutedController;
-use Phpanta\Http\Allow;
+use Phpanta\Http\EmptyResponse;
 use Phpanta\Http\Header;
+use Phpanta\Http\HttpMethod;
 use Phpanta\Http\HttpStatusCode;
 use Phpanta\Http\PlainTextResponse;
 use Phpanta\Http\Request;
@@ -56,9 +57,13 @@ readonly class Router implements Controller
         // controller only, and only past the method gate: a refused POST never reaches them.
         foreach ($this->routes as $route) {
             if (($params = $route->matches($request->path())) !== false) {
-                return $route->accepts($request->method())
-                    ? Layered::around($route->layers(), $route->createController($params))->handle($request)
-                    : self::refuse($request);
+                if ($route->accepts($request->method())) {
+                    return Layered::around($route->layers(), $route->createController($params))->handle($request);
+                }
+
+                return $request->method() === HttpMethod::Options
+                    ? self::options($route)
+                    : self::refuse($request, $route);
             }
         }
 
@@ -71,20 +76,43 @@ readonly class Router implements Controller
     /**
      * The 405, naming the methods that would have worked.
      *
-     * The `Allow` is always the read-only set, never the matched route's own. A site's routes have
-     * no other set to name; the API has one it must not name, because `Allow: GET, HEAD, POST` on
-     * `/api` announces the endpoint that exists to be unannounceable — so it never reaches here
-     * at all, having {@link \Phpanta\Support\MethodPolicy::Delegated} instead.
+     * The `Allow` is the matched route's own gate's: the read-only set for every page, and the set a
+     * {@link \Phpanta\Support\MethodSet} route names for itself. The API has a set it must not name,
+     * because `Allow: GET, HEAD, POST` on `/api` announces the endpoint that exists to be
+     * unannounceable — so it never reaches here at all, having
+     * {@link \Phpanta\Support\MethodPolicy::Delegated} instead.
      *
      * @param Request $request
+     * @param Route   $route
      * @return PlainTextResponse
      */
-    private static function refuse(Request $request): PlainTextResponse
+    private static function refuse(Request $request, Route $route): PlainTextResponse
     {
         return new PlainTextResponse(
             HttpStatusCode::MethodNotAllowed,
             UnroutedController::refusal($request->language()),
-            new Collection(Header::class)->with(new Header(ResponseHeader::Allow, Allow::readOnly())),
+            new Collection(Header::class)->with(new Header(ResponseHeader::Allow, $route->allowed())),
+        );
+    }
+
+    /**
+     * What an `OPTIONS` to a route that does not take one itself is answered with: a 204, and the
+     * route's methods with `OPTIONS` after them.
+     *
+     * An answer about the resource, so no body and no `Content-Type`. A route whose controller
+     * decides — the API — is never asked, so an unsigned `OPTIONS` there is still the refusal an
+     * address that does not exist gets.
+     *
+     * @param Route $route
+     * @return EmptyResponse
+     */
+    private static function options(Route $route): EmptyResponse
+    {
+        return new EmptyResponse(
+            HttpStatusCode::NoContent,
+            new Collection(Header::class)->with(
+                new Header(ResponseHeader::Allow, $route->allowed()->with(HttpMethod::Options)),
+            ),
         );
     }
 }

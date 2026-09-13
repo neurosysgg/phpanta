@@ -109,6 +109,17 @@ enum ResponseHeader: string implements HeaderName
     case Robots = 'X-Robots-Tag';
 
     /**
+     * Which other origin may read this response — sent by the {@link \Phpanta\Service\Layer\Cors}
+     * layer, naming the one origin that asked, and only when it is one the site lists.
+     */
+    case AccessControlAllowOrigin = 'Access-Control-Allow-Origin';
+
+    /**
+     * Which methods a cross-origin request may use — the answer to a preflight, from the same layer.
+     */
+    case AccessControlAllowMethods = 'Access-Control-Allow-Methods';
+
+    /**
      * The one case here that names a header the site does **not** send.
      *
      * PHP adds it, with its exact patch version, before any of our code runs.

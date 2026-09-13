@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Phpanta\Support;
 
+use Phpanta\Http\Allow;
 use Phpanta\Http\HttpMethod;
 
 /**
@@ -25,7 +26,7 @@ use Phpanta\Http\HttpMethod;
  * So the choice is not "which methods" but "who answers", and written that way the router only
  * ever sends one `Allow` — the read-only one.
  */
-enum MethodPolicy: string
+enum MethodPolicy: string implements MethodGate
 {
     /**
      * The router refuses anything that is not a read, before the controller is built.
@@ -61,5 +62,19 @@ enum MethodPolicy: string
             self::ReadOnly  => $method?->isReadOnly() ?? false,
             self::Delegated => true,
         };
+    }
+
+    /**
+     * The read-only set, whichever the policy.
+     *
+     * The router only asks this of a route that refused, and {@link self::Delegated} refuses
+     * nothing — so it is only ever the read-only answer, and the API's own set is never named, which
+     * is the reason this enum exists.
+     *
+     * @return Allow
+     */
+    public function allow(): Allow
+    {
+        return Allow::readOnly();
     }
 }

@@ -37,4 +37,10 @@ export enum RequestHeader {
    * path to send a visitor back after a language switch. Here for the same reason the others are.
    */
   Referer = 'Referer',
+
+  /** Written by the browser on a cross-origin request; read by the server's Cors layer. */
+  Origin = 'Origin',
+
+  /** What a CORS preflight asks to send; written by the browser, read by the same layer. */
+  AccessControlRequestMethod = 'Access-Control-Request-Method',
 }

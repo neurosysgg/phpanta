@@ -8,12 +8,14 @@ use Closure;
 use NoDiscard;
 use Phpanta\Controller\Controller;
 use Phpanta\Controller\Layer;
+use Phpanta\Http\Allow;
 use Phpanta\Http\HttpMethod;
 
 /**
  * A registered route — a {@link Path} paired with a factory that produces a Controller.
  *
- * Pattern syntax: static segments and `{param}` placeholders, e.g. `/posts/{slug}/{page}`.
+ * Pattern syntax: static segments and `{param}` placeholders, e.g. `/posts/{slug}/{page}`, and a
+ * placeholder may name its type — `{id:int}`, `{tag:slug}`; see {@link PlaceholderType}.
  * The pattern is a case rather than a string because the views build their links from the same
  * cases — see {@link Path}, which is where that argument is made.
  */
@@ -31,10 +33,7 @@ readonly class Route
      * placeholder into a capture group and that method fills it in, and a pattern that only one of
      * them recognised would match a URL nothing links to, or link to a URL nothing matches.
      */
-    public const string PLACEHOLDER_PATTERN = '/\{(\w+)\}/';
-
-    /** What a placeholder matches: one whole segment, whatever is in it. */
-    private const string SEGMENT = '([^/]+)';
+    public const string PLACEHOLDER_PATTERN = '/\{(\w+)(?::(\w+))?\}/';
 
     /** The compiled expression's delimiter, which {@link self::compile()} quotes in every static part. */
     private const string DELIMITER = '#';
@@ -48,11 +47,19 @@ readonly class Route
     private string $regex;
 
     /**
+     * The type of each placeholder, in the order they appear — what {@link self::matches()} decodes
+     * each capture as.
+     *
+     * @var Collection<PlaceholderType>
+     */
+    private Collection $types;
+
+    /**
      * @param Path $pattern
      * @param Closure $factory
-     * @param MethodPolicy $methods Who decides which methods this route answers on. Nearly every
-     *                              route takes the default and says nothing; see that enum for the
-     *                              one that does not, and why it cannot carry a method set instead.
+     * @param MethodGate $methods   Which methods this route answers on. Nearly every route takes the
+     *                              default, {@link MethodPolicy::ReadOnly}, and says nothing; a route
+     *                              that also writes names its {@link MethodSet}; the API delegates.
      * @param Closure|null $exports Which pages a static export writes for this route: a closure
      *                              answering an iterable of placeholder values, each a string
      *                              (one placeholder) or a list of them. Only a site knows which
@@ -65,11 +72,22 @@ readonly class Route
     public function __construct(
         private Path         $pattern,
         private Closure      $factory,
-        private MethodPolicy $methods = MethodPolicy::ReadOnly,
+        private MethodGate   $methods = MethodPolicy::ReadOnly,
         private ?Closure     $exports = null,
         private Collection   $layers = new Collection(Layer::class),
     ) {
-        $this->regex = self::compile($pattern->value);
+        $this->types = self::types($pattern->value);
+        $this->regex = self::compile($pattern->value, $this->types);
+    }
+
+    /**
+     * The methods this route's refusal names — its gate's `Allow`.
+     *
+     * @return Allow
+     */
+    public function allowed(): Allow
+    {
+        return $this->methods->allow();
     }
 
     /**
@@ -165,7 +183,8 @@ readonly class Route
     /**
      * Tests whether this route matches $path.
      *
-     * **Each value comes back decoded**, so this and {@link Path::to()} are inverses: `to()`
+     * **Each value comes back as its placeholder's type decodes it** — an `int` for `{id:int}`, and
+     * otherwise the segment decoded — so this and {@link Path::to()} are inverses: `to()`
      * encodes a value into its segment — `a b` is linked as `a%20b` — and this hands back `a b`
      * rather than the encoding. It decodes after matching and never before, which is what keeps a
      * segment one segment: an encoded `%2F` is matched as part of the segment it arrived in, and
@@ -173,7 +192,7 @@ readonly class Route
      * by — every one here finds it in a collection first — never a path it builds.
      *
      * @param string $path
-     * @return array<int,string>|false Positional capture values on match, false otherwise.
+     * @return array<int,string|int>|false Positional capture values on match, false otherwise.
      */
     #[BareArray(
         "preg_match's \$matches, by reference and shaped by the engine. This is the door, and "
@@ -188,10 +207,11 @@ readonly class Route
 
         array_shift($captures);
 
+        $types  = $this->types->toValues();
         $values = [];
 
-        foreach ($captures as $capture) {
-            $values[] = rawurldecode($capture);
+        foreach ($captures as $index => $capture) {
+            $values[] = $types[$index]->decode($capture);
         }
 
         return $values;
@@ -213,27 +233,51 @@ readonly class Route
     }
 
     /**
+     * The type of each placeholder in $pattern, in order — refused where the route is built for a
+     * type that does not exist, rather than matched as something it was not meant to be.
+     *
+     * @param string $pattern
+     * @return Collection<PlaceholderType>
+     */
+    private static function types(string $pattern): Collection
+    {
+        preg_match_all(self::PLACEHOLDER_PATTERN, $pattern, $placeholders, PREG_SET_ORDER);
+
+        $types = new Collection(PlaceholderType::class);
+
+        foreach ($placeholders as $placeholder) {
+            $types = $types->with(PlaceholderType::named($placeholder[2] ?? ''));
+        }
+
+        return $types;
+    }
+
+    /**
      * $pattern as the expression that matches it.
      *
      * Every static part is quoted, delimiter included, so a path holding a character a regex
      * reads — a `.` in `/feed.xml`, a `+` — matches itself and nothing else, and none can end the
-     * expression early. Each placeholder becomes {@link self::SEGMENT}.
+     * expression early. Each placeholder becomes a capture of its type's
+     * {@link PlaceholderType::pattern()}.
      *
      * `\z` rather than `$`: `$` also matches immediately before a trailing newline, so `$` would let
      * `/posts/hello\n` match and capture the newline into the slug. The anchor that means "the
      * end" should be the one that says so.
      *
-     * @param string $pattern
+     * @param string                      $pattern
+     * @param Collection<PlaceholderType> $types   The placeholders' types, in order.
      * @return string
      */
-    private static function compile(string $pattern): string
+    private static function compile(string $pattern, Collection $types): string
     {
+        $types = $types->toValues();
         $regex = '';
 
         // No null check, the way Path::to() has none: the pattern is a constant, and splitting a
         // string on a literal expression has no failure to report.
         foreach (preg_split(self::PLACEHOLDER_PATTERN, $pattern) as $index => $part) {
-            $regex .= ($index === 0 ? '' : self::SEGMENT) . preg_quote($part, self::DELIMITER);
+            $capture = $index === 0 ? '' : '(' . $types[$index - 1]->pattern() . ')';
+            $regex  .= $capture . preg_quote($part, self::DELIMITER);
         }
 
         return self::DELIMITER . '\A' . $regex . '\z' . self::DELIMITER;

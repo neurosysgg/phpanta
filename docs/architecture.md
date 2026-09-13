@@ -155,9 +155,11 @@ things, in order:
 
 1. **The match.** Each [`Route`](../src/Support/Route.php) is a
    [`Path`](../src/Support/Path.php) case, a factory closure and a
-   [`MethodPolicy`](../src/Support/MethodPolicy.php). `{param}` compiles to `([^/]+)`, static parts
-   are quoted, the expression ends in `\z`, and the captures — decoded — are passed positionally to
-   the factory. `ApiPath::Api` is `/api/{service}/{version}/{action}`, so this request captures
+   [`MethodGate`](../src/Support/MethodGate.php). `{param}` compiles to `([^/]+)`; a typed one —
+   `{id:int}`, `{tag:slug}`, see [`PlaceholderType`](../src/Support/PlaceholderType.php) — to its
+   type's expression, so a segment of the wrong kind is simply no match. Static parts are quoted,
+   the expression ends in `\z`, and the captures — decoded, and an `int` for `{id:int}` — are passed
+   positionally to the factory. `ApiPath::Api` is `/api/{service}/{version}/{action}`, so this request captures
    `update`, `v1` and `version`, as raw strings: resolving them to cases in the factory would put a
    `from()` there, and a `ValueError` before the signature is checked.
 2. **The method gate**, asked of the matched route rather than globally. A `ReadOnly` route — the
@@ -165,8 +167,16 @@ things, in order:
    comes from `Allow::readOnly()`, derived by filtering the cases, so the header cannot advertise
    something the gate does not do. `/api` is `Delegated`: the router forms no opinion and its
    controller answers every method itself, because any opinion the router formed would tell an
-   unsigned caller the address is real. Two policies rather than a set of methods per route, because
-   a route naming its own set would make its 405 name `POST`.
+   unsigned caller the address is real. A route that also writes — a form — names a
+   [`MethodSet`](../src/Support/MethodSet.php) instead, and its 405 names that set: nothing about
+   it is hidden, and `GET` brings `HEAD` with it. The API is the one route that must never name its
+   own, which is why it is a policy and not a set.
+3. **An `OPTIONS`** to a route that does not take one itself is a 204 with that route's `Allow`
+   and `OPTIONS` after it — an answer about the resource, with no body. The API decides for itself,
+   so an unsigned `OPTIONS` there is still the refusal an address that does not exist gets.
+
+A [`RouteGroup`](../src/Support/RouteGroup.php) writes the layers several routes share once. It has
+no prefix, on purpose: a case's value is its whole address, and every link is built from it.
 
 An unmatched path falls through to
 [`UnroutedController`](../src/Controller/UnroutedController.php), which answers a read verb with the
@@ -180,7 +190,8 @@ own 404, so views never concatenate a path: the case's *value* is the pattern, p
 so `Route::matches()` matches with it and `->to(…)` fills it in; the placeholder syntax is one
 constant, `Route::PLACEHOLDER_PATTERN`, both read. `to()` is written once, in the `FillsPlaceholders`
 trait, for the framework's `ApiPath` and every site's own enum alike. It refuses the wrong number of
-values with a `RouteException`, which is the check a concatenation cannot make —
+values, and a value a typed placeholder does not take, with a `RouteException` — the check a
+concatenation cannot make —
 `'/posts/' . $slug . '/'` is a perfectly good string and a URL that matches nothing. Two details
 worth knowing: each value is `rawurlencode`d, so `to()` and `matches()` are inverses; and the
 callback that fills them **must** be a `function` with `use (&$values)`, because `fn()` captures by
@@ -260,10 +271,19 @@ They are listed in two places, and discovered in none:
   in the controller, so the password is written where the address is and the route table is where a
   test asks whether a page is behind one.
 
-Three ship with the framework, in `Service/Layer/`: `SiteGate`; `AdminGate`, the admin gate for a
-route; and `Maintenance`, a `503` that no cache keeps for every page while a switch file exists —
-absent means off, like the site gate's — and never for the API, because a push is how maintenance
-usually ends. It recognises the API by the route's own match, `App::apiRoute()`, never by a prefix.
+Five ship with the framework, in `Service/Layer/`:
+
+- `SiteGate`, the pre-launch gate;
+- `AdminGate`, the admin gate for a route;
+- `Maintenance`, a `503` that no cache keeps for every page while a switch file exists — absent means
+  off, like the site gate's — and never for the API, because a push is how maintenance usually ends.
+  It recognises the API by the route's own match, `App::apiRoute()`, never by a prefix;
+- `TrailingSlash`, one address per page: a read of `/x/` is a 308 to `/x`, the query kept — never a
+  write, and never an address that trims into another host;
+- `Cors`, which other [`Origin`](../src/Http/Origin.php)s may read the answers: a listed one is named
+  back in `Access-Control-Allow-Origin` and its preflight is answered by the layer; every answer
+  through it says `Vary: Origin`; and there are no credentials, so nothing a gate protects is
+  readable from elsewhere.
 
 ## `Http/` — the wire
 
@@ -274,11 +294,13 @@ Everything about a request or a response is a typed value here, not a string.
 | `Request` | readonly, read out of `ServerParameters` — `$_SERVER`'s, or a test's — or `synthetic()`, for a static export |
 | `Response` | an interface with one method: `answer(Request): Answer` |
 | `Answer` | what goes on the wire: a status, the headers in order, a `Body`; `send()` is the one emitter |
-| `Body` | `TextBody`, a string, or `FileBody`, a file read a chunk at a time |
+| `Body` | `TextBody`, a string; `FileBody`, a file read a chunk at a time; or `StreamBody`, chunks a closure makes at send time |
 | `ViewResponse` | renders a `View`, with its validator, its 304 and its cache headers |
 | `FileResponse` | a file under `data/`, whole or as a byte range |
 | `RedirectResponse` | `Location` + status, no body |
 | `PlainTextResponse` | body + status + extra headers |
+| `JsonResponse` | a `JsonSerializable`, encoded when the answer is asked for, so a value that cannot encode throws before anything is sent; `no-cache` unless the caller sends its own |
+| `StreamResponse` | a body generated as it is sent — a large CSV, server-sent events; no `Content-Length`, `no-store`, and a HEAD never runs the closure |
 | `Header` | a `HeaderName` and a `HeaderValue`; formats `Name: value` in one place |
 | `MimeType` | a `TopLevelType`, a validated subtype, and a `Charset` |
 | `HttpStatusCode` | every standard status code, backed by its number |
@@ -383,7 +405,7 @@ replace a variadic. The whole of it is in [collections.md](collections.md).
 ## Exceptions
 
 Every condition the framework can be in has a name, and all of them live in `Phpanta\Exception`.
-Fourteen classes — one of them abstract — and one interface, read from `src/Exception/`:
+Fifteen classes — one of them abstract — and one interface, read from `src/Exception/`:
 
 | Class | Extends | Thrown when | Thrown by |
 |---|---|---|---|
@@ -394,6 +416,7 @@ Fourteen classes — one of them abstract — and one interface, read from `src/
 | `CollectionException` | `TypeError` | a collection is asked to hold or produce the wrong type | `TypedItems` |
 | `GuidelineException` | `InvalidArgumentException` | an excuse for a guideline has no reason, or no subject | `BareArray`, `BareString`, `BareCall` |
 | `InvalidValueException` | `LogicException` | a value object is handed something that is not its kind of value | `PasswordHash`, and a site's own value objects |
+| `JsonEncodingException` | `RuntimeException` | a value cannot be written as JSON — a NAN, a string that is not UTF-8 | `JsonResponse` |
 | `MarkupException` | `LogicException`, abstract | — | — |
 | ` ├ ElementException` | `MarkupException` | an element is asked to be what no element can be | `Element` |
 | ` └ ParserException` | `MarkupException` | hand-authored markup is outside the app's vocabulary, or does not parse cleanly | `MarkupParser` |
@@ -409,15 +432,15 @@ specialises — a `MarkupException` for a component that cannot draw what it was
 framework counterpart, the SPL class it replaces plus `SiteException`. Either way the family's
 `catch` still covers it, and the last-resort handler still reports it as the site's own.
 
-**`SiteException` is an interface because the inheritance chain is already spent.** Eleven classes
-declare it and the three under `MarkupException` and `ApiException` inherit it; of the eleven, eight
-are a `LogicException`, one a `RuntimeException`, one a `TypeError` and one an
+**`SiteException` is an interface because the inheritance chain is already spent.** Twelve classes
+declare it and the three under `MarkupException` and `ApiException` inherit it; of the twelve, eight
+are a `LogicException`, two a `RuntimeException`, one a `TypeError` and one an
 `InvalidArgumentException` — each saying something true — so the question *did this come from us*
 has nowhere else to live. It matters more than it looks: `CollectionException extends TypeError`
 extends **`Error`**, a sibling of `Exception` rather than a subclass, so `catch (Exception)` — the
-widest net anybody reaches for by habit — misses one of the thirteen concrete classes, silently, in
+widest net anybody reaches for by habit — misses one of the fourteen concrete classes, silently, in
 the class most likely to be thrown by a mistake made five minutes ago. Only `Throwable` catches all
-thirteen, and `Throwable` also catches everything PHP raises. This interface is the difference, and
+fourteen, and `Throwable` also catches everything PHP raises. This interface is the difference, and
 the last-resort handler in a site's `public/index.php` is what it is for.
 
 **An exception becomes ours by extending the SPL class it already was, not by replacing it.**

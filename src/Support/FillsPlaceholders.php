@@ -32,11 +32,12 @@ trait FillsPlaceholders
      * value that is not, rather than a `%` appearing in a path segment
      * where the router will read it as content.
      *
-     * @param string ...$values One per placeholder, left to right.
+     * @param string|int ...$values One per placeholder, left to right.
      * @return string
-     * @throws RouteException if the count does not match the placeholders.
+     * @throws RouteException if the count does not match the placeholders, or a value is not what
+     *                        its placeholder's type takes.
      */
-    public function to(string ...$values): string
+    public function to(string|int ...$values): string
     {
         $expected = preg_match_all(Route::PLACEHOLDER_PATTERN, $this->value);
 
@@ -60,10 +61,26 @@ trait FillsPlaceholders
         //
         // No null check on the result, the way Route::matches() does not check its own: the pattern
         // is a constant and the subject is a string, so there is no failure for one to report.
+        //
+        // A typed placeholder is asked whether it takes the value before it is written in, so a
+        // link to `{id:int}` with `abc` is refused here, where it was written — not a 404 later,
+        // for a visitor who followed it.
         return preg_replace_callback(
             Route::PLACEHOLDER_PATTERN,
-            static function () use (&$values): string {
-                return rawurlencode((string) array_shift($values));
+            static function (array $placeholder) use (&$values): string {
+                $value = (string) array_shift($values);
+                $type  = PlaceholderType::named($placeholder[2] ?? '');
+
+                if (!$type->accepts($value)) {
+                    throw new RouteException(sprintf(
+                        "'%s' is not a %s, which {%s} takes.",
+                        $value,
+                        $type->value,
+                        $placeholder[1],
+                    ));
+                }
+
+                return rawurlencode($value);
             },
             $this->value,
         );

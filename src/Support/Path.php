@@ -24,8 +24,8 @@ interface Path extends BackedEnum
     /**
      * This path with its placeholders filled, in declaration order.
      *
-     * @param string ...$values One per placeholder, left to right.
+     * @param string|int ...$values One per placeholder, left to right; an int for `{name:int}`.
      * @return string
      */
-    public function to(string ...$values): string;
+    public function to(string|int ...$values): string;
 }

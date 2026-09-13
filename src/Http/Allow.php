@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Phpanta\Http;
 
+use NoDiscard;
 use Phpanta\Support\Collection;
 
 /**
@@ -53,6 +54,19 @@ final readonly class Allow implements HeaderValue
     public static function of(HttpMethod ...$methods): self
     {
         return new self(new Collection(HttpMethod::class)->with(...$methods));
+    }
+
+    /**
+     * This set, and $methods after it — what an `OPTIONS` names: the route's own methods, then the
+     * one it was asked by.
+     *
+     * @param HttpMethod ...$methods
+     * @return self
+     */
+    #[NoDiscard('with() copies rather than adds, so a call whose result goes nowhere names nothing')]
+    public function with(HttpMethod ...$methods): self
+    {
+        return new self($this->methods->with(...$methods));
     }
 
     /**

@@ -33,6 +33,10 @@ readonly class Request
      * @param string $cookie
      * @param string $referer
      * @param string $remoteAddress
+     * @param string $query           The target's query as it was sent — see {@link self::rawQuery()}.
+     * @param bool   $trailingSlash   Whether the target's path had a slash the path trimmed.
+     * @param string $origin          The `Origin` header, raw — see {@link self::origin()}.
+     * @param string $preflightMethod The `Access-Control-Request-Method` header, raw.
      * @param string|null $body The body, where the request was built with one; null to read
      *                          `php://input` — see {@link self::body()}.
      */
@@ -49,6 +53,10 @@ readonly class Request
         private string $cookie = '',
         private string $referer = '',
         private string $remoteAddress = '',
+        private string $query = '',
+        private bool   $trailingSlash = false,
+        private string $origin = '',
+        private string $preflightMethod = '',
         private ?string $body = null,
     ) {}
 
@@ -81,7 +89,8 @@ readonly class Request
         $method   = HttpMethod::tryFrom(strtoupper(
             $server->string(ServerVariable::RequestMethod) ?? HttpMethod::Get->value,
         ));
-        $path     = self::normalisePath($server->string(ServerVariable::RequestUri) ?? '/');
+        $target   = $server->string(ServerVariable::RequestUri) ?? '/';
+        $path     = self::normalisePath($target);
 
         $ajax = RequestedWith::XmlHttpRequest->matches($server->header(RequestHeader::RequestedWith));
 
@@ -110,6 +119,10 @@ readonly class Request
             $server->header(RequestHeader::Cookie),
             $server->header(RequestHeader::Referer),
             $server->string(ServerVariable::RemoteAddress) ?? '',
+            self::rawQuery($target),
+            self::rawPath($target) !== $path,
+            $server->header(RequestHeader::Origin),
+            $server->header(RequestHeader::AccessControlRequestMethod),
             $body,
         );
     }
@@ -207,10 +220,40 @@ readonly class Request
      */
     private static function normalisePath(string $uri): string
     {
+        // `?:` so a target of only slashes comes back as the root rather than as an empty string.
+        return rtrim(self::rawPath($uri), '/') ?: '/';
+    }
+
+    /**
+     * The target's path as it was sent, trailing slashes and all — what {@link self::normalisePath()}
+     * trims, and what {@link self::hasTrailingSlash()} compares against.
+     *
+     * @param string $uri
+     * @return string
+     */
+    private static function rawPath(string $uri): string
+    {
         $path = str_starts_with($uri, '//') ? null : Uri::parse($uri)?->getRawPath();
 
-        // `?:` so a target of only slashes comes back as the root rather than as an empty string.
-        return rtrim($path ?? self::unparsedPath($uri), '/') ?: '/';
+        return $path ?? self::unparsedPath($uri);
+    }
+
+    /**
+     * The target's query as it was sent — everything after the first `?` and before any `#` — or
+     * `''`.
+     *
+     * Kept whole and raw, for one purpose: an address sent back to the visitor, like the canonical
+     * one {@link self::canonicalTarget()} builds, keeps the query they asked with. Nothing here reads
+     * a parameter out of it.
+     *
+     * @param string $uri
+     * @return string
+     */
+    private static function rawQuery(string $uri): string
+    {
+        $start = strpos($uri, '?');
+
+        return $start === false ? '' : substr($uri, $start + 1, strcspn($uri, '#', $start + 1));
     }
 
     /**
@@ -400,6 +443,53 @@ readonly class Request
     public function referer(): string
     {
         return $this->referer;
+    }
+
+    /**
+     * The origin this request says it comes from, or null where it names none — no `Origin`
+     * header, a browser's `null`, or anything that is not exactly an origin. See {@link Origin}.
+     *
+     * @return Origin|null
+     */
+    public function origin(): ?Origin
+    {
+        return Origin::tryFrom($this->origin);
+    }
+
+    /**
+     * True if this is a CORS preflight: an `OPTIONS` carrying `Access-Control-Request-Method`, which
+     * asks whether another origin may send that method rather than asking about the resource.
+     *
+     * @return bool
+     */
+    public function isPreflight(): bool
+    {
+        return $this->method === HttpMethod::Options && $this->preflightMethod !== '';
+    }
+
+    /**
+     * True if the target's path ended in a slash that {@link self::path()} trimmed — `/releases/`,
+     * not `/releases`, and never `/` itself.
+     *
+     * Both spellings reach the same route, which is the forgiving default; a site that wants one
+     * address per page lists the {@link \Phpanta\Service\Layer\TrailingSlash} layer, which asks this.
+     *
+     * @return bool
+     */
+    public function hasTrailingSlash(): bool
+    {
+        return $this->trailingSlash;
+    }
+
+    /**
+     * The address this request would have been sent to without a trailing slash: the path, and the
+     * query as it was sent.
+     *
+     * @return string
+     */
+    public function canonicalTarget(): string
+    {
+        return $this->path . ($this->query === '' ? '' : '?' . $this->query);
     }
 
     /**

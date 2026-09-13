@@ -19,4 +19,8 @@ enum RoutePatternFixture: string implements Path
     case Feed      = '/feed.xml';
     case Item      = '/items/{slug}.json';
     case Delimited = '/a#b/{slug}';
+    case Numbered  = '/items/{id:int}';
+    case Tagged    = '/tags/{tag:slug}/{page:int}';
+    case Floating  = '/n/{x:float}';
+    case Form      = '/form';
 }

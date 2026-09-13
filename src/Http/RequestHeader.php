@@ -96,6 +96,23 @@ enum RequestHeader: string implements HeaderName
     case Referer = 'Referer';
 
     /**
+     * The origin a request says it comes from — which a browser writes on every cross-origin
+     * request, and which no page's script can set.
+     *
+     * Read by the {@link \Phpanta\Service\Layer\Cors} layer and nothing else, and parsed as an
+     * {@link Origin} before it is compared, so `null` and anything that is not an origin are simply
+     * not one the site lists. Mirrored in `assets/ts/model/RequestHeader.ts` with no reader on that
+     * side: the browser sends it on its own.
+     */
+    case Origin = 'Origin';
+
+    /**
+     * The method a CORS preflight asks to be allowed to send — what makes an `OPTIONS` a preflight
+     * rather than a question about the resource. Mirrored like {@link self::Origin}.
+     */
+    case AccessControlRequestMethod = 'Access-Control-Request-Method';
+
+    /**
      * @return string
      */
     public function headerName(): string

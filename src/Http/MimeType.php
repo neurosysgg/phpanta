@@ -84,6 +84,22 @@ final readonly class MimeType implements HeaderValue
     }
 
     /**
+     * What a {@link JsonResponse} is: `application/json`, with no charset.
+     *
+     * The charset is null on purpose, and this is the one text type where it is. RFC 8259 defines
+     * no `charset` parameter for JSON (§11): JSON exchanged between systems is UTF-8 by definition
+     * (§8.1), so the encoding is already stated by the type itself. The RFC notes that adding the
+     * parameter "really has no effect on compliant recipients" — it would only claim something the
+     * type already guarantees.
+     *
+     * @return self
+     */
+    public static function json(): self
+    {
+        return new self(TopLevelType::Application, 'json', null);
+    }
+
+    /**
      * An audio file, named by its extension.
      *
      * The charset is explicitly null and that is the interesting half: every other body the

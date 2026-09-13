@@ -9,11 +9,13 @@ use Phpanta\App;
 use Phpanta\Controller\Controller;
 use Phpanta\Controller\Layer;
 use Phpanta\Controller\Layered;
+use Phpanta\Http\Allow;
 use Phpanta\Http\Answer;
 use Phpanta\Http\Header;
 use Phpanta\Http\HttpMethod;
 use Phpanta\Http\HttpStatusCode;
 use Phpanta\Http\Location;
+use Phpanta\Http\Origin;
 use Phpanta\Http\PlainTextResponse;
 use Phpanta\Http\Request;
 use Phpanta\Http\RequestHeader;
@@ -22,8 +24,10 @@ use Phpanta\Http\ResponseHeader;
 use Phpanta\Http\WithHeaders;
 use Phpanta\Router;
 use Phpanta\Service\Layer\AdminGate;
+use Phpanta\Service\Layer\Cors;
 use Phpanta\Service\Layer\Maintenance;
 use Phpanta\Service\Layer\SiteGate;
+use Phpanta\Service\Layer\TrailingSlash;
 use Phpanta\Support\Collection;
 use Phpanta\Support\File;
 use Phpanta\Support\Route;
@@ -47,6 +51,10 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(SiteGate::class)]
 #[CoversClass(AdminGate::class)]
 #[CoversClass(Maintenance::class)]
+#[CoversClass(TrailingSlash::class)]
+#[CoversClass(Cors::class)]
+#[CoversClass(Origin::class)]
+#[CoversClass(Request::class)]
 final class LayerTest extends TestCase
 {
     /** A directory of this test's own, emptied afterwards. */
@@ -311,7 +319,108 @@ final class LayerTest extends TestCase
         self::assertSame('page POST', self::maintained($switch)->handle($request)->answer($request)->body());
     }
 
+    // ───────────────────────── one address per page ─────────────────────────
+
+    /**
+     * A read with a trailing slash is sent to the address without it, the query kept; anything else
+     * is answered where it was sent.
+     *
+     * @return void
+     */
+    public function testATrailingSlashIsSentToTheAddressWithoutIt(): void
+    {
+        $core = Layered::around(new Collection(Layer::class)->with(new TrailingSlash()), new EchoController('page'));
+
+        $slashed = TestRequest::get('/releases/?a=1')->request();
+        $answer  = $core->handle($slashed)->answer($slashed);
+
+        self::assertSame(HttpStatusCode::PermanentRedirect, $answer->status());
+        self::assertSame('/releases?a=1', $answer->header(ResponseHeader::Location)?->value->render());
+
+        foreach (
+            [
+                'no slash'     => TestRequest::get('/releases')->request(),
+                'a write'      => TestRequest::to(HttpMethod::Post, '/releases/')->request(),
+                'another host' => TestRequest::get('/\\evil.example/')->request(),
+            ] as $case => $request
+        ) {
+            self::assertSame(HttpStatusCode::Ok, $core->handle($request)->answer($request)->status(), $case);
+        }
+    }
+
+    // ───────────────────────── other origins ─────────────────────────
+
+    /**
+     * A listed origin may read the answer, and is named back; anyone else is answered as they would
+     * be, with nothing added but the `Vary`.
+     *
+     * @param string      $origin
+     * @param string|null $allowed
+     * @return void
+     */
+    #[DataProvider('originProvider')]
+    public function testOnlyAListedOriginIsNamedBack(string $origin, ?string $allowed): void
+    {
+        $request = TestRequest::get('/')->with(RequestHeader::Origin, $origin)->request();
+        $answer  = self::cors()->handle($request)->answer($request);
+
+        self::assertSame('page GET', $answer->body());
+        self::assertSame($allowed, $answer->header(ResponseHeader::AccessControlAllowOrigin)?->value->render());
+        self::assertSame('Origin', $answer->header(ResponseHeader::Vary)?->value->render());
+    }
+
+    /**
+     * @return iterable<string, array{string, string|null}>
+     */
+    public static function originProvider(): iterable
+    {
+        yield 'a listed origin'  => ['https://app.example.org', 'https://app.example.org'];
+        yield 'another origin'   => ['https://other.example.org', null];
+        yield 'no origin'        => ['', null];
+    }
+
+    /**
+     * A preflight from a listed origin is answered by the layer — the methods it allows, no body — and
+     * never reaches a route; from anyone else it goes on to be answered as any `OPTIONS` would.
+     *
+     * @return void
+     */
+    public function testAPreflightFromAListedOriginIsAnsweredByThePolicy(): void
+    {
+        $preflight = static fn(string $origin): Request => TestRequest::to(HttpMethod::Options, '/')
+            ->with(RequestHeader::Origin, $origin)
+            ->with(RequestHeader::AccessControlRequestMethod, 'GET')
+            ->request();
+
+        $listed = $preflight('https://app.example.org');
+        $answer = self::cors()->handle($listed)->answer($listed);
+
+        self::assertSame(HttpStatusCode::NoContent, $answer->status());
+        self::assertSame('', $answer->body());
+        self::assertSame(
+            'https://app.example.org',
+            $answer->header(ResponseHeader::AccessControlAllowOrigin)?->value->render(),
+        );
+        self::assertSame('GET, HEAD', $answer->header(ResponseHeader::AccessControlAllowMethods)?->value->render());
+
+        $other = $preflight('https://other.example.org');
+        self::assertSame('page OPTIONS', self::cors()->handle($other)->answer($other)->body());
+    }
+
     // ───────────────────────── helpers ─────────────────────────
+
+    /**
+     * A page behind a CORS policy listing one origin.
+     *
+     * @return Controller
+     */
+    private static function cors(): Controller
+    {
+        return Layered::around(
+            new Collection(Layer::class)->with(new Cors(Allow::readOnly(), Origin::of('https://app.example.org'))),
+            new EchoController('page'),
+        );
+    }
 
     /**
      * A layer that writes to $log on the way in and on the way out.
