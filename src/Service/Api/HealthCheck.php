@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\Service\Api;
 
 use Phpanta\Http\Api\ApiHandler;
-use Phpanta\Http\PlainTextResponse;
-use Phpanta\Http\Response;
+use Phpanta\Http\Api\ApiResult;
 use Phpanta\Model\Health\Area;
 use Phpanta\Model\Health\HealthResult;
 use Phpanta\Model\Health\Requirement;
@@ -55,12 +54,12 @@ final readonly class HealthCheck implements ApiHandler
     }
 
     /**
-     * @return Response
+     * @return ApiResult
      */
-    public function handle(): Response
+    public function handle(): ApiResult
     {
         $result = HealthResult::of($this->requirements, $this->area);
 
-        return new PlainTextResponse($result->status(), $result->render() . "\n");
+        return ApiResult::of($result->status(), ...$result->sections()->toValues());
     }
 }

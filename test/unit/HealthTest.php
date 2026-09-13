@@ -9,7 +9,6 @@ use Phpanta\CredentialFile;
 use Phpanta\Http\Api\HealthAction;
 use Phpanta\Http\HttpMethod;
 use Phpanta\Http\HttpStatusCode;
-use Phpanta\Http\PlainTextResponse;
 use Phpanta\Model\Api\ApiEnvelope;
 use Phpanta\Model\Api\VerifiedRequest;
 use Phpanta\Model\Health\Area;
@@ -349,16 +348,15 @@ final class HealthTest extends TestCase
     }
 
     /**
-     * The whole report is one plain-text response, with a section for every area.
+     * The whole report is one result, with a section for every area and the tally last.
      *
      * @return void
      */
     public function testTheReportChecksEveryArea(): void
     {
-        $response = new HealthCheck(RequirementInitialization::requirements(App::current()))->handle();
-        $body     = UpdateFixture::bodyOf($response);
+        $check = new HealthCheck(RequirementInitialization::requirements(App::current()));
+        $body  = UpdateFixture::bodyOf($check->handle());
 
-        self::assertInstanceOf(PlainTextResponse::class, $response);
         self::assertStringEndsWith(" fail\n", $body);
 
         foreach (Area::cases() as $area) {

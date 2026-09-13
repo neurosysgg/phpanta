@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\Model\Update;
 
 use NoDiscard;
+use Phpanta\Model\Health\HealthSection;
 use Phpanta\Support\BareString;
 use Phpanta\Support\Collection;
 
@@ -184,12 +185,24 @@ final readonly class UpdateReport
     }
 
     /**
-     * The response body.
+     * The report as text.
      *
      * @return string
      */
     #[NoDiscard('the rendered report; dropping it sends an empty response')]
     public function render(): string
+    {
+        return HealthSection::document($this->section());
+    }
+
+    /**
+     * The report as the answer's one section: a block with no caption, flush left, whose first line
+     * says whether anything was written.
+     *
+     * @return HealthSection
+     */
+    #[NoDiscard('the report as a section; dropping it answers with nothing')]
+    public function section(): HealthSection
     {
         $lines = new Collection('string')
             ->with($this->applied ? 'applied' : 'dry run — nothing was written')
@@ -211,6 +224,6 @@ final readonly class UpdateReport
             }
         }
 
-        return $lines->join("\n") . "\n";
+        return HealthSection::lines(null, ...$lines->toValues());
     }
 }

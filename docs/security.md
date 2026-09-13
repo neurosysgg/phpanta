@@ -381,6 +381,18 @@ same line. Past the gate the posture inverts: an unknown action is a real `404` 
 verb that is not the action's is a real `405` naming the one that is, and only the key holder ever
 sees either.
 
+### What a verified caller gets back
+
+A handler answers an [`ApiResult`](../src/Http/Api/ApiResult.php) — a status and the sections of a
+report — and the controller writes it in the form the request's `Accept` asks for: a page in the
+app's shell by default, which is what a browser and `curl` get, and data for `application/json`,
+which is what the signing commands ask for and print as text. A request naming only types it cannot
+have gets a `406` naming the two it can. **That question is asked after the gate and before the
+action**, so an unverified caller is never answered differently for what it named, and a write is
+never carried out for a caller who then could not be told how it went. Every answer past the gate
+says `Cache-Control: no-store, private` and `Vary: Accept`: two callers asking the same address for
+different forms get different bytes, and none of it is for a cache to keep.
+
 ### The credential is a key the server cannot use
 
 `data/update.pub` (`CredentialFile::UpdateKey`) holds an **ECDSA P-256 public key**. The private

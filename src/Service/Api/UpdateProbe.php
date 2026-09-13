@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace Phpanta\Service\Api;
 
 use Phpanta\Http\Api\ApiHandler;
+use Phpanta\Http\Api\ApiResult;
 use Phpanta\Http\HttpStatusCode;
-use Phpanta\Http\PlainTextResponse;
-use Phpanta\Http\Response;
 use Phpanta\Model\Update\ApplyManifest;
 use Phpanta\Service\FilesystemProbe;
 
@@ -49,15 +48,15 @@ final readonly class UpdateProbe implements ApiHandler
     }
 
     /**
-     * @return Response
+     * @return ApiResult
      */
-    public function handle(): Response
+    public function handle(): ApiResult
     {
         $report = ($this->probe ?? new FilesystemProbe())->run($this->manifest->apply);
 
-        return new PlainTextResponse(
+        return ApiResult::of(
             $report->isClean() ? HttpStatusCode::Ok : HttpStatusCode::InternalServerError,
-            $report->render(),
+            $report->section(),
         );
     }
 }

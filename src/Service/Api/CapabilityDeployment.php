@@ -8,9 +8,8 @@ use Phpanta\App;
 use Phpanta\DataFileName;
 use Phpanta\Exception\UpdateException;
 use Phpanta\Http\Api\ApiHandler;
+use Phpanta\Http\Api\ApiResult;
 use Phpanta\Http\HttpStatusCode;
-use Phpanta\Http\PlainTextResponse;
-use Phpanta\Http\Response;
 use Phpanta\Model\Health\HealthFact;
 use Phpanta\Model\Health\HealthSection;
 use Phpanta\Model\Update\UpdateRoot;
@@ -60,18 +59,19 @@ final readonly class CapabilityDeployment implements ApiHandler
     }
 
     /**
-     * @return Response
+     * @return ApiResult
      */
-    public function handle(): Response
+    public function handle(): ApiResult
     {
-        return new PlainTextResponse(HttpStatusCode::Ok, HealthSection::document(
+        return ApiResult::of(
+            HttpStatusCode::Ok,
             HealthSection::facts('deployment', new Collection(HealthFact::class)
                 ->with(new HealthFact('webroot', self::webroot()))
                 ->with(new HealthFact(UpdateRoot::Framework->value, self::framework()))
                 ->with(...App::current()->dataFiles()
                     ->map(static fn(DataFileName $file): HealthFact => new HealthFact($file->value, self::state($file)))
                     ->toValues())),
-        ));
+        );
     }
 
     /**

@@ -222,14 +222,20 @@ so `/api` is off, and a `GET` gets `TestApp`'s `404`.
 With a key in place and a credential it verifies, the posture inverts and failures are reported in
 full: `ApiService::Update` at `ApiVersion::V1` names `UpdateAction::Version`, whose method is `GET`,
 so the request's method is the action's; its handler is `UpdateVersion`, which is a read — so
-**no serial is spent**, and the same credential could be sent again. It answers a `PlainTextResponse`:
-the last serial accepted (a dash where there is none), `App::buildId()` — `test` for `TestApp` — and
-`PHP_VERSION`. See [security.md](security.md#the-api) for everything the gate proves.
+**no serial is spent**, and the same credential could be sent again. It answers an
+[`ApiResult`](../src/Http/Api/ApiResult.php): the last serial accepted (a dash where there is none),
+`App::buildId()` — `test` for `TestApp` — and `PHP_VERSION`, as the sections of a report. See
+[security.md](security.md#the-api) for everything the gate proves.
 
-`PlainTextResponse::answer()` comes to the status, `Content-Type: text/plain; charset=utf-8`, any
-extra headers and the body, as an [`Answer`](../src/Http/Answer.php). `App::handle()` puts the
-security headers ahead of them and hands the answer back, and `App::run()` sends it — the one place
-anything is sent. See [the wire](#http--the-wire).
+**A handler says what happened and the controller says how.** Straight after the gate, and before
+any action runs, the controller asks the request's `Accept` which
+[`Representation`](../src/Http/Representation.php) it wants: a page by default — a `ViewResponse`
+around an `ApiResultView`, in the app's own shell — data for `application/json`, and a `406` for a
+request that named neither. Either way the answer is kept by no cache and varies on `Accept`, and
+`answer()` comes to the status, the type, any extra headers and the body, as an
+[`Answer`](../src/Http/Answer.php). `App::handle()` puts the security headers ahead of them and
+hands the answer back, and `App::run()` sends it — the one place anything is sent. See
+[the wire](#http--the-wire).
 
 ### A page instead
 

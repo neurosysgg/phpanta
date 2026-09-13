@@ -11,6 +11,7 @@ use Phpanta\Support\Collection;
 use Phpanta\Support\Directory;
 use Phpanta\Tool\Api\ApiTarget;
 use Phpanta\Tool\Api\PrivateKey;
+use Phpanta\Tool\Api\ResultReader;
 use Phpanta\Tool\Api\SignedRequest;
 use Phpanta\Tool\Cli\Arity;
 use Phpanta\Tool\Cli\Command;
@@ -190,7 +191,8 @@ final readonly class PushUpdate implements Command
             return ExitCode::Failure;
         }
 
-        $output->out($response->body);
+        // The report's own text where the answer is a result; the body as it came where it is not.
+        $output->out(ResultReader::read($response->body)?->text() ?? $response->body);
 
         if (!$response->isOk()) {
             // 404 and 405 are the same answer wearing two faces: /api replies exactly as the site

@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace Phpanta\Service\Api;
 
 use Phpanta\Http\Api\ApiHandler;
+use Phpanta\Http\Api\ApiResult;
 use Phpanta\Http\HttpStatusCode;
-use Phpanta\Http\PlainTextResponse;
-use Phpanta\Http\Response;
 use Phpanta\Model\Health\HealthFact;
 use Phpanta\Model\Health\HealthSection;
 use Phpanta\Model\Health\PhpSetting;
@@ -57,17 +56,16 @@ final readonly class CapabilityErrors implements ApiHandler
     }
 
     /**
-     * @return Response
+     * @return ApiResult
      */
-    public function handle(): Response
+    public function handle(): ApiResult
     {
         $errors = $this->errors();
         $log    = $this->log();
 
-        return new PlainTextResponse(
-            HttpStatusCode::Ok,
-            $log === null ? HealthSection::document($errors) : HealthSection::document($errors, $log),
-        );
+        return $log === null
+            ? ApiResult::of(HttpStatusCode::Ok, $errors)
+            : ApiResult::of(HttpStatusCode::Ok, $errors, $log);
     }
 
     /**

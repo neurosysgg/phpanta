@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Phpanta\Http\Api;
 
-use Phpanta\Http\Response;
-
 /**
  * The ApiHandler interface. One resolved API action, holding everything it needs to answer.
  *
@@ -41,7 +39,8 @@ interface ApiHandler
     public function isWrite(): bool;
 
     /**
-     * Answers the request.
+     * Answers the request — as a result, not a response: which form it goes out in is the
+     * controller's to decide, from what the request asked for. See {@link ApiResult}.
      *
      * Past the gate the site's posture inverts completely: every failure here is reported in full,
      * with the sentence that says what went wrong, because the caller has proved possession of the
@@ -55,7 +54,7 @@ interface ApiHandler
      * concrete builder or a gate's decision — see {@link \Phpanta\Service\ApiGate::accepts()},
      * which is one.
      *
-     * @return Response
+     * @return ApiResult
      */
-    public function handle(): Response;
+    public function handle(): ApiResult;
 }

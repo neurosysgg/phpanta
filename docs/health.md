@@ -65,7 +65,8 @@ wrong while withholding what, from the one caller who has proved they may know. 
 *returns* the `503` rather than throwing it. `ApiController` turns an `ApiException` into a `422`,
 and that would report an unhealthy host as a malformed request.
 
-`ApiCall` prints the body and exits on the status, so a failed check can stop a script after a push.
+`ApiCall` asks for the answer as data, prints the report's text from it, and exits on the status, so
+a failed check can stop a script after a push.
 It explains only a `404` as a refusal ("check the key, the clock, the server's age"), because only a
 `404` is one. It reports any other status as `answered 503.`, and the body above that line already
 says what failed.

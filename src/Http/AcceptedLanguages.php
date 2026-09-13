@@ -138,9 +138,6 @@ final readonly class AcceptedLanguages
         return $this->qualities[$language->value] ?? $this->qualities['*'] ?? 0.0;
     }
 
-    /** A weight: `0` to `1`, with at most three decimals — RFC 9110 §12.4.2's `qvalue`. */
-    private const string WEIGHT = '/\A(?:0(?:\.\d{0,3})?|1(?:\.0{0,3})?)\z/';
-
     /**
      * One list entry, as its primary subtag and weight — or a null range if it is not one.
      *
@@ -155,29 +152,11 @@ final readonly class AcceptedLanguages
     {
         $parts   = explode(';', $entry);
         $range   = strtolower(trim($parts[0]));
-        $quality = 1.0;
 
-        foreach (array_slice($parts, 1) as $parameter) {
-            $parameter = strtolower(str_replace(' ', '', $parameter));
+        // A weight this cannot read drops its entry — see QualityValue for why.
+        $quality = QualityValue::of(...array_slice($parts, 1));
 
-            if (!str_starts_with($parameter, 'q=')) {
-                continue;
-            }
-
-            // A weight this cannot read drops its entry. `q=high` is not a preference anyone can
-            // honour: read as the 1.0 an absent weight means, an unreadable entry became the
-            // strongest in the list, and read by (float) it would become a refusal. Neither is what
-            // the client said, so the entry says nothing — which is also what `q=2` says.
-            $written = substr($parameter, 2);
-
-            if (preg_match(self::WEIGHT, $written) !== 1) {
-                return [null, 0.0];
-            }
-
-            $quality = (float) $written;
-        }
-
-        if ($range === '') {
+        if ($quality === null || $range === '') {
             return [null, 0.0];
         }
 

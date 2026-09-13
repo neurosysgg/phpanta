@@ -142,8 +142,8 @@ Two rules, the same as in any suite built on this one:
 - **Uncovered lines are a decision, not a budget.** A change that adds a guard covers it in the same
   commit. A guard no test can reach is deleted rather than covered by reflection.
 
-**The framework's suite alone covers nearly all of `src/`'s lines.** The figure was 99.32%
-(3827 of 3853) when last derived on 2026-09-13, with `pdo_sqlite` loaded; without it the database
+**The framework's suite alone covers nearly all of `src/`'s lines.** The figure was 99.41%
+(3940 of 3963) when last derived on 2026-09-13, with `pdo_sqlite` loaded; without it the database
 tests skip and `Data/` reads as untested. Re-derive it
 with `XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-text` rather than trusting this.
 

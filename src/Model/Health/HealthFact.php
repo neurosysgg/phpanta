@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Phpanta\Model\Health;
 
+use JsonSerializable;
+use Phpanta\Http\Api\ResultKey;
+use Phpanta\View\Html\Element;
+use Phpanta\View\Html\HtmlTag;
+
 /**
  * The HealthFact class. One thing the `capability` or `health` service has to say, and the one line
  * it says it on.
@@ -22,7 +27,7 @@ namespace Phpanta\Model\Health;
  * places it, which is what lets a section of log lines sit at the same indent without a second
  * class knowing the number.
  */
-final readonly class HealthFact
+final readonly class HealthFact implements JsonSerializable
 {
     /**
      * How wide the name column is at least.
@@ -60,11 +65,20 @@ final readonly class HealthFact
      * @param string $value Its value, or `''` where there is none to be had. Empty and absent
      *                      collapse the way {@link \Phpanta\Support\File::read()} collapses them:
      *                      to whoever is reading, both mean this did not tell us anything.
+     * @param Verdict|null $verdict What a health check made of it, or null for a plain fact.
      */
-    public function __construct(public string $name, public string $value) {}
+    public function __construct(
+        public string   $name,
+        public string   $value,
+        public ?Verdict $verdict = null,
+    ) {}
 
     /**
-     * The fact's line: the name in its column, then the value.
+     * The fact's line: the name in its column, then the verdict where there is one, then the value.
+     *
+     * **The verdict comes first after the name**, because it is the one column worth reading down:
+     * the value varies in width from `1` to an absolute path, so anything after it is ragged, and
+     * the thing a reader scans a report for must not be.
      *
      * A name longer than the column is not cut down: it pushes its own value across by however much
      * it overruns. That is the right failure for a report — one ragged line, rather than a name
@@ -75,6 +89,49 @@ final readonly class HealthFact
      */
     public function render(int $column = self::COLUMN): string
     {
-        return str_pad($this->name, $column) . ' ' . ($this->value === '' ? self::NOTHING : $this->value);
+        return str_pad($this->name, $column) . ' '
+            . ($this->verdict === null ? '' : sprintf('%-4s  ', $this->verdict->label()))
+            . $this->shown();
+    }
+
+    /**
+     * The fact as data: its name and value, and its verdict where it has one. The value is written
+     * as it was given, `''` included — the dash is for a column of text, and data can say empty.
+     *
+     * @return mixed
+     */
+    public function jsonSerialize(): mixed
+    {
+        $fact = [ResultKey::Name->value => $this->name, ResultKey::Value->value => $this->value];
+
+        return $this->verdict === null ? $fact : [...$fact, ResultKey::Verdict->value => $this->verdict->value];
+    }
+
+    /**
+     * The fact as a table row: the name, the verdict where there is one, the value.
+     *
+     * @return Element
+     */
+    public function row(): Element
+    {
+        $cells = [new Element(HtmlTag::Td)->containing($this->name)];
+
+        if ($this->verdict !== null) {
+            $cells[] = new Element(HtmlTag::Td)->containing($this->verdict->label());
+        }
+
+        $cells[] = new Element(HtmlTag::Td)->containing($this->shown());
+
+        return new Element(HtmlTag::Tr)->containing(...$cells);
+    }
+
+    /**
+     * The value as a column of values shows it: a dash for nothing.
+     *
+     * @return string
+     */
+    private function shown(): string
+    {
+        return $this->value === '' ? self::NOTHING : $this->value;
     }
 }

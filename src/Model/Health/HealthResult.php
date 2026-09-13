@@ -56,15 +56,16 @@ final readonly class HealthResult
     }
 
     /**
-     * One section per area with anything in it, in {@link Area}'s order, then the tally.
+     * One section per area with anything in it, in {@link Area}'s order, then the tally as a block
+     * of its own with no caption.
      *
      * An area with nothing declared is left out rather than printed empty — the tally still says
      * how many were checked, and a caption over nothing reads as a section that failed to render.
      *
-     * @return string
+     * @return Collection<HealthSection>
      */
-    #[NoDiscard('render() answers with the report and changes nothing, so a dropped result does nothing')]
-    public function render(): string
+    #[NoDiscard('sections() answers with the report and changes nothing, so a dropped result does nothing')]
+    public function sections(): Collection
     {
         $sections = new Collection(HealthSection::class);
 
@@ -79,10 +80,18 @@ final readonly class HealthResult
             }
         }
 
-        return $sections
-            ->map(static fn(HealthSection $section): string => $section->render())
-            ->with($this->tally())
-            ->join("\n\n");
+        return $sections->with(HealthSection::lines(null, $this->tally()));
+    }
+
+    /**
+     * The report as text: {@link self::sections()}, a blank line between each.
+     *
+     * @return string
+     */
+    #[NoDiscard('render() answers with the report and changes nothing, so a dropped result does nothing')]
+    public function render(): string
+    {
+        return $this->sections()->map(static fn(HealthSection $section): string => $section->render())->join("\n\n");
     }
 
     /**

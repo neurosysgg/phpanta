@@ -6,11 +6,10 @@ namespace Phpanta\Test\Unit;
 
 use Phpanta\App;
 use Phpanta\CredentialFile;
+use Phpanta\Http\Api\ApiResult;
 use Phpanta\Http\Api\CapabilityAction;
 use Phpanta\Http\HttpMethod;
 use Phpanta\Http\HttpStatusCode;
-use Phpanta\Http\PlainTextResponse;
-use Phpanta\Http\Response;
 use Phpanta\Model\Api\ApiEnvelope;
 use Phpanta\Model\Api\VerifiedRequest;
 use Phpanta\Model\Health\HealthFact;
@@ -92,7 +91,7 @@ final class CapabilityTest extends TestCase
     // ───────────────────────────── the actions ─────────────────────────────
 
     /**
-     * Every action is a read on GET, and answers one 200 of plain text ending in a newline.
+     * Every action is a read on GET, and answers one 200 whose text ends in a newline.
      *
      * @param CapabilityAction $action
      * @return void
@@ -105,7 +104,6 @@ final class CapabilityTest extends TestCase
 
         self::assertSame(HttpMethod::Get, $action->method());
         self::assertFalse($handler->isWrite(), 'an inventory that changes nothing must not spend a serial');
-        self::assertInstanceOf(PlainTextResponse::class, $response);
         self::assertSame(HttpStatusCode::Ok, UpdateFixture::statusOf($response));
         self::assertStringEndsWith("\n", UpdateFixture::bodyOf($response));
     }
@@ -447,12 +445,12 @@ final class CapabilityTest extends TestCase
     }
 
     /**
-     * @param Response $response
+     * @param ApiResult $result
      * @return string
      */
-    private static function body(Response $response): string
+    private static function body(ApiResult $result): string
     {
-        return UpdateFixture::bodyOf($response);
+        return UpdateFixture::bodyOf($result);
     }
 
     /**

@@ -29,23 +29,22 @@ final readonly class Outcome
     }
 
     /**
-     * The outcome's line: the name in its column, then the verdict, what was found, and the floor.
+     * The outcome as a fact: the requirement's name, its verdict, then what was found and the floor.
      *
-     * **The verdict comes first after the name**, because it is the one column worth reading down:
-     * what was found varies in width from `1` to an absolute path, so anything after it is ragged,
-     * and the thing a reader scans a report for must not be. An optional requirement says so beside
-     * its floor, which is what explains a `warn` where a reader expected a `FAIL`.
+     * The verdict rides on the fact rather than inside its value, so a page can put it in a column
+     * of its own and data can name it; {@link HealthFact::render()} writes it first after the name,
+     * which is where the text has always had it. An optional requirement says so beside its floor,
+     * which is what explains a `warn` where a reader expected a `FAIL`.
      *
      * @return HealthFact
      */
     public function fact(): HealthFact
     {
         return new HealthFact($this->requirement->name(), sprintf(
-            '%-4s  %s  (%s%s)',
-            $this->verdict()->label(),
+            '%s  (%s%s)',
             $this->finding->found === '' ? '-' : $this->finding->found,
             $this->requirement->expected(),
             $this->requirement->level() === Level::Optional ? ', ' . Level::Optional->value : '',
-        ));
+        ), $this->verdict());
     }
 }

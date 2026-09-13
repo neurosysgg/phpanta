@@ -6,9 +6,8 @@ namespace Phpanta\Service\Api;
 
 use Phpanta\Exception\UpdateException;
 use Phpanta\Http\Api\ApiHandler;
+use Phpanta\Http\Api\ApiResult;
 use Phpanta\Http\HttpStatusCode;
-use Phpanta\Http\PlainTextResponse;
-use Phpanta\Http\Response;
 use Phpanta\Model\Update\UpdateManifest;
 use Phpanta\Service\UpdateApplier;
 
@@ -61,7 +60,7 @@ final readonly class UpdatePatch implements ApiHandler
     }
 
     /**
-     * @return Response
+     * @return ApiResult
      *
      * @throws UpdateException if the archive cannot be expanded, or holds a member the applier will
      *                         not write. **Nothing has been written when it does** — that is
@@ -71,13 +70,13 @@ final readonly class UpdatePatch implements ApiHandler
      *                         second phrasing of that sentence here would be the same fact written
      *                         twice.
      */
-    public function handle(): Response
+    public function handle(): ApiResult
     {
         $report = ($this->applier ?? new UpdateApplier())->apply($this->archive, $this->manifest, $this->serial);
 
-        return new PlainTextResponse(
+        return ApiResult::of(
             $report->isComplete() ? HttpStatusCode::Ok : HttpStatusCode::InternalServerError,
-            $report->render(),
+            $report->section(),
         );
     }
 }

@@ -7,17 +7,26 @@ namespace Phpanta\Controller;
 use Phpanta\Exception\ApiException;
 use Phpanta\Http\Allow;
 use Phpanta\Http\Api\ApiAction;
+use Phpanta\Http\Api\ApiResult;
 use Phpanta\Http\Api\ApiService;
 use Phpanta\Http\Api\ApiVersion;
+use Phpanta\Http\CacheControl;
 use Phpanta\Http\Header;
 use Phpanta\Http\HttpStatusCode;
+use Phpanta\Http\JsonResponse;
 use Phpanta\Http\PlainTextResponse;
+use Phpanta\Http\Representation;
 use Phpanta\Http\Request;
+use Phpanta\Http\RequestHeader;
 use Phpanta\Http\Response;
 use Phpanta\Http\ResponseHeader;
+use Phpanta\Http\Vary;
+use Phpanta\Http\ViewResponse;
 use Phpanta\Model\Api\SerialRefusal;
+use Phpanta\Model\Api\VerifiedRequest;
 use Phpanta\Service\ApiGate;
 use Phpanta\Support\Collection;
+use Phpanta\View\ApiResultView;
 
 /**
  * The ApiController class. Everything under `/api`, and it answers as though none of it is there
@@ -49,6 +58,12 @@ use Phpanta\Support\Collection;
  * with a sentence in it, and a verb that is not the action's is a real 405 naming the one that is.
  * Only the key holder ever sees either. There is nowhere else for that detail to go: a production
  * host has `display_errors` off, and may have an empty `error_log`.
+ *
+ * **Every answer past the gate is an {@link ApiResult}, written in the form the request asked
+ * for** — a page by default, data for `Accept: application/json`, and a `406` for a request that
+ * named only types it has neither of. That question is asked straight after the gate and before
+ * any action runs, so a write is never carried out for a caller who then cannot be told how it went.
+ * No answer past the gate is kept by a cache, and each says it varies on `Accept`.
  */
 final readonly class ApiController implements Controller
 {
@@ -84,16 +99,20 @@ final readonly class ApiController implements Controller
             return new UnroutedController()->handle($request);
         }
 
+        $representation = $request->accepted()->preferred(Representation::Html, Representation::Json);
+
+        if ($representation === null) {
+            return self::notAcceptable();
+        }
+
         $action = $this->action();
 
         if ($action === null) {
-            return new PlainTextResponse(HttpStatusCode::NotFound, sprintf(
-                "no such API action: %s %s/%s/%s\n",
+            return $this->answer($representation, ApiResult::refusal(HttpStatusCode::NotFound, sprintf(
+                'no such API action: %s %s',
                 $verified->envelope->method,
-                $this->service,
-                $this->version,
-                $this->action,
-            ));
+                $this->address(),
+            )));
         }
 
         // The gate has already checked that the *credential* was minted for this method; this asks
@@ -101,21 +120,36 @@ final readonly class ApiController implements Controller
         // both are needed — the first stops a read's credential being replayed as a write, and this
         // stops a correctly signed request asking for something that makes no sense.
         if ($action->method() !== $request->method()) {
-            return new PlainTextResponse(
-                HttpStatusCode::MethodNotAllowed,
-                sprintf("%s answers %s\n", $this->action, $action->method()->value),
-                new Collection(Header::class)->with(
-                    new Header(ResponseHeader::Allow, Allow::of($action->method())),
+            return $this->answer(
+                $representation,
+                ApiResult::refusal(
+                    HttpStatusCode::MethodNotAllowed,
+                    sprintf('%s answers %s', $this->action, $action->method()->value),
                 ),
+                new Header(ResponseHeader::Allow, Allow::of($action->method())),
             );
         }
 
-        // **One catch around building the handler and around running it**, which is what makes this
-        // the only place in the framework that writes the word. Both throws mean the same thing — a
-        // verified caller asked for something this deployment will not do — and both happen before
-        // anything has been written, since UpdateApplier's own contract is that nothing has when it
-        // throws. Two handlers each phrasing that refusal for themselves is two spellings of one
-        // sentence, which is what `GuidelineTest`'s two-files clause caught when they were.
+        return $this->answer($representation, $this->run($gate, $verified, $action));
+    }
+
+    /**
+     * Runs $action for a caller the gate has verified.
+     *
+     * **One catch around building the handler and around running it**, which is what makes this
+     * the only place in the framework that writes the word. Both throws mean the same thing — a
+     * verified caller asked for something this deployment will not do — and both happen before
+     * anything has been written, since UpdateApplier's own contract is that nothing has when it
+     * throws. Two handlers each phrasing that refusal for themselves is two spellings of one
+     * sentence, which is what `GuidelineTest`'s two-files clause caught when they were.
+     *
+     * @param ApiGate $gate
+     * @param VerifiedRequest $verified
+     * @param ApiAction $action
+     * @return ApiResult
+     */
+    private function run(ApiGate $gate, VerifiedRequest $verified, ApiAction $action): ApiResult
+    {
         try {
             $handler = $action->handler($verified);
 
@@ -133,7 +167,7 @@ final readonly class ApiController implements Controller
             $spent = $gate->spend($verified->envelope->serial);
 
             if ($spent instanceof SerialRefusal) {
-                return new PlainTextResponse($spent->status(), $spent->message());
+                return ApiResult::refusal($spent->status(), rtrim($spent->message(), "\n"));
             }
 
             try {
@@ -142,11 +176,69 @@ final readonly class ApiController implements Controller
                 $spent->release();
             }
         } catch (ApiException $e) {
-            return new PlainTextResponse(
-                HttpStatusCode::UnprocessableContent,
-                'refused: ' . $e->getMessage() . "\n",
-            );
+            return ApiResult::refusal(HttpStatusCode::UnprocessableContent, 'refused: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * $result, written as $representation: never kept by a cache, and varying on `Accept`.
+     *
+     * @param Representation $representation
+     * @param ApiResult $result
+     * @param Header ...$headers What this one answer adds — a 405's `Allow`.
+     * @return Response
+     */
+    private function answer(Representation $representation, ApiResult $result, Header ...$headers): Response
+    {
+        $headers = new Collection(Header::class)->with(
+            new Header(ResponseHeader::CacheControl, CacheControl::doNotStore()),
+            ...$headers,
+        );
+
+        // The page's Vary comes from its view, beside the ones every page sends; the data's has to
+        // be said here, because a JsonResponse varies on nothing unless told.
+        return match ($representation) {
+            Representation::Html => new ViewResponse(
+                new ApiResultView($result, $this->address()),
+                $result->status,
+                $headers,
+            ),
+            Representation::Json => new JsonResponse(
+                $result,
+                $result->status,
+                $headers->with(new Header(ResponseHeader::Vary, Vary::on(RequestHeader::Accept))),
+            ),
+        };
+    }
+
+    /**
+     * The `406` for a verified request that named only types this has neither of.
+     *
+     * Plain text, because it is the one answer here that cannot be written in either form the
+     * request refused; it names both, so the caller knows what to ask for instead.
+     *
+     * @return Response
+     */
+    private static function notAcceptable(): Response
+    {
+        return new PlainTextResponse(
+            HttpStatusCode::NotAcceptable,
+            sprintf("this answers %s or %s\n", Representation::Html->value, Representation::Json->value),
+            new Collection(Header::class)->with(
+                new Header(ResponseHeader::CacheControl, CacheControl::doNotStore()),
+                new Header(ResponseHeader::Vary, Vary::on(RequestHeader::Accept)),
+            ),
+        );
+    }
+
+    /**
+     * The three segments as they were sent, as `service/version/action`.
+     *
+     * @return string
+     */
+    private function address(): string
+    {
+        return $this->service . '/' . $this->version . '/' . $this->action;
     }
 
     /**

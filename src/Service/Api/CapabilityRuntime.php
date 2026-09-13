@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace Phpanta\Service\Api;
 
 use Phpanta\Http\Api\ApiHandler;
+use Phpanta\Http\Api\ApiResult;
 use Phpanta\Http\HttpStatusCode;
-use Phpanta\Http\PlainTextResponse;
-use Phpanta\Http\Response;
 use Phpanta\Http\ServerVariable;
 use Phpanta\Model\Health\HealthFact;
 use Phpanta\Model\Health\HealthSection;
@@ -47,11 +46,12 @@ final readonly class CapabilityRuntime implements ApiHandler
     }
 
     /**
-     * @return Response
+     * @return ApiResult
      */
-    public function handle(): Response
+    public function handle(): ApiResult
     {
-        return new PlainTextResponse(HttpStatusCode::Ok, HealthSection::document(
+        return ApiResult::of(
+            HttpStatusCode::Ok,
             HealthSection::facts('interpreter', new Collection(HealthFact::class)->with(
                 new HealthFact('version', PHP_VERSION),
                 new HealthFact('version id', (string) PHP_VERSION_ID),
@@ -66,6 +66,6 @@ final readonly class CapabilityRuntime implements ApiHandler
                 new HealthFact('clock', date(DATE_ATOM)),
                 new HealthFact(PhpSetting::Timezone->value, PhpSetting::Timezone->configured()),
             )),
-        ));
+        );
     }
 }

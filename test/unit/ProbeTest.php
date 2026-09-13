@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace Phpanta\Test\Unit;
 
 use Phpanta\Exception\UpdateException;
-use Phpanta\Http\Answer;
+use Phpanta\Http\Api\ApiResult;
 use Phpanta\Http\HttpStatusCode;
-use Phpanta\Http\PlainTextResponse;
-use Phpanta\Http\TextBody;
 use Phpanta\Model\Health\HealthFact;
 use Phpanta\Model\Health\HealthSection;
 use Phpanta\Model\Update\ApplyManifest;
@@ -40,9 +38,7 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(Deployment::class)]
 #[CoversClass(HealthFact::class)]
 #[CoversClass(HealthSection::class)]
-#[CoversClass(PlainTextResponse::class)]
-#[CoversClass(Answer::class)]
-#[CoversClass(TextBody::class)]
+#[CoversClass(ApiResult::class)]
 final class ProbeTest extends TestCase
 {
     /** Every line a probe that ran answers, in the order it answers them. */

@@ -6,9 +6,8 @@ namespace Phpanta\Service\Api;
 
 use Phpanta\Exception\UpdateException;
 use Phpanta\Http\Api\ApiHandler;
+use Phpanta\Http\Api\ApiResult;
 use Phpanta\Http\HttpStatusCode;
-use Phpanta\Http\PlainTextResponse;
-use Phpanta\Http\Response;
 use Phpanta\Model\Update\ApplyManifest;
 use Phpanta\Service\UpdateApplier;
 
@@ -48,18 +47,18 @@ final readonly class UpdateRollback implements ApiHandler
     }
 
     /**
-     * @return Response
+     * @return ApiResult
      *
      * @throws UpdateException if there is no complete record to roll back to, or the deployment has
      *                         moved on since it was taken. Nothing has been written when it does.
      */
-    public function handle(): Response
+    public function handle(): ApiResult
     {
         $report = ($this->applier ?? new UpdateApplier())->rollback($this->manifest->apply);
 
-        return new PlainTextResponse(
+        return ApiResult::of(
             $report->isComplete() ? HttpStatusCode::Ok : HttpStatusCode::InternalServerError,
-            $report->render(),
+            $report->section(),
         );
     }
 }

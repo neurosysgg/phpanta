@@ -193,6 +193,7 @@ final class GuidelineTest extends TestCase
                 'Phpanta\Support\TypedItems::toValues()',
                 'Phpanta\Text\Phrase::$arguments',
                 'Phpanta\Text\Phrase::__construct()',
+                'Phpanta\View\ApiResultView::varyOn()',
                 'Phpanta\View\View::varyOn()',
             ],
             array_keys(self::bareArrays()['excused']),

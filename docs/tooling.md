@@ -15,7 +15,8 @@ tools/
 └── lib/
     ├── Cli/              ← Command, Option, Arity, Input, Output, ExitCode, UsageException, Runner
     ├── Command/          ← ApiCall, PushUpdate, MergeCoverage, Export, each with its option enum
-    ├── Api/              ← the signing side: ApiTarget, PrivateKey, SignedCredential, SignedRequest
+    ├── Api/              ← the signing side: ApiTarget, PrivateKey, SignedCredential, SignedRequest,
+    │                       and ResultReader, which reads an answer back
     ├── Http/             ← outbound requests: Transport + CurlTransport, Request/Response, Url,
     │                       JsonBody, FormField, FilePart, OutboundHeader
     ├── Update/           ← the push side: TarWriter, PackedFile, FrameworkCheckout. The reader
@@ -39,6 +40,13 @@ Runner::run(new ApiCall('https://example.test', '.config/example/update.key'), $
 ```
 
 `Export` needs only the booted app, so it is the framework's own entry point, `tools/export.php`.
+
+**The signed commands ask for data and print text.** `SignedRequest` sends `Accept:
+application/json`, and `ResultReader` reads the answer back into the server's own `ApiResult`, whose
+`text()` is what the terminal shows. So the report a terminal reads is written by the model that
+wrote the data, not by a second formatter here, and the keys it reads are the server's own
+`ResultKey` cases. An answer that is not a result — the page an unverified call gets — is printed as
+it came, and the command explains it.
 
 `dev-router.php` and `coverage-prepend.php` are not commands, and cannot be. PHP loads each of them
 itself: one is handed to `php -S` per request, and the other is an `auto_prepend_file`. Neither has

@@ -6,8 +6,8 @@ namespace Phpanta\Test\Unit;
 
 use Phpanta\App;
 use Phpanta\Exception\UpdateException;
+use Phpanta\Http\Api\ApiResult;
 use Phpanta\Http\HttpStatusCode;
-use Phpanta\Http\PlainTextResponse;
 use Phpanta\Model\Update\Deployment;
 use Phpanta\Model\Update\UpdateFile;
 use Phpanta\Model\Update\UpdateManifest;
@@ -1272,22 +1272,18 @@ final class UpdateTest extends TestCase
      * @param UpdateApplier|null $applier
      * @param bool $apply
      * @param bool $mirror
-     * @return PlainTextResponse
+     * @return ApiResult
      */
     private function respond(
         string $archive,
         ?UpdateApplier $applier = null,
         bool $apply = true,
         bool $mirror = false,
-    ): PlainTextResponse {
-        $response = new UpdatePatch(
+    ): ApiResult {
+        return new UpdatePatch(
             self::manifest($apply, $mirror),
             $archive,
             $applier ?? $this->applier(),
         )->handle();
-
-        self::assertInstanceOf(PlainTextResponse::class, $response);
-
-        return $response;
     }
 }

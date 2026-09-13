@@ -113,6 +113,21 @@ enum RequestHeader: string implements HeaderName
     case AccessControlRequestMethod = 'Access-Control-Request-Method';
 
     /**
+     * Which forms of an answer the client can read, and which it would rather.
+     *
+     * Read only where an answer has more than one {@link Representation} — the admin's, which is a
+     * page for a browser and data for a script that asks — through {@link Request::accepted()}.
+     * A page with one form ignores it, as every page did before the admin had two.
+     *
+     * **Whatever answers by it owes a `Vary: Accept`**, for {@link self::AcceptLanguage}'s reason:
+     * one URL, two bodies, and a cache that was not told hands one caller the other's.
+     *
+     * Mirrored in `assets/ts/model/RequestHeader.ts` with no reader on that side: a browser sends
+     * it on its own, and `Navigation` asks for pages, which are what it sends by default.
+     */
+    case Accept = 'Accept';
+
+    /**
      * @return string
      */
     public function headerName(): string

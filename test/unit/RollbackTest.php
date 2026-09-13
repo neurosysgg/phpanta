@@ -5,12 +5,10 @@ declare(strict_types=1);
 namespace Phpanta\Test\Unit;
 
 use Phpanta\Exception\UpdateException;
-use Phpanta\Http\Answer;
+use Phpanta\Http\Api\ApiResult;
 use Phpanta\Http\Api\UpdateAction;
 use Phpanta\Http\HttpMethod;
 use Phpanta\Http\HttpStatusCode;
-use Phpanta\Http\PlainTextResponse;
-use Phpanta\Http\TextBody;
 use Phpanta\Model\Api\ApiEnvelope;
 use Phpanta\Model\Api\VerifiedRequest;
 use Phpanta\Model\Update\ApplyManifest;
@@ -79,9 +77,8 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(TarMemberType::class)]
 #[CoversClass(ApiEnvelope::class)]
 #[CoversClass(VerifiedRequest::class)]
-#[CoversClass(PlainTextResponse::class)]
-#[CoversClass(Answer::class)]
-#[CoversClass(TextBody::class)]
+#[CoversClass(ApiResult::class)]
+#[CoversClass(\Phpanta\Model\Health\HealthSection::class)]
 final class RollbackTest extends TestCase
 {
     /** Bytes a text comparison would get wrong: a NUL, a CRLF, a byte that is not UTF-8. */

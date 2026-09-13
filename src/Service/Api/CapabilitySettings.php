@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace Phpanta\Service\Api;
 
 use Phpanta\Http\Api\ApiHandler;
+use Phpanta\Http\Api\ApiResult;
 use Phpanta\Http\HttpStatusCode;
-use Phpanta\Http\PlainTextResponse;
-use Phpanta\Http\Response;
 use Phpanta\Model\Health\HealthFact;
 use Phpanta\Model\Health\HealthSection;
 use Phpanta\Support\Collection;
@@ -37,17 +36,18 @@ final readonly class CapabilitySettings implements ApiHandler
     }
 
     /**
-     * @return Response
+     * @return ApiResult
      */
-    public function handle(): Response
+    public function handle(): ApiResult
     {
         $facts = [];
         foreach (ini_get_all(null, false) as $directive => $value) {
             $facts[] = new HealthFact($directive, (string) $value);
         }
 
-        return new PlainTextResponse(HttpStatusCode::Ok, HealthSection::document(
+        return ApiResult::of(
+            HttpStatusCode::Ok,
             HealthSection::facts('settings', new Collection(HealthFact::class)->with(...$facts)),
-        ));
+        );
     }
 }

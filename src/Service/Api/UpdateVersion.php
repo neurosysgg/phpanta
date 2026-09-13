@@ -6,9 +6,9 @@ namespace Phpanta\Service\Api;
 
 use Phpanta\App;
 use Phpanta\Http\Api\ApiHandler;
+use Phpanta\Http\Api\ApiResult;
 use Phpanta\Http\HttpStatusCode;
-use Phpanta\Http\PlainTextResponse;
-use Phpanta\Http\Response;
+use Phpanta\Model\Health\HealthSection;
 use Phpanta\Support\File;
 
 /**
@@ -41,9 +41,10 @@ final readonly class UpdateVersion implements ApiHandler
      * One format string rather than a caption per line, which is not only brevity: `serial` is a
      * key {@link \Phpanta\Model\Api\ApiEnvelope} already writes, and the same word as a literal in
      * a second class under `src/` is exactly what `GuidelineTest`'s two-files clause is for. Inside
-     * a template it is prose, the way it is inside this sentence.
+     * a template it is prose, the way it is inside this sentence — and the answer is a block of
+     * lines for the same reason, rather than three named facts.
      */
-    private const string REPORT = "serial %s\nentry  %s\nphp    %s\n";
+    private const string REPORT = "serial %s\nentry  %s\nphp    %s";
 
     /**
      * Constructs an instance of {@link self}.
@@ -62,19 +63,19 @@ final readonly class UpdateVersion implements ApiHandler
     }
 
     /**
-     * @return Response
+     * @return ApiResult
      */
-    public function handle(): Response
+    public function handle(): ApiResult
     {
         $recorded = ($this->serial ?? App::current()->updateSerial())->read();
 
-        return new PlainTextResponse(HttpStatusCode::Ok, sprintf(
+        return ApiResult::of(HttpStatusCode::Ok, HealthSection::lines(null, ...explode("\n", sprintf(
             self::REPORT,
             // Trimmed rather than cast: a deployment that has never accepted a push has no record,
             // and `0` would be a serial it is claiming to have seen. The dash says there is none.
             trim($recorded ?? '') ?: '-',
             App::current()->buildId(),
             PHP_VERSION,
-        ));
+        ))));
     }
 }

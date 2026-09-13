@@ -52,6 +52,7 @@ readonly class Request
      * @param string|null $body The body, where the request was built with one; null to read
      *                          `php://input` — see {@link self::body()}.
      * @param MultipartParameters $multipart What a multipart body sent, as PHP parsed it.
+     * @param string $accept The `Accept` header, raw — see {@link self::accepted()}.
      */
     private function __construct(
         private ?HttpMethod $method,
@@ -74,6 +75,7 @@ readonly class Request
         private int    $contentLength = 0,
         private ?string $body = null,
         private MultipartParameters $multipart = new MultipartParameters([], []),
+        private string $accept = '',
     ) {}
 
     /**
@@ -154,6 +156,7 @@ readonly class Request
             ),
             $body,
             $multipart ?? new MultipartParameters([], []),
+            $server->header(RequestHeader::Accept),
         );
     }
 
@@ -335,6 +338,13 @@ readonly class Request
      * @return bool
      */
     public function isAjax(): bool         { return $this->ajax; }
+    /**
+     * What the `Accept` header asked for. Whatever answers by it owes a `Vary: Accept` — see
+     * {@link RequestHeader::Accept}.
+     *
+     * @return AcceptedTypes
+     */
+    public function accepted(): AcceptedTypes { return AcceptedTypes::from($this->accept); }
     /**
      * Returns the HTTP Basic Auth username, or an empty string if not provided.
      *

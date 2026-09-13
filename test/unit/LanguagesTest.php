@@ -6,6 +6,7 @@ namespace Phpanta\Test\Unit;
 
 use Phpanta\Exception\TranslationException;
 use Phpanta\Http\AcceptedLanguages;
+use Phpanta\Http\QualityValue;
 use Phpanta\Text\Language;
 use Phpanta\Text\Languages;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -18,6 +19,7 @@ use PHPUnit\Framework\TestCase;
  */
 #[CoversClass(Languages::class)]
 #[CoversClass(AcceptedLanguages::class)]
+#[CoversClass(QualityValue::class)]
 final class LanguagesTest extends TestCase
 {
     /**

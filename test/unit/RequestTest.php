@@ -9,6 +9,7 @@ use Phpanta\Http\AuthScheme;
 use Phpanta\Http\BasicChallenge;
 use Phpanta\Http\CookieName;
 use Phpanta\Http\HttpMethod;
+use Phpanta\Http\QualityValue;
 use Phpanta\Http\Request;
 use Phpanta\Http\RequestCookies;
 use Phpanta\Http\RequestedWith;
@@ -23,6 +24,7 @@ use PHPUnit\Framework\TestCase;
 
 #[CoversClass(Request::class)]
 #[CoversClass(AcceptedLanguages::class)]
+#[CoversClass(QualityValue::class)]
 #[CoversClass(RequestCookies::class)]
 #[CoversClass(AuthScheme::class)]
 #[CoversClass(RequestHeader::class)]

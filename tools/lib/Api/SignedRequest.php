@@ -11,6 +11,7 @@ use Phpanta\Http\Api\ApiService;
 use Phpanta\Http\Api\ApiVersion;
 use Phpanta\Http\Header;
 use Phpanta\Http\HttpMethod;
+use Phpanta\Http\MimeType;
 use Phpanta\Support\ApiPath;
 use Phpanta\Tool\Cli\UsageException;
 use Phpanta\Tool\Http\OutboundHeader;
@@ -95,11 +96,15 @@ final readonly class SignedRequest
             new SignedCredential($manifest, $key->sign($manifest)),
         );
 
+        // The answer as data, which ResultReader turns back into the text the command prints — the
+        // server's default is a page, which is for a browser.
+        $accept = new Header(OutboundHeader::Accept, MimeType::json());
+
         // get() for a read and raw() for a write, rather than one factory taking a method: the
         // outbound Request has always chosen its shape by which constructor is called, and a read
         // must send no Content-Type for a body it does not have.
         return $action->method() === HttpMethod::Get
-            ? Request::get($url, $credential)
-            : Request::raw($url, $body, $credential);
+            ? Request::get($url, $credential, $accept)
+            : Request::raw($url, $body, $credential, $accept);
     }
 }

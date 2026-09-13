@@ -8,8 +8,10 @@ use OpenSSLAsymmetricKey;
 use Phpanta\App;
 use Phpanta\Controller\ApiController;
 use Phpanta\Controller\UnroutedController;
+use Phpanta\Http\AcceptedTypes;
 use Phpanta\Http\Allow;
 use Phpanta\Http\Answer;
+use Phpanta\Http\Api\ApiResult;
 use Phpanta\Http\Api\ApiService;
 use Phpanta\Http\Api\ApiVersion;
 use Phpanta\Http\Api\CapabilityAction;
@@ -19,14 +21,21 @@ use Phpanta\Http\AuthScheme;
 use Phpanta\Http\Header;
 use Phpanta\Http\HttpMethod;
 use Phpanta\Http\HttpStatusCode;
+use Phpanta\Http\JsonResponse;
+use Phpanta\Http\MediaRange;
 use Phpanta\Http\PlainTextResponse;
+use Phpanta\Http\Representation;
 use Phpanta\Http\Request;
+use Phpanta\Http\RequestHeader;
 use Phpanta\Http\ServerVariable;
 use Phpanta\Http\TextBody;
+use Phpanta\Http\ViewResponse;
 use Phpanta\Model\Api\ApiCredential;
 use Phpanta\Model\Api\ApiEnvelope;
 use Phpanta\Model\Api\SerialRefusal;
 use Phpanta\Model\Api\VerifiedRequest;
+use Phpanta\Model\Health\HealthFact;
+use Phpanta\Model\Health\HealthSection;
 use Phpanta\Model\Update\ApplyManifest;
 use Phpanta\Model\Update\Deployment;
 use Phpanta\Router;
@@ -47,6 +56,8 @@ use Phpanta\Support\PublicKey;
 use Phpanta\Support\RequirementInitialization;
 use Phpanta\Support\Route;
 use Phpanta\Test\TestRequest;
+use Phpanta\Tool\Api\ResultReader;
+use Phpanta\View\ApiResultView;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -102,6 +113,15 @@ use stdClass;
 #[CoversClass(PlainTextResponse::class)]
 #[CoversClass(Answer::class)]
 #[CoversClass(TextBody::class)]
+#[CoversClass(ApiResult::class)]
+#[CoversClass(ApiResultView::class)]
+#[CoversClass(JsonResponse::class)]
+#[CoversClass(ViewResponse::class)]
+#[CoversClass(AcceptedTypes::class)]
+#[CoversClass(MediaRange::class)]
+#[CoversClass(Representation::class)]
+#[CoversClass(HealthSection::class)]
+#[CoversClass(HealthFact::class)]
 final class ApiTest extends TestCase
 {
     private const string PATCH      = '/api/update/v1/patch';
@@ -569,7 +589,7 @@ final class ApiTest extends TestCase
             );
 
             self::assertSame(HttpStatusCode::Conflict, $response->status());
-            self::assertStringContainsString('another write is in progress', $response->body());
+            self::assertStringContainsString('another write is in progress', self::text($response));
             self::assertNull($this->serialFile->read(), 'a refused write spent its serial');
             self::assertNull(new File($this->sandbox . '/public/written.txt')->read(), 'a refused write wrote');
         } finally {
@@ -701,7 +721,7 @@ final class ApiTest extends TestCase
         $version = $this->respond(self::VERSION, HttpMethod::Get, '');
 
         self::assertSame(HttpStatusCode::Ok, $version->status());
-        self::assertStringContainsString(PHP_VERSION, $version->body());
+        self::assertStringContainsString(PHP_VERSION, self::text($version));
 
         // The other services through the same controller, which is what says the delegation is the
         // address's rather than the update service's. What each answers is HealthTest's and
@@ -714,12 +734,12 @@ final class ApiTest extends TestCase
         $direct = new HealthCheck(RequirementInitialization::requirements(App::current()))->handle();
 
         self::assertSame(UpdateFixture::statusOf($direct), $health->status());
-        self::assertStringContainsString("extensions\n", $health->body());
+        self::assertStringContainsString("extensions\n", self::text($health));
 
         $capability = $this->respond(self::CAPABILITY, HttpMethod::Get, '');
 
         self::assertSame(HttpStatusCode::Ok, $capability->status());
-        self::assertStringContainsString("zend extensions\n", $capability->body());
+        self::assertStringContainsString("zend extensions\n", self::text($capability));
     }
 
     /**
@@ -771,7 +791,7 @@ final class ApiTest extends TestCase
         );
 
         self::assertSame(HttpStatusCode::InternalServerError, $response->status());
-        self::assertStringContainsString('could not be recorded', $response->body());
+        self::assertStringContainsString('could not be recorded', self::text($response));
         self::assertNull(
             new File($this->sandbox . '/public/written.txt')->read(),
             'the push wrote even though the replay guard could not be armed',
@@ -799,8 +819,8 @@ final class ApiTest extends TestCase
         $response = $this->respond(self::PATCH, HttpMethod::Post, 'this is not gzip at all', serial: $serial);
 
         self::assertSame(HttpStatusCode::UnprocessableContent, $response->status());
-        self::assertStringContainsString('refused:', $response->body());
-        self::assertStringContainsString('not gzip', $response->body());
+        self::assertStringContainsString('refused:', self::text($response));
+        self::assertStringContainsString('not gzip', self::text($response));
         self::assertSame(
             $serial,
             (int) trim((string) $this->serialFile->read()),
@@ -835,17 +855,20 @@ final class ApiTest extends TestCase
 
             $wrongVerb = $this->respond(self::ROLLBACK, HttpMethod::Get, '');
             self::assertSame(HttpStatusCode::MethodNotAllowed, $wrongVerb->status());
-            self::assertStringContainsString('rollback answers POST', $wrongVerb->body());
+            self::assertStringContainsString('rollback answers POST', self::text($wrongVerb));
 
             $dryRun = $this->respond(self::ROLLBACK, HttpMethod::Post, '', apply: false);
             self::assertSame(HttpStatusCode::UnprocessableContent, $dryRun->status());
-            self::assertStringContainsString('refused: there is no previous release to roll back to', $dryRun->body());
+            self::assertStringContainsString(
+                'refused: there is no previous release to roll back to',
+                self::text($dryRun),
+            );
             self::assertNull($this->serialFile->read(), 'a rollback dry run spent a serial');
 
             $serial = time();
             $real   = $this->respond(self::ROLLBACK, HttpMethod::Post, '', serial: $serial);
             self::assertSame(HttpStatusCode::UnprocessableContent, $real->status());
-            self::assertStringContainsString('there is no previous release to roll back to', $real->body());
+            self::assertStringContainsString('there is no previous release to roll back to', self::text($real));
             self::assertSame(
                 $serial,
                 (int) trim((string) $this->serialFile->read()),
@@ -888,13 +911,13 @@ final class ApiTest extends TestCase
 
             $dryRun = $this->respond(self::PROBE, HttpMethod::Post, '', apply: false);
             self::assertSame(HttpStatusCode::Ok, $dryRun->status());
-            self::assertStringContainsString('dry run', $dryRun->body());
+            self::assertStringContainsString('dry run', self::text($dryRun));
             self::assertNull($this->serialFile->read(), 'a probe dry run spent a serial');
 
             $serial = time();
             $real   = $this->respond(self::PROBE, HttpMethod::Post, '', serial: $serial);
-            self::assertSame(HttpStatusCode::Ok, $real->status(), $real->body());
-            self::assertMatchesRegularExpression('/^  left behind +nothing$/m', $real->body());
+            self::assertSame(HttpStatusCode::Ok, $real->status(), self::text($real));
+            self::assertMatchesRegularExpression('/^  left behind +nothing$/m', self::text($real));
             self::assertSame(
                 $serial,
                 (int) trim((string) $this->serialFile->read()),
@@ -926,7 +949,7 @@ final class ApiTest extends TestCase
         $response = $this->respond($path, HttpMethod::Get, '');
 
         self::assertSame(HttpStatusCode::NotFound, $response->status());
-        self::assertStringContainsString('no such API action', $response->body());
+        self::assertStringContainsString('no such API action', self::text($response));
     }
 
     /**
@@ -964,8 +987,89 @@ final class ApiTest extends TestCase
         $response = $this->respond(self::PATCH, HttpMethod::Get, '');
 
         self::assertSame(HttpStatusCode::MethodNotAllowed, $response->status());
-        self::assertStringContainsString('patch answers POST', $response->body());
-        self::assertSame(['Content-Type: text/plain; charset=utf-8', 'Allow: POST'], self::lines($response));
+        self::assertStringContainsString('patch answers POST', self::text($response));
+        self::assertSame(
+            ['Content-Type: application/json', 'Cache-Control: no-store, private', 'Allow: POST', 'Vary: Accept'],
+            self::lines($response),
+        );
+    }
+
+    /**
+     * A verified caller that names no type — a browser sends its own, curl sends `*∕*` — gets the
+     * answer as a page in the app's shell, kept by no cache and varying on `Accept`.
+     *
+     * @return void
+     */
+    public function testAVerifiedCallerAskingForNothingInParticularGetsAPage(): void
+    {
+        foreach (['', '*/*', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'] as $accept) {
+            $answer = $this->respond(self::HEALTH, HttpMethod::Get, '', accept: $accept);
+            $lines  = self::lines($answer);
+
+            self::assertContains('Content-Type: text/html; charset=utf-8', $lines, $accept);
+            self::assertContains('Cache-Control: no-store, private', $lines, $accept);
+            self::assertStringContainsString('health/v1/report', $answer->body(), $accept);
+            self::assertStringContainsString('<table>', $answer->body(), $accept);
+
+            $vary = array_find($lines, static fn(string $line): bool => str_starts_with($line, 'Vary: '));
+            self::assertIsString($vary, $accept);
+            self::assertStringContainsString('Accept', substr($vary, strlen('Vary: ')), $accept);
+        }
+    }
+
+    /**
+     * A verified caller that asks for JSON gets the result as data, refusals included.
+     *
+     * @return void
+     */
+    public function testAVerifiedCallerAskingForJsonGetsData(): void
+    {
+        $answer = $this->respond('/api/update/v1/nope', HttpMethod::Get, '');
+
+        self::assertSame(HttpStatusCode::NotFound, $answer->status());
+        self::assertSame(
+            '{"status":404,"sections":[{"caption":null,"lines":["no such API action: GET update/v1/nope"]}]}',
+            $answer->body(),
+        );
+    }
+
+    /**
+     * A verified caller that names only types it cannot have is told so — and **before** the action
+     * runs, so a write is never carried out for a caller that then could not be told how it went. The
+     * serial is not spent.
+     *
+     * @return void
+     */
+    public function testAVerifiedCallerAskingForAnotherTypeIsRefusedBeforeAnythingRuns(): void
+    {
+        $before = $this->serialFile->read();
+        $answer = $this->respond(self::ROLLBACK, HttpMethod::Post, '', accept: 'text/plain');
+
+        self::assertSame(HttpStatusCode::NotAcceptable, $answer->status());
+        self::assertSame("this answers text/html or application/json\n", $answer->body());
+        self::assertSame(
+            ['Content-Type: text/plain; charset=utf-8', 'Cache-Control: no-store, private', 'Vary: Accept'],
+            self::lines($answer),
+        );
+        self::assertSame($before, $this->serialFile->read(), 'a 406 spent a serial');
+    }
+
+    /**
+     * An unverified caller is never asked what it reads: whatever it names, it gets what an absent
+     * address gets, because negotiating first would answer it differently from a typo.
+     *
+     * @return void
+     */
+    public function testAnUnverifiedCallerIsNeverAskedWhatItReads(): void
+    {
+        foreach (['text/plain', 'application/json'] as $accept) {
+            $request  = self::request('GET', self::VERSION, '', null, $accept);
+            $answer   = new ApiController('update', 'v1', 'version', $this->gate())->handle($request)->answer($request);
+            $unrouted = new UnroutedController()->handle($request)->answer($request);
+
+            self::assertSame($unrouted->status(), $answer->status(), $accept);
+            self::assertSame($unrouted->body(), $answer->body(), $accept);
+        }
     }
 
     /**
@@ -1218,6 +1322,8 @@ final class ApiTest extends TestCase
      * @param bool $apply
      * @param int|null $serial
      * @param File|null $serialFile
+     * @param string $accept What the request says it reads — data unless a test says otherwise,
+     *                       since data is what the signing CLI asks for. `''` sends no `Accept`.
      * @return Answer What the controller's response answers the request with.
      */
     private function respond(
@@ -1227,6 +1333,7 @@ final class ApiTest extends TestCase
         bool $apply = true,
         ?int $serial = null,
         ?File $serialFile = null,
+        string $accept = 'application/json',
     ): Answer {
         $segments = explode('/', ltrim($path, '/'));
 
@@ -1243,13 +1350,9 @@ final class ApiTest extends TestCase
             $body,
             serial: $serial,
             fields: $method === HttpMethod::Post ? ['apply' => $apply, 'mirror' => false] : [],
-        ), $body);
+        ), $body, $accept);
 
-        $response = $controller->handle($request);
-
-        self::assertInstanceOf(PlainTextResponse::class, $response);
-
-        return $response->answer($request);
+        return $controller->handle($request)->answer($request);
     }
 
     /**
@@ -1263,6 +1366,7 @@ final class ApiTest extends TestCase
      * @param string      $path
      * @param string      $credential An `Authorization` value; empty sends none.
      * @param string|null $body       Null sends none.
+     * @param string      $accept     An `Accept` value; empty sends none.
      * @return Request
      */
     private static function request(
@@ -1270,11 +1374,16 @@ final class ApiTest extends TestCase
         string $path,
         string $credential = '',
         ?string $body = null,
+        string $accept = '',
     ): Request {
         $request = TestRequest::to($method, $path);
 
         if ($credential !== '') {
             $request = $request->withServer(ServerVariable::Authorization, $credential);
+        }
+
+        if ($accept !== '') {
+            $request = $request->with(RequestHeader::Accept, $accept);
         }
 
         if ($body !== null) {
@@ -1291,6 +1400,19 @@ final class ApiTest extends TestCase
     private static function lines(Answer $answer): array
     {
         return $answer->headers()->map(static fn(Header $header): string => $header->line())->toValues();
+    }
+
+    /**
+     * What a verified answer says, as the text the signing CLI prints from it — read back through
+     * the CLI's own reader, so a test of wording asserts what a terminal shows. An answer that is not
+     * a result comes back as its body.
+     *
+     * @param Answer $answer
+     * @return string
+     */
+    private static function text(Answer $answer): string
+    {
+        return ResultReader::read($answer->body())?->text() ?? $answer->body();
     }
 
     /**

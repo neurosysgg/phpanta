@@ -13,6 +13,7 @@ use Phpanta\Http\HttpStatusCode;
 use Phpanta\Model\Update\UpdateManifest;
 use Phpanta\Tool\Api\ApiTarget;
 use Phpanta\Tool\Api\PrivateKey;
+use Phpanta\Tool\Api\ResultReader;
 use Phpanta\Tool\Api\SignedRequest;
 use Phpanta\Tool\Cli\Arity;
 use Phpanta\Tool\Cli\Command;
@@ -191,7 +192,9 @@ final readonly class ApiCall implements Command
             return $exception instanceof UsageException ? ExitCode::Usage : ExitCode::Failure;
         }
 
-        $output->out($response->body);
+        // The answer's own text where it is a result, and the body as it came where it is not — an
+        // unverified call is answered with the site's 404 page, which the lines below explain.
+        $output->out(ResultReader::read($response->body)?->text() ?? $response->body);
 
         if ($response->isOk()) {
             return ExitCode::Success;

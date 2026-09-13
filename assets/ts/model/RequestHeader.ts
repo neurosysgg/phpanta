@@ -43,4 +43,10 @@ export enum RequestHeader {
 
   /** What a CORS preflight asks to send; written by the browser, read by the same layer. */
   AccessControlRequestMethod = 'Access-Control-Request-Method',
+
+  /**
+   * Written by no client code — the browser sends its own, which asks for a page, and the server
+   * answers the admin as data only for a caller that asks for application/json.
+   */
+  Accept = 'Accept',
 }

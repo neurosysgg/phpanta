@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Phpanta\Test\Unit;
 
-use Phpanta\Http\Answer;
+use Phpanta\Http\Api\ApiResult;
 use Phpanta\Http\HttpStatusCode;
-use Phpanta\Http\Response;
-use Phpanta\Test\TestRequest;
 
 /**
  * What {@link UpdateTest} and a site's own API suite both have to be able to do, in one place.
@@ -22,9 +20,8 @@ use Phpanta\Test\TestRequest;
  * - **Build archives `TarWriter` will not.** That writer — deliberately — cannot produce a symlink,
  *   a device node, or a name with `..` in it, so a fixture built by it could only ever exercise the
  *   refusals that do not matter. These are raw ustar bytes, assembled by hand.
- * - **Read a response's status and body** for a handler that returns one without a request to
- *   answer — {@link \Phpanta\Http\Response::answer()} needs one, and these hand it a plain GET, so
- *   a test asks for the status or the body in one call rather than building a request it never uses.
+ * - **Read a handler's status and text** in one call each — a handler answers with an
+ *   {@link ApiResult}, and a test of what a report says reads it as the text a terminal gets.
  */
 final class UpdateFixture
 {
@@ -106,38 +103,26 @@ final class UpdateFixture
     }
 
     /**
-     * The status $response answers a plain GET with.
+     * The status a handler's $result carries.
      *
-     * @param Response $response
+     * @param ApiResult $result
      * @return HttpStatusCode
      */
-    public static function statusOf(Response $response): HttpStatusCode
+    public static function statusOf(ApiResult $result): HttpStatusCode
     {
-        return self::answerOf($response)->status();
+        return $result->status;
     }
 
     /**
-     * The body $response answers a plain GET with.
+     * A handler's $result as the text the signing CLI prints — which is the form every assertion on
+     * a report's wording was written against, and the one a terminal reads.
      *
-     * @param Response $response
+     * @param ApiResult $result
      * @return string
      */
-    public static function bodyOf(Response $response): string
+    public static function bodyOf(ApiResult $result): string
     {
-        return self::answerOf($response)->body();
-    }
-
-    /**
-     * What $response answers a plain GET with. A handler's response does not depend on the request
-     * it is answered for — the request it depends on was the one handed to the handler — so any
-     * request will do, and the plainest is the one that says so.
-     *
-     * @param Response $response
-     * @return Answer
-     */
-    private static function answerOf(Response $response): Answer
-    {
-        return $response->answer(TestRequest::get('/')->request());
+        return $result->text();
     }
 
     /**

@@ -48,16 +48,27 @@ final readonly class ProbeReport
     }
 
     /**
-     * The response body.
+     * The report as the answer's one section.
+     *
+     * @return HealthSection
+     */
+    #[NoDiscard('the report as a section; dropping it answers with nothing')]
+    public function section(): HealthSection
+    {
+        return HealthSection::facts(
+            $this->applied ? 'filesystem' : 'filesystem — a dry run, so nothing was written or measured',
+            $this->facts,
+        );
+    }
+
+    /**
+     * The report as text.
      *
      * @return string
      */
     #[NoDiscard('the rendered report; dropping it sends an empty response')]
     public function render(): string
     {
-        return HealthSection::document(HealthSection::facts(
-            $this->applied ? 'filesystem' : 'filesystem — a dry run, so nothing was written or measured',
-            $this->facts,
-        ));
+        return HealthSection::document($this->section());
     }
 }
