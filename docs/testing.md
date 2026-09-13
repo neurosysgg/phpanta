@@ -80,7 +80,10 @@ the framework's tests are built on (`UpdateFixture`, `TextFixture`) rather than 
 their own.
 
 The suite is as strict as any suite built on it: `failOnWarning`, `failOnNotice` and
-`failOnDeprecation` are on, and output during a test is a failure. Checked out on its own, the Pages
+`failOnDeprecation` are on, and output during a test is a failure. **It passes as root too**: a test
+that needs a file permission to stop something first asks whether it did, and skips with the reason
+when the process is one no permission stops. `unshare -r vendor/bin/phpunit` runs the suite as root
+without being root, which is how that is checked. Checked out on its own, the Pages
 workflow (`.github/workflows/pages.yml`) runs the suite and `npm run check` before it builds and
 publishes the framework's own site.
 

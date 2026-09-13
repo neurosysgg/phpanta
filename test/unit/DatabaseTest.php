@@ -824,13 +824,34 @@ final class DatabaseTest extends TestCase
     }
 
     /**
-     * A file some tool left in WAL is put back to a rollback journal when it is opened — and one
-     * another connection is holding in WAL is refused rather than used in it.
+     * A file some tool left in WAL is put back to a rollback journal when it is opened.
      *
      * @return void
      */
     #[RequiresPhpExtension('pdo_sqlite')]
-    public function testAFileLeftInWalIsPutBackAndOneHeldInWalIsRefused(): void
+    public function testAFileLeftInWalIsPutBack(): void
+    {
+        $file = $this->directory->file('site.sqlite');
+        $tool = new PDO('sqlite:' . $file->path);
+        $tool->exec('PRAGMA journal_mode = WAL');
+        $tool->exec('CREATE TABLE t (x)');
+        $tool->exec('INSERT INTO t VALUES (1)');
+        unset($tool);
+
+        self::assertSame('delete', self::journalOf(Database::open($file)));
+    }
+
+    /**
+     * A file another connection is holding in WAL is refused rather than used in it.
+     *
+     * Its own test, and nothing after the refusal needs the tool's connection gone: Xdebug's develop
+     * mode keeps the frames an exception was thrown through, locals and all, until the next one is
+     * thrown — so a reopen here would find the file still held by a connection this test let go of.
+     *
+     * @return void
+     */
+    #[RequiresPhpExtension('pdo_sqlite')]
+    public function testAFileHeldInWalIsRefused(): void
     {
         $file = $this->directory->file('site.sqlite');
         $tool = new PDO('sqlite:' . $file->path);
@@ -850,10 +871,6 @@ final class DatabaseTest extends TestCase
             );
             self::assertInstanceOf(PDOException::class, $refused->getPrevious());
         }
-
-        unset($reading, $tool);
-
-        self::assertSame('delete', self::journalOf(Database::open($file)));
     }
 
     /**

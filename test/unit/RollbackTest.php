@@ -190,6 +190,11 @@ final class RollbackTest extends TestCase
             ),
         };
 
+        if ($how === 'the record cannot be written into' && is_writable($record->path)) {
+            chmod($record->path, 0o700);
+            self::markTestSkipped('this process can write to a read-only directory');
+        }
+
         try {
             (void) $this->pushTheSecondRelease();
             self::fail('the push went ahead without a record');
@@ -849,6 +854,11 @@ final class RollbackTest extends TestCase
         $saved = new Directory($this->sandbox . '/.update-previous/saved/public');
         self::assertTrue(chmod($saved->path, 0o555));
 
+        if (is_writable($saved->path)) {
+            chmod($saved->path, 0o700);
+            self::markTestSkipped('this process can write to a read-only directory');
+        }
+
         try {
             (void) $this->push(['public/other.bin' => 'newer', 'public/assets/fresh.js' => 'fresh']);
             self::fail('a push replaced a record it could not clear');
@@ -904,6 +914,11 @@ final class RollbackTest extends TestCase
         // unlink() needs write permission on the directory, not on the file.
         $assets = $this->web()->directory('assets');
         self::assertTrue(chmod($assets->path, 0o555));
+
+        if (is_writable($assets->path)) {
+            chmod($assets->path, 0o755);
+            self::markTestSkipped('this process can write to a read-only directory');
+        }
 
         try {
             $report = $this->applier()->rollback(true);

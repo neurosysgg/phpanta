@@ -31,7 +31,8 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.5'
-          extensions: dom, intl, openssl, zlib
+          # pdo_sqlite by name: DatabaseTest skips without it, and a skip passes.
+          extensions: dom, intl, openssl, zlib, pdo_sqlite
           coverage: none
 
       - uses: actions/setup-node@v4

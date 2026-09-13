@@ -763,6 +763,11 @@ final class UpdateTest extends TestCase
         // unlink() needs write permission on the *directory*, not on the file.
         self::assertTrue(chmod($webroot->directory('locked')->path, 0o555));
 
+        if (is_writable($webroot->directory('locked')->path)) {
+            chmod($webroot->directory('locked')->path, 0o755);
+            self::markTestSkipped('this process can write to a read-only directory');
+        }
+
         try {
             $report = $this->applier()->apply(
                 UpdateFixture::archive(['public/keep.txt' => 'new']),
