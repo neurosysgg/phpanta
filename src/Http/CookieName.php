@@ -20,4 +20,11 @@ enum CookieName: string
      * Read by {@link Request::language()}, where it outranks `Accept-Language`.
      */
     case Language = 'lang';
+
+    /**
+     * The sealed session — see {@link Session}. `__Host-` is a prefix the browser enforces: a cookie
+     * so named is kept only if it is `Secure`, `Path=/` and names no `Domain`, so no other host under
+     * the same domain can plant one.
+     */
+    case Session = '__Host-session';
 }

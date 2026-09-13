@@ -53,13 +53,45 @@ final class FileLock
     #[NoDiscard('a lock nobody holds is released the moment it is taken')]
     public static function exclusive(File $file): ?self
     {
+        return self::take($file, LOCK_EX | LOCK_NB);
+    }
+
+    /**
+     * Takes the lock on $file, waiting for whoever holds it to let go, or answers null where the file
+     * cannot be opened.
+     *
+     * **The waiting kind is for a lock held for moments, around a record everybody writes** — a
+     * {@link Throttle}'s — where the second caller has everything to wait for: its write is a count
+     * that has to include the first one's, and a refusal would turn a busy second into an error.
+     * {@link self::exclusive()}'s argument is the opposite case, and still holds for it.
+     *
+     * A process that dies holding the lock releases it, so nothing waits on a holder that has gone.
+     *
+     * @param File $file
+     * @return self|null
+     */
+    #[NoDiscard('a lock nobody holds is released the moment it is taken')]
+    public static function waitFor(File $file): ?self
+    {
+        return self::take($file, LOCK_EX);
+    }
+
+    /**
+     * Opens $file and takes the lock $operation names, or answers null.
+     *
+     * @param File $file
+     * @param int  $operation Either `LOCK_EX` alone, which waits, or with `LOCK_NB`, which does not.
+     * @return self|null
+     */
+    private static function take(File $file, int $operation): ?self
+    {
         $handle = Diagnostics::muted(static fn(): mixed => fopen($file->path, 'c'));
 
         if ($handle === false) {
             return null;
         }
 
-        if (!flock($handle, LOCK_EX | LOCK_NB)) {
+        if (!flock($handle, $operation)) {
             fclose($handle);
 
             return null;

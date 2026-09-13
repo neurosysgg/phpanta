@@ -272,7 +272,7 @@ They are listed in two places, and discovered in none:
   in the controller, so the password is written where the address is and the route table is where a
   test asks whether a page is behind one.
 
-Five ship with the framework, in `Service/Layer/`:
+Six ship with the framework, in `Service/Layer/`:
 
 - `SiteGate`, the pre-launch gate;
 - `AdminGate`, the admin gate for a route;
@@ -284,7 +284,12 @@ Five ship with the framework, in `Service/Layer/`:
 - `Cors`, which other [`Origin`](../src/Http/Origin.php)s may read the answers: a listed one is named
   back in `Access-Control-Allow-Origin` and its preflight is answered by the layer; every answer
   through it says `Vary: Origin`; and there are no credentials, so nothing a gate protects is
-  readable from elsewhere.
+  readable from elsewhere;
+- `RateLimit`, a `429` with `Retry-After` and `no-store` for an address over its
+  [`Throttle`](../src/Support/Throttle.php) — so many attempts per key in a sliding window, one
+  file per key under a directory the caller supplies, and a `ThrottleException` rather than an
+  allowance when that directory is missing or unwritable. It keys by the remote address, the only
+  identity an anonymous request has, so behind a reverse proxy every visitor shares the proxy's.
 
 ## `Http/` — the wire
 
@@ -302,6 +307,8 @@ Everything about a request or a response is a typed value here, not a string.
 | `PlainTextResponse` | body + status + extra headers |
 | `JsonResponse` | a `JsonSerializable`, encoded when the answer is asked for, so a value that cannot encode throws before anything is sent; `no-cache` unless the caller sends its own |
 | `StreamResponse` | a body generated as it is sent — a large CSV, server-sent events; no `Content-Length`, `no-store`, and a HEAD never runs the closure |
+| `Session` | what a visitor carries between requests, sealed into `__Host-session`; immutable, attached to an answer to be kept |
+| `SessionSeal` | AES-256-GCM under the deployment's `data/session.key`; what does not open is no session |
 | `Header` | a `HeaderName` and a `HeaderValue`; formats `Name: value` in one place |
 | `MimeType` | a `TopLevelType`, a validated subtype, and a `Charset` |
 | `HttpStatusCode` | every standard status code, backed by its number |
@@ -325,8 +332,8 @@ and a `new Header(…)` call site is the one place a grammar cannot be checked. 
 method, `render()`, and its implementations are the objects that know each header's grammar:
 `ContentSecurityPolicy`, `PermissionsPolicy`, `StrictTransportSecurity`, `ReferrerPolicy`,
 `ContentTypeOptions`, `RobotsPolicy` and `MimeType`, plus `CacheControl`, `ETag`, `Vary`, `Allow`,
-`BasicChallenge`, `Location`, `ContentLanguage`, `ContentLength`, `ContentRange`, `AcceptRanges` and
-`SetCookie`. `Header` accepts nothing else, so a value cannot be assembled as a string at the call
+`BasicChallenge`, `Location`, `ContentLanguage`, `ContentLength`, `ContentRange`, `AcceptRanges`,
+`SetCookie`, `Origin` and `RetryAfter`. `Header` accepts nothing else, so a value cannot be assembled as a string at the call
 site. `Location` accepts an absolute `https://` URL or a path that `Element::staysOnThisOrigin()`
 confirms is on this origin, and nothing else. `SecurityPolicyTest` pins the set in both directions —
 every implementer must be rendered by its table, and the table must name every implementer.
@@ -342,7 +349,9 @@ stops a browser guessing the type, and nothing stops it guessing the encoding.
 
 `Collection<T>` and `SearchableCollection<T>` with the `TypedItems` trait they share — see
 [collections.md](collections.md). `File`, `Directory`, `FileLock` and `Diagnostics`. `Route`, the
-`Path` interface, `ApiPath`, the `FillsPlaceholders` trait and `MethodPolicy`. `ErrorLog`.
+`Path` interface, `ApiPath`, the `FillsPlaceholders` trait, `PlaceholderType`, `RouteGroup`, and the
+`MethodGate` a route answers through — `MethodPolicy` or a `MethodSet`. `Throttle` and
+`ThrottleVerdict`, the file-backed sliding window a login and the `RateLimit` layer count in. `ErrorLog`.
 `RequirementInitialization`, the framework's floor — see [health.md](health.md). `Charset` and
 `UrlScheme`. `PasswordHash` and `PublicKey`; `TarArchive`, `TarEntry` and `TarMemberType`.
 `JsonDeserializable`. `BareArray`, `BareString` and `BareCall`, the three attributes that excuse an

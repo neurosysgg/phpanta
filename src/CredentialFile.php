@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Phpanta;
 
 /**
- * The CredentialFile enum. The three files in `data/` the framework itself reads: the two gates'
- * credentials and the API's key.
+ * The CredentialFile enum. The four files in `data/` the framework itself reads: the two gates'
+ * credentials, the API's key, and the key sessions are sealed with.
  *
  * **Every one of them changes what the site does rather than what it shows**, which is why they
  * are the framework's rather than a site's: the site gate, the admin gate and the signed API are
@@ -14,7 +14,8 @@ namespace Phpanta;
  * in opposite directions, and that is the thing to read twice — see {@link self::SiteAuth} and
  * {@link self::UpdateKey}.
  *
- * All three hold live credentials, so a full deploy excludes all three and each is uploaded by hand.
+ * All four hold live credentials, so a full deploy excludes all four; each that a deployment needs is
+ * uploaded, or minted, by hand.
  */
 enum CredentialFile: string implements DataFileName
 {
@@ -50,16 +51,27 @@ enum CredentialFile: string implements DataFileName
     case UpdateKey = 'update.pub';
 
     /**
+     * The key sessions are sealed with — thirty-two random bytes, base64. See
+     * {@link Http\SessionSeal}.
+     *
+     * Per deployment like {@link self::UpdateKey}, minted on the host it serves, never committed and
+     * never deployed: a key that travelled from a laptop would seal the live site's sessions with a
+     * secret the laptop still holds. A site that keeps no session never has one, and nothing asks
+     * for it until something keeps a session.
+     */
+    case SessionKey = 'session.key';
+
+    /**
      * Only the admin placeholder is tracked: the site gate's file exists per deployment and is
-     * gitignored, and the key is untracked because each deployment holds its own.
+     * gitignored, and the two keys are untracked because each deployment holds its own.
      *
      * @return bool
      */
     public function isTracked(): bool
     {
         return match ($this) {
-            self::Admin                     => true,
-            self::SiteAuth, self::UpdateKey => false,
+            self::Admin                                       => true,
+            self::SiteAuth, self::UpdateKey, self::SessionKey => false,
         };
     }
 }

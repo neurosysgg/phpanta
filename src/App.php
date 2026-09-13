@@ -23,6 +23,7 @@ use Phpanta\Http\Security\PermissionsPolicyFeature;
 use Phpanta\Http\Security\StrictTransportSecurity;
 use Phpanta\Http\SecurityHeaders;
 use Phpanta\Http\ServerVariable;
+use Phpanta\Http\SessionSeal;
 use Phpanta\Model\Health\Requirement;
 use Phpanta\Service\Layer\SiteGate;
 use Phpanta\Support\ApiPath;
@@ -474,6 +475,20 @@ abstract class App
     final public function requirements(): Collection
     {
         return RequirementInitialization::requirements($this)->with(...$this->ownRequirements()->toValues());
+    }
+
+    /**
+     * What this deployment's sessions are sealed with: the key in `data/session.key`.
+     *
+     * Asked only when something keeps a session, so a site that keeps none never needs the file; one
+     * that does and has no key is told so, loudly, with how to mint one — see
+     * {@link Http\SessionSeal::fromFile()}.
+     *
+     * @return SessionSeal
+     */
+    final public function sessionSeal(): SessionSeal
+    {
+        return SessionSeal::fromFile($this->dataFile(CredentialFile::SessionKey));
     }
 
     /**

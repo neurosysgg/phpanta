@@ -31,9 +31,9 @@ enum ResponseHeader: string implements HeaderName
     /**
      * A cookie for the browser to keep.
      *
-     * Sent by one response, the language switch's 303, and only because a visitor clicked it — see
-     * {@link SetCookie} for the attributes it carries and why each is there. The only cookie the
-     * framework sets.
+     * Two cookies, and {@link SetCookie} builds both — see it for the attributes each carries and
+     * why: the language a visitor chose, sent only because they clicked a switch, and the sealed
+     * session, sent only by an answer a {@link Session} was attached to.
      */
     case SetCookie = 'Set-Cookie';
 
@@ -118,6 +118,12 @@ enum ResponseHeader: string implements HeaderName
      * Which methods a cross-origin request may use — the answer to a preflight, from the same layer.
      */
     case AccessControlAllowMethods = 'Access-Control-Allow-Methods';
+
+    /**
+     * How long a refused client should wait before asking again — sent with the 429 the
+     * {@link \Phpanta\Service\Layer\RateLimit} layer answers, in seconds; see {@link RetryAfter}.
+     */
+    case RetryAfter = 'Retry-After';
 
     /**
      * The one case here that names a header the site does **not** send.

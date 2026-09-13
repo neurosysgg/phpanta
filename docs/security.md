@@ -241,6 +241,42 @@ All of them anchor with `\z`, not `$`, because `$` also matches before a trailin
 rule the router's patterns follow. A value type a site adds for its own data — a share id, a
 profile URL — follows the same rule, and its bad-input cases include a trailing newline.
 
+## Sessions, the form token and the login
+
+A site that has a form and a login keeps a [`Session`](../src/Http/Session.php). The framework holds
+it to four things:
+
+- **The visitor carries it, sealed.** A shared host gives a site no process to keep a session store
+  in, so the whole session is one cookie, sealed by [`SessionSeal`](../src/Http/SessionSeal.php)
+  with AES-256-GCM: the visitor can neither read it nor change a byte of it. Every seal takes a fresh
+  nonce and binds a fixed context string as associated data. A cookie that does not open —
+  tampered with, sealed under another key, cut short, or kept past its lifetime of two weeks — is
+  simply no session. A session sealed larger than a cookie holds is refused rather than cut.
+- **The cookie is `__Host-session`,** `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/`, and names no
+  `Domain`. The `__Host-` prefix is the browser's own check that no other host under the domain can
+  plant one.
+- **The key is per deployment,** thirty-two random bytes in `data/session.key`. It is minted on the
+  host it serves, gitignored, and excluded from a deploy like the other credentials. Nothing asks for
+  it until something keeps a session, and a deployment that keeps one without it stops, saying how to
+  mint it.
+- **A login hands out a new form token,** so a token a page wrote before the login is worth nothing
+  after it, and a logout forgets everything the session kept.
+
+[`CsrfGuard`](../src/Service/Layer/CsrfGuard.php) holds every write to the token the visitor's session
+handed out: a `_csrf` field that matches it, compared in constant time, or a 403 that no cache keeps.
+A read passes untouched. [`LoginGate`](../src/Service/Layer/LoginGate.php) sends a visitor who is not
+logged in to the login page for a read, and refuses a write.
+
+**Both are listed on the routes that take them, never on the app.** An app layer stands in front of
+every address, and would answer one that does not exist differently from the API, which answers every
+method itself exactly as an absent address would. That difference is the one fact the API is built to
+keep; on a route, past its method gate, the difference cannot arise.
+
+A site's own session keys are a [`SessionKey`](../src/Http/SessionKey.php) enum, and a key may not
+begin with `_`, where the framework keeps who is logged in and the token. Otherwise a site could log
+a visitor in by setting a value. A message left for the next page is a catalog case, so it is in the
+visitor's language on whichever page shows it, and is shown once.
+
 ## The API
 
 `/api/{service}/{version}/{action}` is the one address family that writes. It exists because a

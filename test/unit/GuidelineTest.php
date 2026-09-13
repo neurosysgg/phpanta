@@ -178,6 +178,7 @@ final class GuidelineTest extends TestCase
                 'Phpanta\Support\SearchableCollection::toValues()',
                 'Phpanta\Support\TarArchive::header()',
                 'Phpanta\Support\TarArchive::name()',
+                'Phpanta\Support\Throttle::times()',
                 'Phpanta\Support\TypedItems::$items',
                 'Phpanta\Support\TypedItems::$steps',
                 'Phpanta\Support\TypedItems::stringKeyed()',
@@ -244,6 +245,7 @@ final class GuidelineTest extends TestCase
         self::assertSame(
             [
                 'Phpanta\Http\Input string',
+                'Phpanta\Http\Session string',
                 'Phpanta\Model\Health\HealthSection string',
                 'Phpanta\Model\Update\UpdateReport string',
                 'Phpanta\Support\Diagnostics string',

@@ -563,6 +563,22 @@ readonly class Request
     }
 
     /**
+     * The address this request came from, as the server reports it — `REMOTE_ADDR` — or `''` where
+     * nothing arrived: a synthetic request, a CLI.
+     *
+     * The peer of the connection, which behind a reverse proxy is the proxy and not the visitor.
+     * Nothing here reads `X-Forwarded-For` in its place, because without a proxy the app trusts that
+     * header is the client's to write. See {@link \Phpanta\Service\Layer\RateLimit} for the question
+     * it answers.
+     *
+     * @return string
+     */
+    public function remoteAddress(): string
+    {
+        return $this->remoteAddress;
+    }
+
+    /**
      * True if this request came from this machine: a loopback address, IPv4's `127.0.0.0/8`, IPv6's
      * `::1`, or the first written the way a dual-stack socket reports it, `::ffff:127.x.x.x`.
      *
@@ -587,6 +603,18 @@ readonly class Request
             default => $packed === str_repeat("\0", 15) . "\x01"
                 || (str_starts_with($packed, $mapped) && $packed[12] === "\x7f"),
         };
+    }
+
+    /**
+     * The session this request carried, opened with the app's key — or a fresh one, where it carried
+     * none that opens. See {@link Session}.
+     *
+     * @return Session
+     * @throws \Phpanta\Exception\SessionException if the deployment has no session key.
+     */
+    public function session(): Session
+    {
+        return Session::of($this, App::current()->sessionSeal());
     }
 
     /**

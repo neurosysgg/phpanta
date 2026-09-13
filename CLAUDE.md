@@ -140,6 +140,10 @@ These fail silently — no error, no log, a page that looks fine.
 - Rewriting a file the request is executing makes NFS silly-rename it into an undeletable
   `.nfsXXXXXXXX`; a push leaves byte-identical files untouched for that reason.
 - A health check **returns** its 503, and `Requirement::check()` never throws.
+- **`data/session.key` is per deployment and never ships.** Nothing asks for it until something keeps
+  a session; then its absence is a loud refusal, never a session sealed under something made up. A
+  session cookie that does not open is no session, not an error. `CsrfGuard` and `LoginGate` go on
+  routes, never on the app — as app layers they would tell an absent address from the API.
 - **A trace is shown only in development, and only to loopback.** Development is the server
   variable `PHPANTA_ENVIRONMENT=development`, exactly — `SetEnv` in a vhost, or the dev router for
   `php -S`, which hands its own environment to nothing. Any other value, a capital included, is

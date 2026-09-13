@@ -53,6 +53,32 @@ final readonly class SetCookie implements HeaderValue
     }
 
     /**
+     * The cookie a sealed session travels in, kept for {@link Session::LIFETIME}.
+     *
+     * The value is {@link SessionSeal::seal()}'s base64url, which is cookie-safe as it is.
+     *
+     * @param string $sealed
+     * @return self
+     */
+    public static function session(string $sealed): self
+    {
+        return new self(CookieName::Session, $sealed, Session::LIFETIME);
+    }
+
+    /**
+     * $name, expired: an empty value and `Max-Age=0`, which a browser takes as "delete it now". The
+     * other attributes are the ones it was set with, since a `__Host-` cookie is only replaced by one
+     * that repeats them.
+     *
+     * @param CookieName $name
+     * @return self
+     */
+    public static function expired(CookieName $name): self
+    {
+        return new self($name, '', 0);
+    }
+
+    /**
      * @return string
      */
     public function render(): string

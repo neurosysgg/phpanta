@@ -23,6 +23,7 @@ use Phpanta\Http\MimeType;
 use Phpanta\Http\Origin;
 use Phpanta\Http\RequestHeader;
 use Phpanta\Http\ResponseHeader;
+use Phpanta\Http\RetryAfter;
 use Phpanta\Http\RobotsPolicy;
 use Phpanta\Http\Security\ContentSecurityPolicy;
 use Phpanta\Http\Security\ContentTypeOptions;
@@ -65,6 +66,7 @@ use RecursiveIteratorIterator;
 #[CoversClass(SetCookie::class)]
 #[CoversClass(Location::class)]
 #[CoversClass(Origin::class)]
+#[CoversClass(RetryAfter::class)]
 // The empty-list refusals below are these two classes' only guards, and without the classes named
 // here the rows that drive them record nothing.
 #[CoversClass(CacheControl::class)]
@@ -451,6 +453,7 @@ final class SecurityPolicyTest extends TestCase
         yield 'ranges are supported'      => ['bytes', AcceptRanges::Bytes];
         yield 'what a crawler may do'     => ['noindex, nofollow, noarchive', RobotsPolicy::hide()];
         yield 'who may read it from afar' => ['https://app.example.org', Origin::of('https://app.example.org')];
+        yield 'how long to wait'          => ['120', new RetryAfter(120)];
 
         // The four that already rendered before the interface existed. They are here as well as in
         // their own tests above, because this table is the one place that answers "what can the
@@ -573,6 +576,7 @@ final class SecurityPolicyTest extends TestCase
                 'Phpanta\Http\Location',
                 'Phpanta\Http\MimeType',
                 'Phpanta\Http\Origin',
+                'Phpanta\Http\RetryAfter',
                 'Phpanta\Http\RobotsPolicy',
                 'Phpanta\Http\Security\ContentSecurityPolicy',
                 'Phpanta\Http\Security\ContentTypeOptions',
