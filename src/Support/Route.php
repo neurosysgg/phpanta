@@ -7,6 +7,7 @@ namespace Phpanta\Support;
 use Closure;
 use NoDiscard;
 use Phpanta\Controller\Controller;
+use Phpanta\Controller\Layer;
 use Phpanta\Http\HttpMethod;
 
 /**
@@ -58,14 +59,49 @@ readonly class Route
      *                              values exist, so a route with placeholders exports nothing
      *                              without one; `fn() => []` keeps a route without any out of an
      *                              export. See {@link self::exportedPaths()}.
+     * @param Collection<Layer> $layers What stands around this route's controller, outermost first;
+     *                              usually written with {@link self::through()} rather than here.
      */
     public function __construct(
         private Path         $pattern,
         private Closure      $factory,
         private MethodPolicy $methods = MethodPolicy::ReadOnly,
         private ?Closure     $exports = null,
+        private Collection   $layers = new Collection(Layer::class),
     ) {
         $this->regex = self::compile($pattern->value);
+    }
+
+    /**
+     * This route with $layers around its controller, after any it already has.
+     *
+     * They run once the route has matched and its method gate has let the request through, so a
+     * layer here only ever sees requests this route answers. `->through(new AdminGate())` is what
+     * puts a page behind the admin password. See {@link Layer}.
+     *
+     * @param Layer ...$layers
+     * @return static
+     */
+    #[NoDiscard('through() copies rather than adds, so a call whose result goes nowhere guards nothing')]
+    public function through(Layer ...$layers): static
+    {
+        return new static(
+            $this->pattern,
+            $this->factory,
+            $this->methods,
+            $this->exports,
+            $this->layers->with(...$layers),
+        );
+    }
+
+    /**
+     * What stands around this route's controller, outermost first.
+     *
+     * @return Collection<Layer>
+     */
+    public function layers(): Collection
+    {
+        return $this->layers;
     }
 
     /**

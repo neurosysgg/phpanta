@@ -26,7 +26,7 @@ an app:
   paths the framework derives from an app then have somewhere real to land, and never land in a
   repository.
 
-`test/unit/` holds thirty-seven test classes, grouped by area:
+`test/unit/` holds thirty-eight test classes, grouped by area:
 
 | Area | Tests |
 |---|---|
@@ -36,7 +36,7 @@ an app:
 | health and capability | `HealthTest`, `RequirementTest`, `CapabilityTest` |
 | HTTP | `AnswerTest` (every answer, end to end, through `TestRequest`), `ResponseTest`, `RevalidationTest`, `FileResponseTest` (ranges and their headers), `MimeTypeTest`, `RequestTest`, `SecurityHeadersTest`, `SecurityPolicyTest`, `SyntheticPageTest` |
 | auth | `AuthTest` (the comparison, its timing, the gates, `PasswordHash`) |
-| routing | `RouterTest`, `RouteTest`, `RouteExportTest` |
+| routing | `RouterTest`, `RouteTest`, `RouteExportTest`, `LayerTest` (the order layers run in, a route's past its method gate, the three that ship) |
 | the markup tree | `MarkupTest` (building, escaping, the URL checks, parsing against a vocabulary) |
 | the export | `ExportTest`, `BasePathTest` |
 | text | `TextTest`, `LanguagesTest` |
@@ -114,8 +114,8 @@ Two rules, the same as in any suite built on this one:
 - **Uncovered lines are a decision, not a budget.** A change that adds a guard covers it in the same
   commit. A guard no test can reach is deleted rather than covered by reflection.
 
-**The framework's suite alone covers nearly all of `src/`'s lines.** The figure was 98.69%
-(2119 of 2147) when last derived on 2026-09-13. Re-derive it
+**The framework's suite alone covers nearly all of `src/`'s lines.** The figure was 98.71%
+(2152 of 2180) when last derived on 2026-09-13. Re-derive it
 with `XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-text` rather than trusting this.
 
 What it does not reach is what only a server reaches: `App::run()`, `Answer::send()` and

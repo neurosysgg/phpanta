@@ -20,6 +20,13 @@ enum FrameworkText: string implements Translatable
     #[Translation(en: 'This site is read-only.', de: 'Diese Seite ist schreibgeschützt.')]
     case ReadOnly = 'read-only';
 
+    /** The body of the 503 a site in maintenance answers every page with — see Maintenance. */
+    #[Translation(
+        en: 'This site is down for maintenance. Please try again shortly.',
+        de: 'Diese Seite wird gerade gewartet. Bitte versuche es gleich noch einmal.',
+    )]
+    case Maintenance = 'maintenance';
+
     /** The title of the page a fault is shown on in development — see FaultPage. */
     #[Translation(en: 'Something broke', de: 'Etwas ist kaputtgegangen')]
     case Fault = 'fault';

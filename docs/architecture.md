@@ -138,8 +138,9 @@ construction, since everything it may act on is signed.
 
 ### ③ The pre-launch gate
 
-[`Auth::siteGate()`](../src/Service/Auth.php) checks for `data/site_auth.php`. Refusing, it
-returns the `401` as a response, which `App::handle()` answers in the route's place. If
+[`SiteGate`](../src/Service/Layer/SiteGate.php), the first of the app's [layers](#layers), asks
+[`Auth::siteGate()`](../src/Service/Auth.php), which checks for `data/site_auth.php`. Refusing, it
+returns the `401` as a response, which is then the answer in the router's place. If
 the file is absent it returns null immediately — *that absence is how the gate is switched off*, and a
 site gitignores the file precisely so the repository's copy cannot switch it on. It is also why a
 misspelled `DataFileName` case there would not fail but stand the gate down. `TestApp`'s deployment
@@ -238,6 +239,31 @@ validator, and every page says `Vary: X-Requested-With, Accept-Language, Cookie`
 view declares in `varyOn()`.
 
 ---
+
+## Layers
+
+What stands around a controller is a [`Layer`](../src/Controller/Layer.php). It is handed the
+request and whatever comes next — the next layer in, or the controller — as one more `Controller`,
+and it can look before, answer instead, or wrap what came back;
+[`WithHeaders`](../src/Http/WithHeaders.php) is the usual shape of after, since it keeps the status,
+the validator and the body exactly as they were. [`Layered::around()`](../src/Controller/Layered.php)
+folds a list of them around a controller, the first listed outermost: first to see the request, last
+to see the response.
+
+They are listed in two places, and discovered in none:
+
+- **Around every request**, `App::layerTable()`: the framework's `SiteGate`, always first, so no site
+  can forget it or put something ahead of it; then the site's own `App::layers()`; and inside them,
+  the router.
+- **Around one route**, `Route::through()`: around that route's controller only, and only past its
+  method gate — a `POST` a read-only route refuses never reaches them. A gate belongs here rather than
+  in the controller, so the password is written where the address is and the route table is where a
+  test asks whether a page is behind one.
+
+Three ship with the framework, in `Service/Layer/`: `SiteGate`; `AdminGate`, the admin gate for a
+route; and `Maintenance`, a `503` that no cache keeps for every page while a switch file exists —
+absent means off, like the site gate's — and never for the API, because a push is how maintenance
+usually ends. It recognises the API by the route's own match, `App::apiRoute()`, never by a prefix.
 
 ## `Http/` — the wire
 

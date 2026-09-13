@@ -7,6 +7,8 @@ namespace Phpanta;
 use DateTimeImmutable;
 use NoDiscard;
 use Phpanta\Controller\ApiController;
+use Phpanta\Controller\Layer;
+use Phpanta\Controller\Layered;
 use Phpanta\Exception\AppException;
 use Phpanta\Exception\UpdateException;
 use Phpanta\Http\Answer;
@@ -22,7 +24,7 @@ use Phpanta\Http\Security\StrictTransportSecurity;
 use Phpanta\Http\SecurityHeaders;
 use Phpanta\Http\ServerVariable;
 use Phpanta\Model\Health\Requirement;
-use Phpanta\Service\Auth;
+use Phpanta\Service\Layer\SiteGate;
 use Phpanta\Support\ApiPath;
 use Phpanta\Support\Collection;
 use Phpanta\Support\Directory;
@@ -253,6 +255,21 @@ abstract class App
     public function permissionsPolicy(): PermissionsPolicy
     {
         return PermissionsPolicy::denyAll();
+    }
+
+    /**
+     * What the site stands around every request, outermost first, inside the framework's site gate.
+     * Nothing by default.
+     *
+     * Listed here and nowhere else — a maintenance switch, a header every answer carries. What
+     * stands around one route is that route's to list, with {@link Route::through()}. See
+     * {@link self::layerTable()}.
+     *
+     * @return Collection<Layer>
+     */
+    protected function layers(): Collection
+    {
+        return new Collection(Layer::class);
     }
 
     /**
@@ -496,7 +513,21 @@ abstract class App
      */
     final public function routeTable(): Collection
     {
-        return $this->routes()->with(new Route(
+        return $this->routes()->with($this->apiRoute());
+    }
+
+    /**
+     * The framework's API route: `/api/{service}/{version}/{action}`, every method to its
+     * controller.
+     *
+     * Public because it is also the one honest answer to "is this an API address?" — the route's
+     * own match, which is what {@link Service\Layer\Maintenance} asks rather than a prefix.
+     *
+     * @return Route
+     */
+    final public function apiRoute(): Route
+    {
+        return new Route(
             ApiPath::Api,
             // The captures go through as raw strings. Resolving them to cases here would put a
             // from() in the factory, and a ValueError raised before the signature is checked is
@@ -507,7 +538,21 @@ abstract class App
             // made here would differ from the one it makes for an address that does not exist — and
             // being indistinguishable from that is the whole design. See MethodPolicy.
             MethodPolicy::Delegated,
-        ));
+        );
+    }
+
+    /**
+     * What stands around every request, outermost first: the framework's site gate, then the
+     * site's own.
+     *
+     * The site gate is the framework's to put first, so no site can forget it or list something
+     * ahead of it that should have been behind it. See {@link Controller\Layer}.
+     *
+     * @return Collection<Layer>
+     */
+    final public function layerTable(): Collection
+    {
+        return new Collection(Layer::class)->with(new SiteGate(), ...$this->layers()->toValues());
     }
 
     /**
@@ -523,7 +568,7 @@ abstract class App
     #[NoDiscard('handle() works out the answer and sends nothing; a call whose result goes nowhere answered no one')]
     final public function handle(Request $request): Answer
     {
-        $response = Auth::siteGate($request) ?? new Router($this->routeTable())->dispatch($request);
+        $response = Layered::around($this->layerTable(), new Router($this->routeTable()))->handle($request);
 
         return $response->answer($request)->withHeadersFirst(SecurityHeaders::all($this));
     }

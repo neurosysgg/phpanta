@@ -91,6 +91,19 @@ final readonly class Answer
     }
 
     /**
+     * This answer with $headers after its own — what {@link WithHeaders} adds to a response a layer
+     * stands behind.
+     *
+     * @param Collection<Header> $headers
+     * @return self
+     */
+    #[NoDiscard('withHeaders() copies rather than adds, so a call whose result goes nowhere sends nothing')]
+    public function withHeaders(Collection $headers): self
+    {
+        return new self($this->status, $this->headers->with(...$headers), $this->body);
+    }
+
+    /**
      * Sends the answer: the status, the headers, the body. The one place anything is.
      *
      * **The status goes first**, because PHP rewrites it on the way past: a `Location` header sent
