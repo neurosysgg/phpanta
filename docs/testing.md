@@ -25,21 +25,25 @@ an app:
   paths the framework derives from an app then have somewhere real to land, and never land in a
   repository.
 
-`test/unit/` holds sixteen test classes, grouped by area:
+`test/unit/` holds twenty-five test classes, grouped by area:
 
 | Area | Tests |
 |---|---|
-| the API's calling side | `ApiCallTest`, `ApiTargetTest` |
+| the API | `ApiTest` (the endpoint, its gate and its three services), `ApiClientTest` (signing against the real gate), `ApiCallTest`, `ApiTargetTest` |
 | the push | `PushUpdateTest`, `FrameworkCheckoutTest`, `TarWriterTest`, `UpdateTest` |
-| health and capability | `RequirementTest`, `CapabilityTest` |
-| HTTP | `RevalidationTest`, `SecurityHeadersTest`, `SyntheticPageTest` |
+| health and capability | `HealthTest`, `RequirementTest`, `CapabilityTest` |
+| HTTP | `RequestTest`, `RevalidationTest`, `SecurityHeadersTest`, `SecurityPolicyTest`, `SyntheticPageTest` |
 | routing | `RouteTest`, `RouteExportTest` |
 | the export | `ExportTest`, `BasePathTest` |
-| text | `TextTest` |
+| text | `TextTest`, `LanguagesTest` |
+| collections, files and diagnostics | `SupportTest` |
+| the CLI layer | `CliTest` |
+| the framework's own site | `SitePagesTest`: every subheading in `site/data/` carries an anchor and links to it |
 
-Four fixtures sit beside the tests: `UpdateFixture`, `TextFixture`, `RoutePatternFixture` and
-`ExportFixturePath`. `test/fixture/export-exits.php` runs an export whose controller ends the
-process, so `ExportTest` can watch that happen from outside instead of dying with it.
+Six fixtures sit beside the tests: `UpdateFixture`, `TextFixture`, `RoutePatternFixture`,
+`ExportFixturePath`, `ReadonlyFixture` and `CliOptionFixture`, with `PhpInputStream` standing in for
+`php://input`. `test/fixture/export-exits.php` runs an export whose controller ends the process, so
+`ExportTest` can watch that happen from outside instead of dying with it.
 
 `test/bootstrap.php` loads composer's autoloader: the framework's own when it is checked out alone,
 the enclosing project's when it is vendored. It then loads the framework, its tooling, and
@@ -66,8 +70,10 @@ framework is held to them whether or not it is checked out on its own:
 - **the five habits**, see [guidelines.md](guidelines.md);
 - **every builder and query that must not be discarded** carries `#[\NoDiscard]`, and the reason
   why;
-- **every translated enum** is reachable from the site's index and written in every language;
-- **every header value** is a typed object, and every one is covered.
+- **every translated enum** is reachable from the site's index and written in every language.
+
+That every header value is a typed object, and every one covered, is `SecurityPolicyTest`'s here: it
+reads `src/` alone.
 
 **The framework has no client tests of its own.** Its modules are compiled into a site's tree and
 tested there, through that site's `main.js`, alongside the site's own elements. Here, `npm run check`
@@ -87,12 +93,13 @@ Two rules, the same as in any suite built on this one:
 - **Uncovered lines are a decision, not a budget.** A change that adds a guard covers it in the same
   commit. A guard no test can reach is deleted rather than covered by reflection.
 
-**The framework's suite alone covers about half of `src/`'s lines.** The figure was 54.05%
-(1100 of 2035) when last derived on 2026-09-13. Re-derive it
+**The framework's suite alone covers about four fifths of `src/`'s lines.** The figure was 78.93%
+(1607 of 2036) when last derived on 2026-09-13. Re-derive it
 with `XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-text` rather than trusting this.
 
-The number is low, and it is honest. The suite is made of the tests that name no site class, and a
-vendoring site's tests still exercise most of the framework. Merge that site's suite and the HTTP
-requests its end-to-end script makes, through `tools/coverage-prepend.php` and `MergeCoverage`, and
-the same code is covered almost entirely. Until the site's framework-level tests move here, the
-merged number is the one that measures the framework.
+The rest is honest too. What this suite does not reach — the markup tree, the responses, the router,
+the app — a vendoring site's tests still exercise, because they are written against that site's
+views, controllers and route table. Merge that site's suite and the HTTP requests its end-to-end
+script makes, through `tools/coverage-prepend.php` and `MergeCoverage`, and the same code is covered
+almost entirely. Until those tests are rewritten against `TestApp`, the merged number is the one that
+measures the framework.
