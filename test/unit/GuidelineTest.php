@@ -243,6 +243,7 @@ final class GuidelineTest extends TestCase
     {
         self::assertSame(
             [
+                'Phpanta\Http\Input string',
                 'Phpanta\Model\Health\HealthSection string',
                 'Phpanta\Model\Update\UpdateReport string',
                 'Phpanta\Support\Diagnostics string',

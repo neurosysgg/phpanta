@@ -27,6 +27,10 @@ enum FrameworkText: string implements Translatable
     )]
     case Maintenance = 'maintenance';
 
+    /** The body of the 400 a request whose input could not be read is answered with — see Router. */
+    #[Translation(en: 'This request could not be read.', de: 'Diese Anfrage konnte nicht gelesen werden.')]
+    case BadRequest = 'bad-request';
+
     /** The title of the page a fault is shown on in development — see FaultPage. */
     #[Translation(en: 'Something broke', de: 'Etwas ist kaputtgegangen')]
     case Fault = 'fault';

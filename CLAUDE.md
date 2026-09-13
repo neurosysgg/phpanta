@@ -123,7 +123,8 @@ These fail silently — no error, no log, a page that looks fine.
 **The API and deploying**
 - **`data/update.pub` absent means `/api` is off; `data/site_auth.php` absent means the site gate is
   off.** The two files look alike and have opposite polarity.
-- `public/api/` must never exist, and an API action never reads a query parameter.
+- `public/api/` must never exist, and an API action never reads a query parameter or a form field
+  — `InputTest` reads the API's code and fails on either.
 - A write spends its serial **before** applying, under a lock it holds to the end; a second write
   meanwhile is a 409 that spends nothing. A dry run and a read never spend one.
 - `App::webroot()` takes only `DOCUMENT_ROOT`'s basename and refuses a blank, relative,

@@ -366,10 +366,10 @@ discovered rather than read:
   rebuilt from the router's captures: `Route::matches()` decodes each capture and `Path::to()`
   encodes it again, which round-trips the value but not the spelling — `%7E` comes out as `~` and
   goes back in as `~` — so a rebuilt path is not always the path that was signed.
-- The **query string is not covered**, because nothing under `src/` reads one — no code touches
-  `$_GET` or `QUERY_STRING`. An API action must therefore never read a query parameter: it would be
-  the one input reaching a verified caller's handler unsigned. A parameter belongs in the manifest
-  or in the body. `health` and `capability` have an obvious temptation here, a `?verbose` or an
+- The **query string is not covered**. A page may read one — `Request::query()` — but an API action
+  never does, nor a form: either would be the one input reaching a verified caller's handler
+  unsigned. `InputTest` reads the API's code and fails on a call to either, so this is held rather
+  than remembered. A parameter belongs in the manifest or in the body. `health` and `capability` have an obvious temptation here, a `?verbose` or an
   `?area=`, and take none. One area is asked for by an address of its own (`health v1 settings`),
   and each action reports everything it reports, always. The note saying so is on `HealthCheck`
   and `ApiEnvelope` as well as here.

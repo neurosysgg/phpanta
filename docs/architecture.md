@@ -118,6 +118,7 @@ path `/api/update/v1/version` — and three of its decisions are deliberate:
 | `method()` | `HttpMethod::tryFrom()` — **nullable**. An unrecognised verb is `null`, and null is not read-only. Never guessed as GET. |
 | `path()` | Parsed with `Uri\Rfc3986\Uri::parse()`, which returns `null` on failure — so `??` is a real guard, where `parse_url()`'s `false` would not be. A target opening with `//` is never handed to the parser at all, which would read it as an authority. A target that will not parse comes back as **its own path**, everything up to the first `?` or `#`. That still matches a placeholder route, because `{param}` compiles to `([^/]+)`; see [security.md](security.md). |
 | `authUser()` / `authPassword()` | Read from `PHP_AUTH_*`, falling back to decoding `Authorization` — some hosts do not hand PHP the former. |
+| `query()` / `form()` | An [`Input`](../src/Http/Input.php), asked for by [`Parameter`](../src/Http/Parameter.php) case and by type: absent is null, a value that does not read is an `InputException` the router answers with a 400. Read by this code, never `parse_str()`; `form()` reads only a url-encoded body, bounded, and refuses files. The API reads neither, and `InputTest` holds it. |
 
 The path is **raw, not decoded**, and trailing slashes are trimmed: a route matches the target as it
 was sent, and a value is decoded only after it has matched.

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\Http;
 
 use Phpanta\App;
+use Phpanta\Exception\InputException;
 use Phpanta\Support\File;
 use Phpanta\Text\Language;
 use Uri\Rfc3986\Uri;
@@ -18,6 +19,12 @@ use Uri\Rfc3986\Uri;
  */
 readonly class Request
 {
+    /**
+     * The most bytes {@link self::form()} reads: a mebibyte, which is a great deal of typing and
+     * far less than a host's `post_max_size` would let into memory before anything could refuse it.
+     */
+    public const int MAX_FORM = 1048576;
+
     /**
      * Constructs an instance of {@link self}.
      *
@@ -37,6 +44,7 @@ readonly class Request
      * @param bool   $trailingSlash   Whether the target's path had a slash the path trimmed.
      * @param string $origin          The `Origin` header, raw — see {@link self::origin()}.
      * @param string $preflightMethod The `Access-Control-Request-Method` header, raw.
+     * @param string $contentType     What the body is, as its sender says — see {@link self::form()}.
      * @param string|null $body The body, where the request was built with one; null to read
      *                          `php://input` — see {@link self::body()}.
      */
@@ -57,6 +65,7 @@ readonly class Request
         private bool   $trailingSlash = false,
         private string $origin = '',
         private string $preflightMethod = '',
+        private string $contentType = '',
         private ?string $body = null,
     ) {}
 
@@ -123,6 +132,7 @@ readonly class Request
             self::rawPath($target) !== $path,
             $server->header(RequestHeader::Origin),
             $server->header(RequestHeader::AccessControlRequestMethod),
+            $server->string(ServerVariable::ContentType) ?? '',
             $body,
         );
     }
@@ -465,6 +475,66 @@ readonly class Request
     public function isPreflight(): bool
     {
         return $this->method === HttpMethod::Options && $this->preflightMethod !== '';
+    }
+
+    /**
+     * What the query string sent, to be asked for by {@link Parameter} — see {@link Input}.
+     *
+     * **An API action never calls this**, and a test in the framework's suite reads the API's code to
+     * hold it: everything an action may act on is signed, and a query parameter would reach it
+     * unsigned.
+     *
+     * @return Input
+     * @throws InputException if what was sent does not decode.
+     */
+    public function query(): Input
+    {
+        return Input::fromUrlEncoded($this->query);
+    }
+
+    /**
+     * What a form sent in the body, to be asked for like {@link self::query()}.
+     *
+     * Only a body its sender calls `application/x-www-form-urlencoded` is read — what an HTML form
+     * sends unless it says otherwise. A request that says nothing about its body has sent no form.
+     * Any other kind is refused rather than half-read: `multipart/form-data` is how a form sends a
+     * file, and nothing here reads files. At most {@link self::MAX_FORM} bytes are read, and a form
+     * larger than that is refused rather than cut.
+     *
+     * An API action never calls this either, for the reason {@link self::query()} gives.
+     *
+     * @return Input
+     * @throws InputException for a body of another kind, a form too large, or one that does not decode.
+     */
+    public function form(): Input
+    {
+        $type = strtolower(trim(explode(';', $this->contentType, 2)[0]));
+
+        if ($type === '') {
+            return Input::none();
+        }
+
+        if ($type !== self::formType()->essence()) {
+            throw new InputException(sprintf("A body sent as '%s' is not a form this reads.", $type));
+        }
+
+        $body = $this->body(self::MAX_FORM + 1);
+
+        if (strlen($body) > self::MAX_FORM) {
+            throw new InputException(sprintf('A form of more than %d bytes is not read.', self::MAX_FORM));
+        }
+
+        return Input::fromUrlEncoded($body);
+    }
+
+    /**
+     * The one kind of body {@link self::form()} reads.
+     *
+     * @return MimeType
+     */
+    private static function formType(): MimeType
+    {
+        return new MimeType(TopLevelType::Application, 'x-www-form-urlencoded', null);
     }
 
     /**

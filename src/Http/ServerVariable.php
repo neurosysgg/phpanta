@@ -144,6 +144,15 @@ enum ServerVariable: string
     case RemoteAddress = 'REMOTE_ADDR';
 
     /**
+     * What the request's body is, as its sender says: `application/x-www-form-urlencoded` for a form.
+     *
+     * A request header, but one CGI hands over without the `HTTP_` in front of it — which is exactly
+     * this enum's membership rule: the derivation cannot reach the name. Read by
+     * {@link Request::form()}, which reads a body of one kind and refuses the rest.
+     */
+    case ContentType = 'CONTENT_TYPE';
+
+    /**
      * This variable's value in the process's own server variables, or null if it did not arrive.
      *
      * For a reader with no {@link Request} to ask — see the class docblock. It asks

@@ -7,6 +7,7 @@ namespace Phpanta;
 use Phpanta\Controller\Controller;
 use Phpanta\Controller\Layered;
 use Phpanta\Controller\UnroutedController;
+use Phpanta\Exception\InputException;
 use Phpanta\Http\EmptyResponse;
 use Phpanta\Http\Header;
 use Phpanta\Http\HttpMethod;
@@ -17,6 +18,7 @@ use Phpanta\Http\Response;
 use Phpanta\Http\ResponseHeader;
 use Phpanta\Support\Collection;
 use Phpanta\Support\Route;
+use Phpanta\Text\FrameworkText;
 
 /**
  * Maps incoming requests to controllers using a registered Collection<Route>.
@@ -58,7 +60,13 @@ readonly class Router implements Controller
         foreach ($this->routes as $route) {
             if (($params = $route->matches($request->path())) !== false) {
                 if ($route->accepts($request->method())) {
-                    return Layered::around($route->layers(), $route->createController($params))->handle($request);
+                    // A controller that asks for input the request did not send readably is
+                    // refused here, once, rather than by every page that reads a parameter.
+                    try {
+                        return Layered::around($route->layers(), $route->createController($params))->handle($request);
+                    } catch (InputException) {
+                        return self::unreadable($request);
+                    }
                 }
 
                 return $request->method() === HttpMethod::Options
@@ -92,6 +100,24 @@ readonly class Router implements Controller
             HttpStatusCode::MethodNotAllowed,
             UnroutedController::refusal($request->language()),
             new Collection(Header::class)->with(new Header(ResponseHeader::Allow, $route->allowed())),
+        );
+    }
+
+    /**
+     * The 400 a route's controller or layers are answered with when they asked for input the
+     * request did not send readably — see {@link \Phpanta\Http\Input}.
+     *
+     * It says only that the request could not be read. What was wrong, and with which parameter, is
+     * the exception's message, and that is for a developer: a value a visitor sent is not echoed.
+     *
+     * @param Request $request
+     * @return PlainTextResponse
+     */
+    private static function unreadable(Request $request): PlainTextResponse
+    {
+        return new PlainTextResponse(
+            HttpStatusCode::BadRequest,
+            FrameworkText::BadRequest->in($request->language()) . "\n",
         );
     }
 
