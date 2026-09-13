@@ -19,4 +19,8 @@ enum FrameworkText: string implements Translatable
     /** The body of every 405, whichever of the two paths sent it — see UnroutedController. */
     #[Translation(en: 'This site is read-only.', de: 'Diese Seite ist schreibgeschützt.')]
     case ReadOnly = 'read-only';
+
+    /** The title of the page a fault is shown on in development — see FaultPage. */
+    #[Translation(en: 'Something broke', de: 'Etwas ist kaputtgegangen')]
+    case Fault = 'fault';
 }

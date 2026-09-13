@@ -491,6 +491,13 @@ final class GuidelineTest extends TestCase
      * even be the wide net it looks like here — {@link \Phpanta\Exception\CollectionException}
      * extends `Error`, which is why {@link \Phpanta\Exception\SiteException} exists.
      *
+     * **One catch names everything, and it is pinned by name.** `App::run()` is the request's own
+     * boundary: whatever `handle()` throws — a controller, a view, a shell — is answered there by
+     * `App::fault()`, and above it is nothing but the front controller's last-resort handler. A named
+     * class in that one place would let every unnamed fault through to the handler that can say the
+     * least; catching everything is the point of it, so it is listed here rather than excused
+     * nowhere, and a second one fails.
+     *
      * **A wrap keeps its cause.** A `catch` that binds a variable and then throws must hand that
      * variable to the new exception, or the stack trace stops at the wrap and the actual failure —
      * which line of JSON, which byte — is gone.
@@ -501,7 +508,11 @@ final class GuidelineTest extends TestCase
     {
         $catches = self::catchesUnderSrc();
 
-        self::assertSame([], $catches['broad'], 'a catch naming Throwable or Exception rather than a condition');
+        self::assertSame(
+            ['Phpanta\App catches Throwable'],
+            $catches['broad'],
+            'a catch naming Throwable or Exception rather than a condition',
+        );
         self::assertSame([], $catches['unwrapped'], 'a catch that throws without passing on what it caught');
     }
 
@@ -696,7 +707,7 @@ final class GuidelineTest extends TestCase
 
                 foreach ($types as $type) {
                     if ($type === 'Throwable' || $type === 'Exception') {
-                        $broad[] = $class . ':' . $tokens[$i]->line . ' catches ' . $type;
+                        $broad[] = $class . ' catches ' . $type;
                     }
                 }
 

@@ -32,6 +32,7 @@ readonly class Request
      * @param string $authorization
      * @param string $cookie
      * @param string $referer
+     * @param string $remoteAddress
      * @param string|null $body The body, where the request was built with one; null to read
      *                          `php://input` — see {@link self::body()}.
      */
@@ -47,6 +48,7 @@ readonly class Request
         private string $authorization = '',
         private string $cookie = '',
         private string $referer = '',
+        private string $remoteAddress = '',
         private ?string $body = null,
     ) {}
 
@@ -107,6 +109,7 @@ readonly class Request
             $authorization,
             $server->header(RequestHeader::Cookie),
             $server->header(RequestHeader::Referer),
+            $server->string(ServerVariable::RemoteAddress) ?? '',
             $body,
         );
     }
@@ -397,6 +400,33 @@ readonly class Request
     public function referer(): string
     {
         return $this->referer;
+    }
+
+    /**
+     * True if this request came from this machine: a loopback address, IPv4's `127.0.0.0/8`, IPv6's
+     * `::1`, or the first written the way a dual-stack socket reports it, `::ffff:127.x.x.x`.
+     *
+     * Read as an address rather than matched as a prefix, so `127.0.0.1.example` is not one and
+     * neither is anything that does not parse. Nothing that did not arrive — a synthetic request, a
+     * CLI — is from loopback either. See {@link \Phpanta\Environment::showsFaultsTo()} for the one
+     * question it answers.
+     *
+     * @return bool
+     */
+    public function isFromLoopback(): bool
+    {
+        if (filter_var($this->remoteAddress, FILTER_VALIDATE_IP) === false) {
+            return false;
+        }
+
+        $packed = (string) inet_pton($this->remoteAddress);
+        $mapped = str_repeat("\0", 10) . "\xff\xff";
+
+        return match (strlen($packed)) {
+            4       => $packed[0] === "\x7f",
+            default => $packed === str_repeat("\0", 15) . "\x01"
+                || (str_starts_with($packed, $mapped) && $packed[12] === "\x7f"),
+        };
     }
 
     /**

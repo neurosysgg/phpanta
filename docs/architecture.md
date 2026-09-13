@@ -76,6 +76,15 @@ from the site's own code — and that is free, see [Exceptions](#exceptions).
 The handler is the site's, in its `public/index.php`; `TestApp` has no front controller, and its
 fixture webroot is empty. Everything from here on is [`App::run()`](../src/App.php).
 
+**`App::run()` catches first, so the handler is for what escapes it.** A fault anywhere in
+`handle()` — a controller, a view, the shell — is logged and answered by `App::fault()`: a bare
+`500` in plain text to everyone, or a [`FaultPage`](../src/View/FaultPage.php) — the fault, its
+chain and its trace, drawn in a document of its own rather than the site's shell — when the
+[`Environment`](../src/Environment.php) is development **and** the request came from loopback. Only
+the server can say development (`PHPANTA_ENVIRONMENT=development`, exactly); anything else is
+production, and `health v1` warns about a deployment that says otherwise. What reaches the handler
+is a fault before the request is read, or while the answer is already going out.
+
 ### ⓪ The error log
 
 `ErrorLog::install()` points `error_log` at `App::errorLog()` — `data/logs/php-YYYY-MM.log` under

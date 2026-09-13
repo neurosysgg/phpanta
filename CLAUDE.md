@@ -134,6 +134,10 @@ These fail silently — no error, no log, a page that looks fine.
 - Rewriting a file the request is executing makes NFS silly-rename it into an undeletable
   `.nfsXXXXXXXX`; a push leaves byte-identical files untouched for that reason.
 - A health check **returns** its 503, and `Requirement::check()` never throws.
+- **A trace is shown only in development, and only to loopback.** Development is the server
+  variable `PHPANTA_ENVIRONMENT=development`, exactly — `SetEnv` in a vhost, or the dev router for
+  `php -S`, which hands its own environment to nothing. Any other value, a capital included, is
+  production, and `health v1` warns on a deployment that says development.
 
 **Front end and builds**
 - The build tools find the project from where they are **run**, not from where they sit — which is

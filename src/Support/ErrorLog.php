@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Phpanta\Support;
 
 use DateTimeImmutable;
+use NoDiscard;
+use Phpanta\Exception\SiteException;
 use Phpanta\Model\Health\PhpSetting;
+use Throwable;
 
 /**
  * The ErrorLog class. Points PHP's own diagnostics at a file this deployment owns.
@@ -63,5 +66,31 @@ final class ErrorLog
     {
         ini_set(PhpSetting::ErrorLog->value, $file->path);
         error_reporting(self::REPORTING);
+    }
+
+    /**
+     * The line a fault the request did not survive is logged as: which app, what was thrown,
+     * whether it came from code that marks its exceptions as its own, where, and what it said.
+     *
+     * The same shape as a front controller's last-resort handler writes, so the log reads alike
+     * whichever of the two caught it. {@link SiteException} is the one type named, and it is the
+     * first question an operator asks: this repository's mistake, or something underneath it.
+     *
+     * @param Throwable $fault
+     * @param string    $app   The app's name, which leads the line.
+     * @return string
+     */
+    #[NoDiscard('faultLine() writes nothing; a call whose result goes nowhere logged nothing')]
+    public static function faultLine(Throwable $fault, string $app): string
+    {
+        return sprintf(
+            '%s: uncaught %s %s at %s:%d — %s',
+            $app,
+            $fault::class,
+            $fault instanceof SiteException ? '(from this repository)' : '(from underneath it)',
+            $fault->getFile(),
+            $fault->getLine(),
+            $fault->getMessage(),
+        );
     }
 }

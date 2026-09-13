@@ -84,6 +84,7 @@ final class NoDiscardTest extends TestCase
     {
         self::assertSame(
             [
+                'Phpanta\App::fault',
                 'Phpanta\App::handle',
                 'Phpanta\Http\Answer::header',
                 'Phpanta\Http\Answer::withHeadersFirst',
@@ -121,6 +122,7 @@ final class NoDiscardTest extends TestCase
                 'Phpanta\Support\Collection::unique',
                 'Phpanta\Support\Collection::where',
                 'Phpanta\Support\Collection::with',
+                'Phpanta\Support\ErrorLog::faultLine',
                 'Phpanta\Support\FileLock::exclusive',
                 'Phpanta\Support\Route::accepts',
                 'Phpanta\Support\SearchableCollection::find',
@@ -147,6 +149,7 @@ final class NoDiscardTest extends TestCase
                 'Phpanta\Support\TypedItems::toValues',
                 'Phpanta\Support\TypedItems::unique',
                 'Phpanta\Support\TypedItems::where',
+                'Phpanta\View\FaultPage::answer',
                 'Phpanta\View\Html\Element::attr',
                 'Phpanta\View\Html\Element::containing',
                 'Phpanta\View\Html\Element::containingHtml',

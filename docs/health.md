@@ -150,8 +150,8 @@ final readonly class SpoolWritable implements Requirement
   belongs.
 - **`Model/Health/` asks no app.** It imports nothing but itself and the framework's support
   classes, so a requirement there can be checked anywhere. A requirement that asks the booted app
-  lives in `Service/Health/`: `WebrootRequirement`, `DataFileRequirement` and
-  `LogDirectoryRequirement` are the framework's. A site's own requirements live in its own
+  lives in `Service/Health/`: `WebrootRequirement`, `EnvironmentRequirement`, `DataFileRequirement`
+  and `LogDirectoryRequirement` are the framework's. A site's own requirements live in its own
   namespace and reach the report through `ownRequirements()`.
 
 ## The framework's floor
@@ -172,6 +172,7 @@ app that adds nothing, `TestApp` among them, reports exactly this table.
 | | `opcache.enable` | on | optional |
 | | `register_argc_argv` | off, which a site's `public/.user.ini` can set | optional |
 | deployment | `DOCUMENT_ROOT` | a directory inside this deployment | required |
+| deployment | `PHPANTA_ENVIRONMENT` | production | optional |
 | | every tracked data file | present | required |
 | | `logs/` | writable, so PHP can log into it | optional |
 

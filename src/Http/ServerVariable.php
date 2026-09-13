@@ -126,6 +126,24 @@ enum ServerVariable: string
     case DocumentRoot = 'DOCUMENT_ROOT';
 
     /**
+     * Which {@link \Phpanta\Environment} this deployment is, as the server states it.
+     *
+     * The framework's own name, set by whoever runs the server — `SetEnv` in a vhost, the
+     * environment of a `php -S` — and never by a request, which cannot reach a server variable
+     * without an `HTTP_` in front of it. Absent on every host that serves the public, which is what
+     * makes absent mean production. See {@link \Phpanta\App::environment()}.
+     */
+    case Environment = 'PHPANTA_ENVIRONMENT';
+
+    /**
+     * The address of the peer the server is talking to.
+     *
+     * Read for one question: whether the request came from this machine, which is the second of
+     * the two conditions a trace is shown on. See {@link Request::isFromLoopback()}.
+     */
+    case RemoteAddress = 'REMOTE_ADDR';
+
+    /**
      * This variable's value in the process's own server variables, or null if it did not arrive.
      *
      * For a reader with no {@link Request} to ask — see the class docblock. It asks

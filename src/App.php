@@ -10,6 +10,8 @@ use Phpanta\Controller\ApiController;
 use Phpanta\Exception\AppException;
 use Phpanta\Exception\UpdateException;
 use Phpanta\Http\Answer;
+use Phpanta\Http\HttpStatusCode;
+use Phpanta\Http\PlainTextResponse;
 use Phpanta\Http\Request;
 use Phpanta\Http\Response;
 use Phpanta\Http\Security\CspDirective;
@@ -30,8 +32,10 @@ use Phpanta\Support\MethodPolicy;
 use Phpanta\Support\RequirementInitialization;
 use Phpanta\Support\Route;
 use Phpanta\Text\Languages;
+use Phpanta\View\FaultPage;
 use Phpanta\View\Html\Vocabulary;
 use Phpanta\View\Shell;
+use Throwable;
 
 /**
  * The App class. What a site tells the framework about itself, and the one place it is told.
@@ -542,6 +546,58 @@ abstract class App
 
         SecurityHeaders::send();
 
-        $this->handle(Request::fromGlobals())->send();
+        $request = Request::fromGlobals();
+
+        // A fault anywhere in handle() — a controller, a view, the shell — is still an answer: it is
+        // logged, and fault() decides what the visitor is told. What escapes this, a fault while
+        // the answer is already going out, is the front controller's last-resort handler's.
+        try {
+            $answer = $this->handle($request);
+        } catch (Throwable $fault) {
+            error_log(ErrorLog::faultLine($fault, $this->name()));
+
+            $answer = $this->fault($fault, $request);
+        }
+
+        $answer->send();
+    }
+
+    /**
+     * Which environment this deployment is: {@link Environment::Production} unless the server says
+     * `PHPANTA_ENVIRONMENT=development`, exactly — see that enum for why every other value is
+     * production.
+     *
+     * A site may override this to pin production outright, and nothing else should: the answer
+     * comes from the server so that no file in a deployment can switch a trace on.
+     *
+     * @return Environment
+     */
+    public function environment(): Environment
+    {
+        return Environment::tryFrom(ServerVariable::Environment->string() ?? '') ?? Environment::Production;
+    }
+
+    /**
+     * What a request that faulted is answered with, sending nothing — {@link self::run()}'s twin
+     * for its catch.
+     *
+     * A bare `500`, in plain text, saying nothing but the status, to every request the environment
+     * does not show faults to; a {@link FaultPage} to one it does. The security headers lead
+     * either way.
+     *
+     * @param Throwable        $fault
+     * @param Request          $request
+     * @param Environment|null $environment The environment to answer as; this app's by default. A
+     *                                      test passes one rather than setting a server variable.
+     * @return Answer
+     */
+    #[NoDiscard('fault() works out the 500 and sends nothing; a call whose result goes nowhere answered no one')]
+    final public function fault(Throwable $fault, Request $request, ?Environment $environment = null): Answer
+    {
+        $response = ($environment ?? $this->environment())->showsFaultsTo($request)
+            ? new FaultPage($fault)
+            : new PlainTextResponse(HttpStatusCode::InternalServerError, "500\n");
+
+        return $response->answer($request)->withHeadersFirst(SecurityHeaders::all($this));
     }
 }

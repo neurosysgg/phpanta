@@ -18,6 +18,7 @@ use Phpanta\Model\Health\Toggle;
 use Phpanta\Model\Health\VersionRequirement;
 use Phpanta\Service\ApiGate;
 use Phpanta\Service\Health\DataFileRequirement;
+use Phpanta\Service\Health\EnvironmentRequirement;
 use Phpanta\Service\Health\LogDirectoryRequirement;
 use Phpanta\Service\Health\WebrootRequirement;
 use Phpanta\Service\UpdateApplier;
@@ -103,6 +104,7 @@ final class RequirementInitialization
                 new SettingRequirement(PhpSetting::RegisterArgcArgv->value, Toggle::Off, Level::Optional),
             )
             ->with(new WebrootRequirement())
+            ->with(new EnvironmentRequirement())
             ->with(...$app->dataFiles()
                 ->where(static fn(DataFileName $file): bool => $file->isTracked())
                 ->map(static fn(DataFileName $file): Requirement => new DataFileRequirement($file))

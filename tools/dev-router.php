@@ -40,6 +40,11 @@ $public = (string) realpath($_SERVER['DOCUMENT_ROOT'] ?? '');
 
 require_once dirname($public) . '/autoload.php';
 
+// The dev server is a development deployment, so a fault from this machine is shown in full — see
+// Phpanta\Environment. `php -S` hands its own environment to nothing, so the router states it, and a
+// server that already said which it is keeps its word. Nothing that ships runs this file.
+$_SERVER['PHPANTA_ENVIRONMENT'] ??= 'development';
+
 /** The version segment, directly under the asset root. Mirrored in public/.htaccess. */
 const VERSION_SEGMENT = '#^/assets/(js|css)/v-[0-9a-f]{8}/#';
 

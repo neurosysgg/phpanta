@@ -26,11 +26,11 @@ an app:
   paths the framework derives from an app then have somewhere real to land, and never land in a
   repository.
 
-`test/unit/` holds thirty-six test classes, grouped by area:
+`test/unit/` holds thirty-seven test classes, grouped by area:
 
 | Area | Tests |
 |---|---|
-| the app | `AppTest` (booting, what it derives, every `webroot()` refusal) |
+| the app | `AppTest` (booting, what it derives, every `webroot()` refusal), `FaultTest` (who is told how a request broke) |
 | the API | `ApiTest` (the endpoint, its gate and its three services), `ApiClientTest` (signing against the real gate), `ApiCallTest`, `ApiTargetTest` |
 | the push | `PushUpdateTest`, `FrameworkCheckoutTest`, `TarWriterTest`, `UpdateTest` |
 | health and capability | `HealthTest`, `RequirementTest`, `CapabilityTest` |
@@ -114,8 +114,8 @@ Two rules, the same as in any suite built on this one:
 - **Uncovered lines are a decision, not a budget.** A change that adds a guard covers it in the same
   commit. A guard no test can reach is deleted rather than covered by reflection.
 
-**The framework's suite alone covers nearly all of `src/`'s lines.** The figure was 98.88%
-(2046 of 2069) when last derived on 2026-09-13. Re-derive it
+**The framework's suite alone covers nearly all of `src/`'s lines.** The figure was 98.69%
+(2119 of 2147) when last derived on 2026-09-13. Re-derive it
 with `XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-text` rather than trusting this.
 
 What it does not reach is what only a server reaches: `App::run()`, `Answer::send()` and
