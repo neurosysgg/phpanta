@@ -753,5 +753,8 @@ $form->render($submission, $session->token(), ContactText::Send);   // an Elemen
   renames a dot, a space or a bracket in a name, so a form that sends files refuses such a field —
   and a plain name sent twice is the one duplicate it cannot catch. Keeping a file is the page's:
   `Upload::keepAs()`, once `isValid()` says so. See [security.md](security.md#uploads).
+- **A refusal no rule can make is `Submission::withError()`** — a name and a password that do not
+  match, put beside the password like any other error. [login.md](login.md) assembles a whole login
+  page out of a form, the session, the two guards and `Login`.
 
 ---

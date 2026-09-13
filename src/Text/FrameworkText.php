@@ -42,6 +42,16 @@ enum FrameworkText: string implements Translatable
     )]
     case CsrfRefused = 'csrf-refused';
 
+    /**
+     * What a login form says of a name and a password that do not open a session — one sentence for
+     * a name the site does not know and a password that is wrong, which is Login's guarantee.
+     */
+    #[Translation(
+        en: 'That name and password do not match.',
+        de: 'Name und Passwort passen nicht zusammen.',
+    )]
+    case LoginRefused = 'login-refused';
+
     /** The body of the 403 a write behind a login is refused with, without one — see LoginGate. */
     #[Translation(en: 'Please log in first.', de: 'Bitte melde dich zuerst an.')]
     case LoginRequired = 'login-required';

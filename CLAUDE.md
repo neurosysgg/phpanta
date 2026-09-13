@@ -195,6 +195,7 @@ serves its export; `.github/workflows/pages.yml` runs the suite first and publis
 | [docs/language.md](docs/language.md) | any visible word, `Translation`, `Languages` |
 | [docs/frontend.md](docs/frontend.md) | the build, the element model, SPA navigation |
 | [docs/security.md](docs/security.md) | headers, the method gate, the guards, the API |
+| [docs/login.md](docs/login.md) | a login page — the recipe that puts `Form`, `Session`, the two guards and `Login` together |
 | [docs/health.md](docs/health.md) | `health` and `capability`, or a requirement to declare |
 | [docs/data.md](docs/data.md) | `Phpanta\Data` — a database, a statement, a row, a migration |
 | [docs/testing.md](docs/testing.md) | the framework's suite and `TestApp` |

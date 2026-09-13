@@ -112,6 +112,7 @@ final class NoDiscardTest extends TestCase
                 'Phpanta\Form\Submission::isValid',
                 'Phpanta\Form\Submission::upload',
                 'Phpanta\Form\Submission::value',
+                'Phpanta\Form\Submission::withError',
                 'Phpanta\Form\WholeNumber::check',
                 'Phpanta\Http\Allow::with',
                 'Phpanta\Http\Answer::header',

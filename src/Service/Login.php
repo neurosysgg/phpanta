@@ -23,18 +23,20 @@ use SensitiveParameter;
 /**
  * The Login class. Whether a name and a password open a session — asked slowly, and not too often.
  *
- * A login form's controller asks this with what the form sent and the digest it keeps for that name,
- * or null where it keeps none, and answers with what comes back:
+ * A login form's controller asks this with what the form sent and the digest the site keeps for that
+ * name, or null where it keeps none, and answers with what comes back:
  *
  * ```php
- * $result = $login->attempt($request, $request->session(), $name, $password, $users->hash($name));
+ * $result = $login->attempt($request, $session, $name, $password, $users->hash($name));
  *
  * return match (true) {
- *     $result instanceof Session  => $result->attachTo(new RedirectResponse(new Location('/'))),
- *     $result instanceof Response => $result,                    // too many attempts
- *     default                     => new ViewResponse(new LoginView(wrong: true), HttpStatusCode::Unauthorized),
+ *     $result instanceof Session  => $result->attachTo(new RedirectResponse(new Location('/account'))),
+ *     $result instanceof Response => $result,                    // too many attempts: a 429
+ *     default                     => $this->page($sent->withError(LoginField::Password, FrameworkText::LoginRefused)),
  * };
  * ```
+ *
+ * The whole page — the form, the token, the gate, logging out — is assembled in docs/login.md.
  *
  * **Every attempt pays for a comparison.** A name the site does not know is compared against
  * {@link PasswordHash::unmatchable()} — a real bcrypt digest nothing opens — so the time an answer

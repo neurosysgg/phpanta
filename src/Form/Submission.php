@@ -97,6 +97,28 @@ final readonly class Submission
     }
 
     /**
+     * This submission with $error on $field — a refusal no rule of the field could make, such as a
+     * name and a password that do not match — shown beside the field like any other, and so no
+     * longer valid.
+     *
+     * @param Field        $field
+     * @param Translatable $error
+     * @return self
+     * @throws FormException if $field is not a field of this form.
+     */
+    #[NoDiscard('withError() returns a copy; a call whose result goes nowhere refused nothing')]
+    public function withError(Field $field, Translatable $error): self
+    {
+        $entry = $this->entry($field);
+
+        return new self(
+            $this->fields,
+            $this->entries->with((string) $field->value, new FieldEntry($entry->value, $error, $entry->upload)),
+            $this->submitted,
+        );
+    }
+
+    /**
      * $field's entry.
      *
      * Asked of the enum first, not only of the name: two forms may both have an `email`, and one

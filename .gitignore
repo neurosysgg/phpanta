@@ -3,4 +3,6 @@
 /node_modules/
 /build/
 .phpunit.cache/
+# The test app's data/: LoginRecipeTest mints a session key there for its own run, and removes it.
+/test/fixture/app/data/
 /composer.lock

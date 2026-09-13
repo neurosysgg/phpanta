@@ -296,7 +296,8 @@ it to four things:
 [`CsrfGuard`](../src/Service/Layer/CsrfGuard.php) holds every write to the token the visitor's session
 handed out: a `_csrf` field that matches it, compared in constant time, or a 403 that no cache keeps.
 A read passes untouched. [`LoginGate`](../src/Service/Layer/LoginGate.php) sends a visitor who is not
-logged in to the login page for a read, and refuses a write.
+logged in to the login page for a read, and refuses a write. [login.md](login.md) puts the pieces
+together into a working login page.
 
 A [`Form`](../src/Form/Form.php) writes the `_csrf` field itself, from the token the page hands it,
 so a form that renders is one the guard accepts and no page spells the field for itself; a
