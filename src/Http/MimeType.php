@@ -128,9 +128,20 @@ final readonly class MimeType implements HeaderValue
      */
     public function render(): string
     {
-        $essence = $this->type->value . '/' . $this->subtype;
+        $essence = $this->essence();
 
         return $this->charset === null ? $essence : $essence . '; charset=' . $this->charset->value;
+    }
+
+    /**
+     * The type and subtype alone — `text/html` — which is what the body *is*, without the encoding
+     * it is in. What the SPA router compares a response's type with, through its `MediaType` mirror.
+     *
+     * @return string
+     */
+    public function essence(): string
+    {
+        return $this->type->value . '/' . $this->subtype;
     }
 
     /**

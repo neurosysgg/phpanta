@@ -65,8 +65,8 @@ Three things change, and all three are only worth doing at the edge:
   commented TypeScript inside each one. Static assets are served straight by Apache and reach
   neither auth gate, so on the live host those would be public files. The source is on GitHub — a
   reason not to worry about it, not a reason to serve a second copy from Strato.
-- **The graph is bundled**, which is the change that pays for the rest: one ~5.8 KB gzipped response
-  instead of 49, because gzip's window then spans the whole graph, and no preload list in any
+- **The graph is bundled**, which is the change that pays for the rest: one ~6.8 KB gzipped response
+  instead of 50, because gzip's window then spans the whole graph, and no preload list in any
   document. Sizes are in [performance.md](https://github.com/neurosysgg/neurosys-webspace/blob/master/docs/performance.md#the-front-end-payload).
 - **The JS is minified.** It earns a little on top of the bundle; gzip over one stream already
   captures most of what identifier mangling would.
@@ -123,9 +123,9 @@ comments leave the number exactly where it was.
 `phpanta/tools/build-assets.mjs` walks the compiled graph and generates `src/<Site>/AssetManifest.php`;
 `Layout::modulePreloads()` renders one `<link rel="modulepreload">` per entry, after the stylesheet
 because that one blocks rendering and these do not. The preload scanner then sees all of them at
-once and the five waves become one, for ~385 gzipped bytes per page.
+once and the five waves become one, for ~420 gzipped bytes per page.
 
-**The counts:** the debug tree has 50 modules. `main.js` is the `<script src>` itself, 47 more are
+**The counts:** the debug tree has 52 modules. `main.js` is the `<script src>` itself, 49 more are
 reachable from it and preloaded, and two — `model/SectionKind.js` and `model/ArrangementAttribute.js`
 — are imported by no module at all: they are mirrors that only `enum-parity.test.mjs` reads, since
 the arrangement is server-rendered and no element selects on its values.
@@ -162,7 +162,7 @@ the URL it was loaded from — so `/assets/js/v-a1b2c3d4/main.js` importing `./m
 byte-identical to tsc's output, which is what keeps the drift check a straight diff.
 
 The price is one stamp per build rather than one per file, so any change busts the whole tree — all
-50 modules in the debug tree, and the single bundle in the one that ships. At ~6 KB gzipped that is
+52 modules in the debug tree, and the single bundle in the one that ships. At ~7 KB gzipped that is
 not worth a second thought.
 
 **`.htaccess` and `dev-router.php` are a mirror** — one rule, two languages — so the verify script
@@ -227,21 +227,25 @@ a real navigation — otherwise the 303 would be consumed silently by the fetch.
 
 ```
 click on a[href^="/"]
-  → not modified/middle-click, no data-no-spa, resolved origin === location.origin
-  → preventDefault, pushState
+  → not already cancelled, not modified/middle-click, no data-no-spa, no download, no other target
+  → resolved origin === location.origin, and not a #fragment of the page already showing
+  → note the scroll on the entry being left, preventDefault, pushState a new keyed entry
   → fetch with X-Requested-With: XMLHttpRequest
+  → not ok, or not text/html → location.replace(url)
   → a server running the framework: ViewResponse sends <title> + the fragment
       → read and decode the title, strip it, assign the rest to #content.innerHTML
   → a static host (an export): the whole page, since there is no header to read
-      → parse it, take its title and its #content — or, with no #content, hand it to the browser
-  → dispatch phpanta:navigate, scroll to top
+      → parse it, take its title and its #content — or, with no #content, location.replace(url)
+  → dispatch phpanta:navigate
+  → focus #content, announce the title, then scroll: to where the entry was left, else to the
+    element the fragment names, else to the top
 ```
 
 The two answers are told apart by the doctype a whole document starts with. A static host is not a
 fallback path: it is how [the framework's own site](https://neurosysgg.github.io/phpanta/) is
 served, where every navigation takes the second branch.
 
-### The four things to understand before touching it
+### The six things to understand before touching it
 
 **1. The selector matches the href *attribute*; the code uses the resolved `link.href`.**
 `//evil.example/x` starts with a slash exactly as `/releases` does — a protocol-relative URL is a
@@ -271,20 +275,35 @@ markup assigned through `innerHTML`, so the gate and the cover wire themselves o
 `phpanta:navigate` event stays for anything that is *not* an element — subscribe with
 `Navigation.onNavigate()` rather than the string.
 
+**5. The scroll is `Navigation`'s.** `start()` sets `history.scrollRestoration = 'manual'`, because
+the browser restores an entry's position the moment back or forward reaches it — before the page
+that belongs there has been fetched, so it would scroll the page being left. Each entry carries a
+key in `history.state`, and where it was left is kept two ways: on the entry itself while it can
+still be written — before a click moves off it, and on `pagehide`, so a reload or a return from
+another site lands where it was — and in memory once back or forward has already moved off it,
+which is what the forward button returns to. Back and forward between two fragments of one page
+fetch nothing and only scroll. A `phpanta:navigate` subscriber runs before the scroll is decided,
+so one that scrolls is overridden.
+
+**6. A swap says that it happened.** A page load moves focus to the top of the document and a
+screen reader announces the new page; a swap does neither on its own. So `#content` is given
+`tabindex="-1"` by the script — focusable by it, never a tab stop — and focused after every swap,
+and the new title is written into a polite live region the script creates, hidden from sight
+through the CSSOM rather than a `style` attribute the CSP's `style-src` would refuse. A site's
+stylesheet will usually want `#content:focus { outline: none; }`: it is no control, and a ring
+around the whole page would say it was one.
+
 ### Failure is always "hand it back to the browser"
 
-A non-`ok` response or a thrown fetch calls `location.assign(url)` — except an abort, which is the
-router cancelling itself rather than a failure, and handing the browser a URL the visitor has
-already left would undo the navigation that replaced it. `pushState` has already run by
-then, so leaving the visitor there would strand them on a page they never got. Likewise
-`forDocument()` returns `null` when there is no `#content`, which switches the whole router off with
-every link still working.
+A non-`ok` response, a response that is not `text/html` — a file a route answers with — and a
+thrown fetch all call `location.replace(url)`, except an abort, which is the router cancelling
+itself rather than a failure: handing the browser a URL the visitor has already left would undo the
+navigation that replaced it. `replace()` rather than `assign()`, because the entry for that URL
+already exists — `pushState` made it, or back and forward arrived on it — and `assign()` would put
+a second one behind it for back to land on. Likewise `forDocument()` returns `null` when there is no
+`#content`, which switches the whole router off with every link still working.
 
-One known limit, left as is because nothing here can reach it: the `popstate` handler re-fetches
-`location.pathname`, so a query string or fragment on the entry being returned to would be dropped.
-No view on this site emits either — `Element` refuses an `href` that is not a path of ours, and
-nothing writes a `?` or a `#` — so there is currently nothing to lose. `onClick` already does the
-right thing, handing `go()` the whole resolved href.
+Back and forward re-fetch the whole URL they arrive on, query and fragment included.
 
 ---
 

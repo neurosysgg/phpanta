@@ -142,6 +142,9 @@ These fail silently — no error, no log, a page that looks fine.
   finds without the base, and on any link to a file it did not write.
 - A static host answers `Navigation`'s fetch with the whole page, not a fragment; `Navigation` takes
   `#content` and the title out of it, and hands a page with no `#content` back to the browser.
+- `Navigation` owns the scroll: it sets `history.scrollRestoration = 'manual'` and scrolls after the
+  swap, so a `phpanta:navigate` subscriber that scrolls is overridden. Every fallback is
+  `location.replace()` — `assign()` would leave the failed entry behind for back to land on.
 
 ## Commands
 

@@ -24,6 +24,12 @@ enum HtmlAttribute: string implements AttributeName
     case Target = 'target';
     case Type   = 'type';
 
+    /**
+     * That a link saves what it points at rather than showing it. `Navigation` leaves such a link
+     * to the browser, since a response it saves is not a page it could swap in.
+     */
+    case Download = 'download';
+
     case Alt     = 'alt';
     case Height  = 'height';
     case Width   = 'width';
@@ -44,6 +50,13 @@ enum HtmlAttribute: string implements AttributeName
     case Preload = 'preload';
 
     case AriaLabel = 'aria-label';
+
+    /**
+     * How a region's changes are read out. Written by `Navigation` alone, on the region it announces
+     * a new page's title through — a swap is not a page load, and nothing else would tell a screen
+     * reader the page changed.
+     */
+    case AriaLive = 'aria-live';
 
     /**
      * @return string

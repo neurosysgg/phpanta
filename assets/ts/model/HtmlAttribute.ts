@@ -15,6 +15,7 @@ export enum HtmlAttribute {
   Rel       = 'rel',
   Target    = 'target',
   Type      = 'type',
+  Download  = 'download',
   Alt       = 'alt',
   Height    = 'height',
   Width     = 'width',
@@ -24,4 +25,5 @@ export enum HtmlAttribute {
   Controls  = 'controls',
   Preload   = 'preload',
   AriaLabel = 'aria-label',
+  AriaLive  = 'aria-live',
 }
