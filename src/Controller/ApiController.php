@@ -7,6 +7,7 @@ namespace Phpanta\Controller;
 use Phpanta\Exception\ApiException;
 use Phpanta\Http\Allow;
 use Phpanta\Http\Api\ApiAction;
+use Phpanta\Http\Api\ApiListing;
 use Phpanta\Http\Api\ApiResult;
 use Phpanta\Http\Api\ApiService;
 use Phpanta\Http\Api\ApiVersion;
@@ -14,75 +15,73 @@ use Phpanta\Http\CacheControl;
 use Phpanta\Http\Header;
 use Phpanta\Http\HttpStatusCode;
 use Phpanta\Http\JsonResponse;
+use Phpanta\Http\Location;
 use Phpanta\Http\PlainTextResponse;
+use Phpanta\Http\RedirectResponse;
 use Phpanta\Http\Representation;
 use Phpanta\Http\Request;
 use Phpanta\Http\RequestHeader;
 use Phpanta\Http\Response;
 use Phpanta\Http\ResponseHeader;
+use Phpanta\Http\RobotsPolicy;
+use Phpanta\Http\SignedChallenge;
 use Phpanta\Http\Vary;
 use Phpanta\Http\ViewResponse;
 use Phpanta\Model\Api\SerialRefusal;
 use Phpanta\Model\Api\VerifiedRequest;
 use Phpanta\Service\ApiGate;
+use Phpanta\Support\AdminPath;
 use Phpanta\Support\Collection;
+use Phpanta\View\AdminEntranceView;
+use Phpanta\View\ApiListingView;
 use Phpanta\View\ApiResultView;
 
 /**
- * The ApiController class. Everything under `/api`, and it answers as though none of it is there
- * unless the request carries a signature this deployment can verify.
+ * The ApiController class. Everything under `/admin`, at every depth.
  *
- * **The refusal is the interesting half.** A 401 would announce the endpoint; so would a 403, and
- * so would a 405 naming POST. What this returns instead is *exactly* what the router returns for a
- * path no route claims — the rendered 404 for a read method, the `text/plain` 405 with
- * `Allow: GET, HEAD` for a write one — so every address under `/api` is indistinguishable from a
- * typo under every verb. That is why {@link \Phpanta\Support\ApiPath::Api} is registered
- * {@link \Phpanta\Support\MethodPolicy::Delegated}: a route accepting POST alone would answer
- * `GET /api/update/v1/patch` with `405 Allow: POST` and give itself away in the one response an
- * idle prober is most likely to make.
+ * **Three questions, in this order, and the order is the design.**
  *
- * Both responses come from {@link UnroutedController}, which is the very object
- * {@link \Phpanta\Router} delegates to when no route matches at all. They are not two
- * implementations kept in step by a test — they are one, so "indistinguishable" is a property of
- * the structure rather than something anybody has to remember. A test asserts it anyway, because
- * it is worth failing loudly if the two are ever split again.
+ * 1. *What can the caller read?* A page by default, which is what a browser and `curl` get; data
+ *    for `Accept: application/json`, which is what the signing commands ask for; a `406` for a
+ *    request that named only types it cannot have.
+ * 2. *Who is asking?* A request the gate cannot verify gets one answer at every depth below the
+ *    entrance, **whether the address exists or not**: a page request is sent to `/admin`, a request
+ *    for data is a `401` challenging for `NS1`. The entrance itself is a page anybody may see. So a
+ *    stranger learns that there is an admin — which a site may say anyway, with a link to it — and
+ *    nothing about what is in it.
+ * 3. *What is here?* Only past the gate, and reported in full, because the caller has proved it
+ *    holds the key: a listing of what is under the address, or the action's answer — and an unknown
+ *    service, version or action is a real `404` with a sentence in it, a verb that is not the
+ *    action's a real `405` naming the one that is.
  *
- * **It verifies before it resolves, and that order is the whole reason one class can serve every
- * service.** Asking "does this service exist" first would answer an unsigned caller through a
- * different path depending on what they guessed, and two paths that produce the same answer today
- * are two paths free to stop. Verified first, a service that does not exist and a signature that
- * does not verify are the same `null` reaching the same line.
+ * **It verifies before it resolves**, which is what keeps the second answer uniform: asking "does
+ * this service exist" first would answer a stranger through a different path depending on what they
+ * guessed. And it negotiates before it runs, so a write is never carried out for a caller who then
+ * could not be told how it went. Every answer is kept by no cache, varies on `Accept`, and asks not
+ * to be indexed. There is nowhere else for the detail past the gate to go: a production host has
+ * `display_errors` off, and may have an empty `error_log`.
  *
- * Past the gate the posture inverts completely and every failure is reported in full, because the
- * caller has proved it holds the private key. An unknown service, version or action is a real 404
- * with a sentence in it, and a verb that is not the action's is a real 405 naming the one that is.
- * Only the key holder ever sees either. There is nowhere else for that detail to go: a production
- * host has `display_errors` off, and may have an empty `error_log`.
- *
- * **Every answer past the gate is an {@link ApiResult}, written in the form the request asked
- * for** — a page by default, data for `Accept: application/json`, and a `406` for a request that
- * named only types it has neither of. That question is asked straight after the gate and before
- * any action runs, so a write is never carried out for a caller who then cannot be told how it went.
- * No answer past the gate is kept by a cache, and each says it varies on `Accept`.
+ * Every depth is registered {@link \Phpanta\Support\MethodPolicy::Delegated}, so every method — one
+ * the framework does not recognise included — reaches this class, and a stranger's `BREW` is
+ * answered exactly as their `GET` is.
  */
 final readonly class ApiController implements Controller
 {
     /**
      * Constructs an instance of {@link self}.
      *
-     * @param string $service The first segment, exactly as it was sent. A string rather than an
-     *                        {@link ApiService}, because resolving it here would mean a `from()` in
-     *                        the route factory — a bare `ValueError`, uncaught, *before* the
-     *                        signature is checked, which is both a 500 announcing the endpoint and
-     *                        an exception the framework does not own.
-     * @param string $version Same, for the second.
-     * @param string $action Same, for the fourth.
+     * @param string|null $service The first segment, exactly as it was sent, or null at the entrance.
+     *                             A string rather than an {@link ApiService}, because resolving it
+     *                             here would mean a `from()` in the route factory — a bare
+     *                             `ValueError`, uncaught, *before* the caller is known.
+     * @param string|null $version Same, for the second; null above a version.
+     * @param string|null $action  Same, for the third; null above an action.
      * @param ApiGate|null $gate A test seam: null is the real gate, and a test passes its own.
      */
     public function __construct(
-        private string   $service,
-        private string   $version,
-        private string   $action,
+        private ?string  $service = null,
+        private ?string  $version = null,
+        private ?string  $action = null,
         private ?ApiGate $gate = null,
     ) {}
 
@@ -92,17 +91,21 @@ final readonly class ApiController implements Controller
      */
     public function handle(Request $request): Response
     {
-        $gate     = $this->gate ?? new ApiGate();
-        $verified = $gate->accepts($request);
-
-        if ($verified === null) {
-            return new UnroutedController()->handle($request);
-        }
-
         $representation = $request->accepted()->preferred(Representation::Html, Representation::Json);
 
         if ($representation === null) {
             return self::notAcceptable();
+        }
+
+        $gate     = $this->gate ?? new ApiGate();
+        $verified = $gate->accepts($request);
+
+        if ($verified === null) {
+            return $this->unverified($request, $representation);
+        }
+
+        if ($this->service === null || $this->version === null || $this->action === null) {
+            return $this->listing($request, $representation);
         }
 
         $action = $this->action();
@@ -131,6 +134,92 @@ final readonly class ApiController implements Controller
         }
 
         return $this->answer($representation, $this->run($gate, $verified, $action));
+    }
+
+    /**
+     * The one answer a caller the gate cannot verify gets, whatever it asked for and wherever.
+     *
+     * Data is a `401` challenging for `NS1` — a scheme a browser has no prompt for, so it never shows
+     * one. A page is the entrance, for a read of the entrance, and a `303` to it for everything else:
+     * a deeper address, existing or not, and a write of any kind, since a write that arrives without
+     * a credential has nothing to be told but where to start.
+     *
+     * @param Request $request
+     * @param Representation $representation
+     * @return Response
+     */
+    private function unverified(Request $request, Representation $representation): Response
+    {
+        if ($representation === Representation::Json) {
+            return new JsonResponse(
+                ApiResult::refusal(HttpStatusCode::Unauthorized, 'this needs a signed request'),
+                HttpStatusCode::Unauthorized,
+                self::private(
+                    new Header(ResponseHeader::WwwAuthenticate, new SignedChallenge()),
+                    new Header(ResponseHeader::Vary, Vary::on(RequestHeader::Accept)),
+                ),
+            );
+        }
+
+        if ($this->service === null && $request->isReadOnly()) {
+            return new ViewResponse(new AdminEntranceView(), HttpStatusCode::Ok, self::private());
+        }
+
+        return new RedirectResponse(
+            new Location(AdminPath::Index->to()),
+            HttpStatusCode::SeeOther,
+            self::private(new Header(ResponseHeader::Vary, Vary::on(RequestHeader::Accept))),
+        );
+    }
+
+    /**
+     * What is under this address, for a verified caller — or a `404` where nothing is, and a `405`
+     * for anything but a read, since a listing only lists.
+     *
+     * @param Request $request
+     * @param Representation $representation
+     * @return Response
+     */
+    private function listing(Request $request, Representation $representation): Response
+    {
+        if (!$request->isReadOnly()) {
+            return $this->answer(
+                $representation,
+                ApiResult::refusal(HttpStatusCode::MethodNotAllowed, sprintf('%s only lists', $request->path())),
+                new Header(ResponseHeader::Allow, Allow::readOnly()),
+            );
+        }
+
+        // A version is resolved from the ones the service offers rather than from every version
+        // there is, so a version one service has and another has not is an address the second does
+        // not have — and a listing of it can never come out empty.
+        $language = $request->language();
+        $service  = $this->service === null ? null : ApiService::tryFrom($this->service);
+        $version  = $service?->versions()->first(fn(ApiVersion $each): bool => $each->value === $this->version);
+
+        $listing = match (true) {
+            $this->service === null => ApiListing::services($language),
+            $service === null       => null,
+            $this->version === null => ApiListing::versions($service, $language),
+            $version === null       => null,
+            default                 => ApiListing::actions($service, $version, $language),
+        };
+
+        if ($listing === null) {
+            return $this->answer(
+                $representation,
+                ApiResult::refusal(HttpStatusCode::NotFound, sprintf('no such admin address: %s', $request->path())),
+            );
+        }
+
+        return match ($representation) {
+            Representation::Html => new ViewResponse(new ApiListingView($listing), HttpStatusCode::Ok, self::private()),
+            Representation::Json => new JsonResponse(
+                $listing,
+                HttpStatusCode::Ok,
+                self::private(new Header(ResponseHeader::Vary, Vary::on(RequestHeader::Accept))),
+            ),
+        };
     }
 
     /**
@@ -181,7 +270,7 @@ final readonly class ApiController implements Controller
     }
 
     /**
-     * $result, written as $representation: never kept by a cache, and varying on `Accept`.
+     * $result, written as $representation.
      *
      * @param Representation $representation
      * @param ApiResult $result
@@ -190,29 +279,24 @@ final readonly class ApiController implements Controller
      */
     private function answer(Representation $representation, ApiResult $result, Header ...$headers): Response
     {
-        $headers = new Collection(Header::class)->with(
-            new Header(ResponseHeader::CacheControl, CacheControl::doNotStore()),
-            ...$headers,
-        );
-
         // The page's Vary comes from its view, beside the ones every page sends; the data's has to
         // be said here, because a JsonResponse varies on nothing unless told.
         return match ($representation) {
             Representation::Html => new ViewResponse(
                 new ApiResultView($result, $this->address()),
                 $result->status,
-                $headers,
+                self::private(...$headers),
             ),
             Representation::Json => new JsonResponse(
                 $result,
                 $result->status,
-                $headers->with(new Header(ResponseHeader::Vary, Vary::on(RequestHeader::Accept))),
+                self::private(...$headers, ...[new Header(ResponseHeader::Vary, Vary::on(RequestHeader::Accept))]),
             ),
         };
     }
 
     /**
-     * The `406` for a verified request that named only types this has neither of.
+     * The `406` for a request that named only types this has neither of.
      *
      * Plain text, because it is the one answer here that cannot be written in either form the
      * request refused; it names both, so the caller knows what to ask for instead.
@@ -224,10 +308,22 @@ final readonly class ApiController implements Controller
         return new PlainTextResponse(
             HttpStatusCode::NotAcceptable,
             sprintf("this answers %s or %s\n", Representation::Html->value, Representation::Json->value),
-            new Collection(Header::class)->with(
-                new Header(ResponseHeader::CacheControl, CacheControl::doNotStore()),
-                new Header(ResponseHeader::Vary, Vary::on(RequestHeader::Accept)),
-            ),
+            self::private(new Header(ResponseHeader::Vary, Vary::on(RequestHeader::Accept))),
+        );
+    }
+
+    /**
+     * What every answer here carries: kept by no cache, and not to be indexed — then $headers.
+     *
+     * @param Header ...$headers
+     * @return Collection<Header>
+     */
+    private static function private(Header ...$headers): Collection
+    {
+        return new Collection(Header::class)->with(
+            new Header(ResponseHeader::CacheControl, CacheControl::doNotStore()),
+            new Header(ResponseHeader::Robots, RobotsPolicy::hide()),
+            ...$headers,
         );
     }
 
@@ -254,13 +350,13 @@ final readonly class ApiController implements Controller
      */
     private function action(): ?ApiAction
     {
-        $service = ApiService::tryFrom($this->service);
-        $version = ApiVersion::tryFrom($this->version);
+        $service = ApiService::tryFrom((string) $this->service);
+        $version = ApiVersion::tryFrom((string) $this->version);
 
         if ($service === null || $version === null) {
             return null;
         }
 
-        return $service->action($version, $this->action);
+        return $service->action($version, (string) $this->action);
     }
 }

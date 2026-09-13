@@ -14,11 +14,11 @@ namespace Phpanta\Model\Health;
  *
  * Four, and deliberately not open-ended. A requirement a user declares for themselves picks one of
  * these rather than inventing a fifth, because an area is an address and the addresses under
- * `/api` are enums: a string area would be a segment the router matched and nothing recognised.
+ * `/admin` are enums: a string area would be a segment the router matched and nothing recognised.
  * `deployment` is the one to reach for when nothing else fits — it means "this installation", which
  * is where anything an application checks of its own surroundings belongs.
  *
- * Server-only, like every other enum reachable only through `/api`: nothing the browser loads may
+ * Server-only, like every other enum reachable only through the admin: nothing the browser loads may
  * reach it, so there is no TypeScript mirror and none is wanted.
  */
 enum Area: string

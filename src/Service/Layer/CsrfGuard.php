@@ -33,10 +33,10 @@ use Phpanta\Text\FrameworkText;
  * passes untouched: a read changes nothing to forge.
  *
  * **List it on the routes that take a write, never on the app.** As an app layer it would stand in
- * front of every address, and answer one that does not exist differently from the API — which
- * answers every method itself, exactly as an absent address would — and that difference is the one
- * fact the API is built to keep. On a route it runs past the method gate, where only the writes that
- * route accepts ever reach it. The session cookie's `SameSite=Lax` is the second guard behind it.
+ * front of every address, the admin's included, and refuse every signed write there for the form
+ * token it does not carry — a push is authenticated by its signature, not by a session. On a route
+ * it runs past the method gate, where only the writes that route accepts ever reach it. The
+ * session cookie's `SameSite=Lax` is the second guard behind it.
  */
 final readonly class CsrfGuard implements Layer
 {

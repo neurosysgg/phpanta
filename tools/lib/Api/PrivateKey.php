@@ -15,7 +15,7 @@ use Phpanta\Tool\Cli\UsageException;
  * The counterpart to {@link \Phpanta\Support\PublicKey}, and deliberately on this side of the
  * boundary: a deploy uploads `src/` and never `tools/`, so the server holds a class that can
  * only ever *check* a signature and has no way to make one. **That asymmetry is the whole security
- * argument for `/api`**, and it is worth noticing that it is enforced by where the files are rather
+ * argument for the admin**, and it is worth noticing that it is enforced by where the files are rather
  * than by any check in the code.
  *
  * **The private key is read and used here and nowhere else in this repository.** It never leaves

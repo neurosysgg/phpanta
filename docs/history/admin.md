@@ -1,0 +1,73 @@
+# History — the admin
+
+How the admin in [../security.md](../security.md#the-admin) came to be the way it is. The signed
+endpoint is older than the framework's name, and its first form — one address becoming a family of
+them, the credential moving into `Authorization`, the serial, the mirror — stays where the
+[README](README.md) says the rest of that history is.
+
+## `/api` becomes `/admin`
+
+### 2026-09-14 — an address that says it is there, and nothing about what is in it
+
+*From security.md's "The API", "It answers as though it is not there" and "What a verified caller
+gets back", and CLAUDE.md's "The API and deploying".*
+
+The signed address family moved from `/api/{service}/{version}/{action}` to `/admin`, at four
+depths — the entrance, a service, a version, an action — and the three above an action came to list
+what is under them. `ApiPath` became `AdminPath`, with a case per depth, and `App::apiRoute()` became
+`App::adminRoutes()`. Nothing answers under `/api` any more, and there is no alias.
+
+It was asked for: an admin a person can find and walk, a page by default and data on request, where
+the old family could be walked by nobody, the key holder included, without knowing every address in
+advance. And the property that family was built around had stopped paying for itself. The
+framework's source is public, and a site may link to its admin, so whether one exists is not a
+secret anybody can keep; what a stranger must not learn is what is in it. **So indistinguishability
+from an absent address was given up for uniformity inside the admin**: one answer at every depth
+below the entrance, whether the address exists or not. Negotiation moved ahead of the gate with it,
+because a stranger's one answer now depends on what they asked for — a `303` for a page, a `401`
+for data — where before it was the same `404` whatever they named.
+
+The paragraph introducing the family ended:
+
+There are no aliases: an endpoint whose design is to be unfindable does not want two doors.
+
+and a new service was said to inherit "the silence, the method policy, the key, the serial rule and
+the indistinguishability without a line arranging any of them". The posture it gave up stood as:
+
+**It answers as though it is not there.** An unsigned request gets **exactly** what the site gives
+for an address that does not exist: the app's `404` for a read method, the `text/plain` `405` with
+`Allow: GET, HEAD` for anything else, and the same for a verb the framework does not recognise. Not
+a `401`, which would prompt; not a `403`, which would confirm; not a `405` naming `POST`, which would
+confirm more precisely.
+
+That is a property of the structure rather than of two implementations kept in step: both responses
+come from `UnroutedController`, the very object `Router` delegates to when no route matches at all.
+`ApiController` hands it anything it will not verify. The claim is about status codes, headers and
+bodies, so it is worth checking over real HTTP, per method **and per depth**, against an address
+like `/no-such-page` — only a real server has those.
+
+**`public/api/` must never exist.** A webroot that passes real files and directories straight
+through (`RewriteCond !-f` / `!-d`) would have a directory there answered by Apache — a listing or a
+`403` — and `/api` would stop looking like a typo without a line of PHP being involved. A push is no
+guard against it: `public/` is a root, so a signed member named `public/api/...` would be written.
+The rule is about what a site's repository holds, not about what a signed caller can do.
+
+**That scope is deliberate: status, headers and bodies, and not timing.** A request carrying an
+`NS1` credential reaches `ApiGate`, which reads the key and — once the frame parses — runs
+`openssl_verify`; a path that matches no route never does either, because it never leaves
+`UnroutedController`. Measured on localhost, the gap between the `/api` shape and a typo of the
+same length, both carrying a well-formed-but-bogus `NS1` header, is about **180 µs**. It is not a
+usable oracle, and the reason is its precondition rather than its size: the gap appears only for a
+caller already sending an `NS1`-framed `Authorization`, and knowing that scheme exists — the source
+is public — already implies knowing `/api` does. It is well below WAN jitter, and it vanishes
+entirely on a deployment holding no key, which is the one place the silence has to be perfect. It is
+written down because the "same `null` reaching the same line" phrasing below reads as a timing
+identity it does not claim; closing the axis for real would mean a constant-time dummy verify on
+every unrouted path, which protects nothing a reader of the source could not already know.
+
+The negotiation was placed the other way round: **that question is asked after the gate and before
+the action**, so an unverified caller is never answered differently for what it named, and a write is
+never carried out for a caller who then could not be told how it went.
+
+CLAUDE.md's traps said `data/update.pub` absent meant `/api` was off, and that `CsrfGuard` and
+`LoginGate` go on routes because as app layers "they would tell an absent address from the API".

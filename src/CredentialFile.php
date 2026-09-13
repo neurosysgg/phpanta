@@ -32,13 +32,14 @@ enum CredentialFile: string implements DataFileName
     case SiteAuth = 'site_auth.php';
 
     /**
-     * The ECDSA public key `/api` verifies every signed call against — the public half, and only
+     * The ECDSA public key the admin verifies every signed call against — the public half, and only
      * ever that.
      *
      * **Its absence is the off switch, which is {@link self::SiteAuth}'s arrangement with the
-     * polarity reversed.** No key file, no endpoint: {@link Service\ApiGate} refuses every
-     * request and {@link Controller\ApiController} answers exactly as the site answers for a
-     * path no route claims. So a fresh clone, and every machine that has not deliberately been given
+     * polarity reversed.** No key file, no signed call verifies: {@link Service\ApiGate} refuses
+     * every request, and {@link Controller\ApiController} gives each the one answer a caller it
+     * cannot verify gets — the entrance, and nothing past it. So a fresh clone, and every machine
+     * that has not deliberately been given
      * a key, is in the safe state rather than the open one — the opposite of the site gate, where
      * absence stands the gate *down*. Worth reading twice, because the two files look alike and mean
      * opposite things.

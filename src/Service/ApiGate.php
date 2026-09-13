@@ -22,17 +22,18 @@ use Phpanta\Support\PublicKey;
  * The ApiGate class. Decides whether a request is one this deployment signed for, and answers with
  * everything it proved when it is.
  *
- * It is {@link Auth} for `/api`, and the split is the same one: the decision is a returned value
+ * It is {@link Auth} for the admin, and the split is the same one: the decision is a returned value
  * and the refusal lives outside it, because a method that ends the request cannot be asserted
- * against. Here the refusal is not even a challenge — it is
- * {@link \Phpanta\Controller\ApiController} answering exactly as the app answers for a path no
- * route claims, so a caller without the key cannot tell `/api` or anything under it from a typo.
+ * against. Here the refusal is {@link \Phpanta\Controller\ApiController}'s: one answer at every
+ * depth below the entrance, whether the address exists or not — a `303` to `/admin` for a page, a
+ * `401` challenging for `NS1` for data — so a caller without the key learns that there is an admin
+ * and nothing about what is in it.
  *
  * **Nothing this class refuses says why.** Every failure below is one `null`, and the controller
- * turns every `null` into the same 404 or 405. That is the difference between this gate and the
- * Basic ones: those announce a realm because a person has to be prompted for a password, and
- * this must announce nothing at all, because the only legitimate caller already knows the endpoint
- * is there. Past the signature the situation inverts and diagnostics become generous — see
+ * turns every `null` into that one answer. That is the difference between this gate and the Basic
+ * ones: those announce a realm because a person has to be prompted for a password, and this
+ * challenge names only a scheme no browser has a prompt for, because the only legitimate caller
+ * already holds the key. Past the signature the situation inverts and diagnostics become generous — see
  * {@link \Phpanta\Http\Api\ApiHandler} — since by then the caller has proved possession of the
  * private key.
  *
@@ -228,14 +229,12 @@ final readonly class ApiGate
      * The key this deployment verifies against, or null where it holds none.
      *
      * A key file that is absent, unreadable, or not a usable EC key all collapse to null and so to
-     * the same 404 — which is the correct collapse here, unlike {@link \Phpanta\Support\File::read()}'s,
+     * the stranger's one answer — which is the correct collapse here, unlike {@link \Phpanta\Support\File::read()}'s,
      * because the difference matters to whoever installs the key and to nobody else. A malformed
      * key is loud in the one place it can be: `openssl pkey -pubin -in data/update.pub -text`.
      *
      * **Its absence is the off switch**, and it is read before the signature rather than after so
-     * that a deployment holding no key does no verification work at all — which is also what keeps
-     * a fresh clone free of any measurable difference between `/api` and an address that is not
-     * there.
+     * that a deployment holding no key does no verification work at all.
      *
      * @return PublicKey|null
      */

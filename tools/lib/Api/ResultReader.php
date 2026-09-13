@@ -24,9 +24,10 @@ use stdClass;
  * {@link ResultKey} cases, for the same reason. This is the one reader: the server writes a result
  * and never reads one, which is why it lives in the tooling and not under `src/`.
  *
- * **Anything that is not a result is null, never an exception.** An unverified call is answered the
- * way an absent address is — the site's own 404 page — and that is not a failure of this class but
- * the answer the command explains; the caller prints the body as it came instead.
+ * **Anything that is not a result is null, never an exception.** A listing is
+ * {@link ListingReader}'s, and an answer that is not the admin's at all — a site's own 404 page,
+ * from a server older than `/admin` — is not a failure of this class but the answer the command
+ * explains.
  */
 final readonly class ResultReader
 {

@@ -21,7 +21,7 @@ use Phpanta\Model\Health\Requirement;
  * see {@link Requirement}.
  *
  * Required, because a push mirrors into this directory: a deployment whose webroot will not resolve
- * cannot be updated over `/api` at all, and has to be fixed with a full deploy.
+ * cannot be updated through the admin at all, and has to be fixed with a full deploy.
  *
  * **The refusal is caught and becomes the finding**, which is the contract {@link Requirement}
  * states. `App::webroot()` refuses with an {@link UpdateException}, and left alone that would

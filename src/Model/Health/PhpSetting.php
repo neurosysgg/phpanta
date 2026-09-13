@@ -50,7 +50,7 @@ enum PhpSetting: string
     /**
      * The clock's zone.
      *
-     * Not decoration: `/api` refuses a credential whose serial sits more than
+     * Not decoration: the admin refuses a credential whose serial sits more than
      * {@link \Phpanta\Service\ApiGate::MAX_SKEW} seconds from this clock, and a report that gives
      * a server time without saying which zone it is in cannot settle that question.
      */

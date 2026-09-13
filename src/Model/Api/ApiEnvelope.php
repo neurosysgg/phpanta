@@ -31,7 +31,7 @@ use Phpanta\Exception\ApiException;
  * **What `path` binds is {@link \Phpanta\Http\Request::path()}'s output, not the wire target**, and
  * the difference is worth knowing rather than discovering. That path is normalised — a trailing
  * slash is stripped, a query string is already gone, and an absolute-form target has its authority
- * discarded — so `/api/update/v1/patch` and `/api/update/v1/patch/` are one signed path. It is
+ * discarded — so `/admin/update/v1/patch` and `/admin/update/v1/patch/` are one signed path. It is
  * compared against that string directly and never against a path rebuilt from the router's
  * captures, because {@link \Phpanta\Support\Route::matches()} decodes each value and
  * {@link \Phpanta\Support\Path::to()} encodes it afresh: a segment sent as `%70atch` would be

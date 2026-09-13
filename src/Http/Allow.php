@@ -40,8 +40,9 @@ final readonly class Allow implements HeaderValue
      *
      * **The router must never call this**, and the reason is the whole argument on
      * {@link \Phpanta\Support\MethodPolicy}: a route naming its own set would make
-     * `PUT /api/update/v1/patch` answer `Allow: GET, HEAD, POST`, and that `POST` is precisely the
-     * fact `/api` exists to hide. {@link self::readOnly()} is what the router sends, always.
+     * `PUT /admin/update/v1/patch` answer `Allow: GET, HEAD, POST` to a caller nobody has verified,
+     * and that `POST` says which depth is an action — precisely what the admin keeps from a
+     * stranger. {@link self::readOnly()} is what the router sends, always.
      *
      * Its one caller is {@link \Phpanta\Controller\ApiController}, past the signature check —
      * where the caller has proved possession of the private key, so there is nothing left to hide

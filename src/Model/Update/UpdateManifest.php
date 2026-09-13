@@ -40,6 +40,15 @@ final readonly class UpdateManifest
     public const string APPLY = 'apply';
 
     /**
+     * The field that says whether a push deletes what its tree leaves out.
+     *
+     * Public for {@link self::APPLY}'s reason: the admin names an action's fields as
+     * {@link \Phpanta\Http\Api\ActionField} cases, and `DiscoveryTest` holds each to the key this
+     * class reads.
+     */
+    public const string MIRROR = 'mirror';
+
+    /**
      * How deep the manifest JSON may nest. The envelope's reason, and the same number, since this
      * reads the same document.
      */
@@ -84,7 +93,7 @@ final readonly class UpdateManifest
         }
 
         $apply  = $values[self::APPLY] ?? null;
-        $mirror = $values['mirror'] ?? null;
+        $mirror = $values[self::MIRROR] ?? null;
 
         if (!is_bool($apply) || !is_bool($mirror)) {
             throw new UpdateException(

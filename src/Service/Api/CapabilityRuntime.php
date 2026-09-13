@@ -30,7 +30,7 @@ use Phpanta\Support\Collection;
  *
  * **Everything here is safe to say only because nothing unsigned can reach it.** A PHP version, a
  * SAPI and a server's own uname are reconnaissance; behind the gate they are a report to the one
- * person holding the private key. That is why this is a service under `/api` rather than a public
+ * person holding the private key. That is why this is a service of the admin rather than a public
  * page a monitor would ping.
  *
  * A read: it writes nothing and consumes no serial.

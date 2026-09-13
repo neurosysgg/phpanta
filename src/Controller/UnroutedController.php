@@ -20,22 +20,15 @@ use Phpanta\Text\Language;
  * The UnroutedController class. What the app says about an address it does not have: the rendered
  * 404 for a method that reads, the `text/plain` 405 for one that writes.
  *
- * **It exists because two places have to give that answer identically.** {@link \Phpanta\Router}
- * gives it when no route matches a path, and {@link ApiController} gives it when a request
- * carries no signature this deployment can verify — because the whole design of `/api` is that
- * an unsigned caller cannot tell it from a typo. Written out twice, those two would be equal on the
- * day they were written and free to drift after: a message reworded, a header added, and the update
- * endpoint starts announcing itself by being subtly different from every other 404 on the site.
+ * **It is the router's answer, and only the router's**: {@link \Phpanta\Router} hands it every path
+ * no route claims. The admin answers for itself — {@link ApiController} gives a caller it cannot
+ * verify one answer of its own at every depth — so nothing here is about hiding an address. This is
+ * what an address that is not there is, and it is a class of its own so that there is one place
+ * that answer is written.
  *
- * That is the same failure this codebase names everywhere else — two halves in two files, neither
- * knowing about the other — so the fix is the usual one. There is one answer and one class holding
- * it, and the difference between an address that does not exist and one that is merely hiding is
- * then not expressible.
- *
- * **The 405 is deliberately the read-only `Allow`, even when the route that delegated here accepts
- * POST.** A 405 saying `Allow: GET, HEAD, POST` under `/api` would tell an unsigned caller exactly
- * what it is not allowed to know. What this sends is what the site sends for `/no-such-page`,
- * because that is what the caller is being told the address is.
+ * **The 405 is always the read-only `Allow`.** No route claimed the path, so there is no set of
+ * methods to name but the one every page answers on: what this sends is what the site sends for
+ * `/no-such-page`, because that is what the address is.
  */
 final readonly class UnroutedController implements Controller
 {

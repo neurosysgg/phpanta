@@ -29,7 +29,7 @@ use Phpanta\Http\ServerVariable;
 use Phpanta\Http\SessionSeal;
 use Phpanta\Model\Health\Requirement;
 use Phpanta\Service\Layer\SiteGate;
-use Phpanta\Support\ApiPath;
+use Phpanta\Support\AdminPath;
 use Phpanta\Support\Collection;
 use Phpanta\Support\Directory;
 use Phpanta\Support\ErrorLog;
@@ -580,40 +580,57 @@ abstract class App
     // ───────────────────────── the request ─────────────────────────
 
     /**
-     * Every route the router asks: the site's own, then the framework's API.
+     * Every route the router asks: the site's own, then the framework's admin.
      *
-     * The API goes last, so no site route can be shadowed by it, and it is added here rather than
+     * The admin goes last, so no site route can be shadowed by it, and it is added here rather than
      * registered by each site, so no site can forget it — or register it with the wrong policy.
      *
      * @return Collection<Route>
      */
     final public function routeTable(): Collection
     {
-        return $this->routes()->with($this->apiRoute());
+        return $this->routes()->with(...$this->adminRoutes()->toValues());
     }
 
     /**
-     * The framework's API route: `/api/{service}/{version}/{action}`, every method to its
+     * The framework's admin routes: `/admin` at each of its four depths, every method to one
      * controller.
      *
-     * Public because it is also the one honest answer to "is this an API address?" — the route's
+     * Public because it is also the one honest answer to "is this an admin address?" — the routes'
      * own match, which is what {@link Service\Layer\Maintenance} asks rather than a prefix.
      *
-     * @return Route
+     * @return Collection<Route>
      */
-    final public function apiRoute(): Route
+    final public function adminRoutes(): Collection
     {
-        return new Route(
-            ApiPath::Api,
-            // The captures go through as raw strings. Resolving them to cases here would put a
-            // from() in the factory, and a ValueError raised before the signature is checked is
-            // both a 500 that announces the endpoint and an exception nothing here owns.
-            fn($service, $version, $action) => new ApiController($service, $version, $action),
-            // The only route the router forms no opinion about. Every method reaches the
-            // controller, including one the site does not recognise, because any refusal the router
-            // made here would differ from the one it makes for an address that does not exist — and
-            // being indistinguishable from that is the whole design. See MethodPolicy.
-            MethodPolicy::Delegated,
+        // The captures go through as raw strings: resolving them to cases here would put a from()
+        // in the factory, and a ValueError raised before the caller is known is a 500 and an
+        // exception nothing here owns. Every method reaches the controller, one the site does not
+        // recognise included, because the controller answers a caller it cannot verify the same way
+        // at every depth — see MethodPolicy. And none is a page of a static export: an anonymous
+        // request is all an export makes, and the admin has nothing to show one.
+        $none = static fn(): array => [];
+
+        return new Collection(Route::class)->with(
+            new Route(AdminPath::Index, fn() => new ApiController(), MethodPolicy::Delegated, $none),
+            new Route(
+                AdminPath::Service,
+                fn($service) => new ApiController($service),
+                MethodPolicy::Delegated,
+                $none,
+            ),
+            new Route(
+                AdminPath::Version,
+                fn($service, $version) => new ApiController($service, $version),
+                MethodPolicy::Delegated,
+                $none,
+            ),
+            new Route(
+                AdminPath::Action,
+                fn($service, $version, $action) => new ApiController($service, $version, $action),
+                MethodPolicy::Delegated,
+                $none,
+            ),
         );
     }
 

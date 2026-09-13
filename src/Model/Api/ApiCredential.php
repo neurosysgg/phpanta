@@ -89,8 +89,9 @@ final readonly class ApiCredential
         // strict: true, so base64 that is not base64 comes back false rather than being silently
         // repaired into some other credential. The check is not optional in the way it looks:
         // under strict_types a false reaching strlen() below is an uncaught TypeError, which is a
-        // 500 — and a 500 on /api and a 405 on an address that does not exist is the whole
-        // property gone. Same trap Request::normalisePath() records parse_url() setting.
+        // 500 — and a 500 for one malformed credential where every other stranger gets the admin's
+        // one answer is the uniformity gone. Same trap Request::normalisePath() records parse_url()
+        // setting.
         $blob = base64_decode($token, true);
 
         if ($blob === false) {

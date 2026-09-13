@@ -11,11 +11,13 @@ use Phpanta\Controller\UnroutedController;
 use Phpanta\Http\AcceptedTypes;
 use Phpanta\Http\Allow;
 use Phpanta\Http\Answer;
+use Phpanta\Http\Api\ApiListing;
 use Phpanta\Http\Api\ApiResult;
 use Phpanta\Http\Api\ApiService;
 use Phpanta\Http\Api\ApiVersion;
 use Phpanta\Http\Api\CapabilityAction;
 use Phpanta\Http\Api\HealthAction;
+use Phpanta\Http\Api\ListingEntry;
 use Phpanta\Http\Api\UpdateAction;
 use Phpanta\Http\AuthScheme;
 use Phpanta\Http\Header;
@@ -24,10 +26,14 @@ use Phpanta\Http\HttpStatusCode;
 use Phpanta\Http\JsonResponse;
 use Phpanta\Http\MediaRange;
 use Phpanta\Http\PlainTextResponse;
+use Phpanta\Http\RedirectResponse;
 use Phpanta\Http\Representation;
 use Phpanta\Http\Request;
 use Phpanta\Http\RequestHeader;
+use Phpanta\Http\ResponseHeader;
+use Phpanta\Http\RobotsPolicy;
 use Phpanta\Http\ServerVariable;
+use Phpanta\Http\SignedChallenge;
 use Phpanta\Http\TextBody;
 use Phpanta\Http\ViewResponse;
 use Phpanta\Model\Api\ApiCredential;
@@ -46,7 +52,7 @@ use Phpanta\Service\Api\UpdateVersion;
 use Phpanta\Service\ApiGate;
 use Phpanta\Service\ReleaseRecord;
 use Phpanta\Service\UpdateApplier;
-use Phpanta\Support\ApiPath;
+use Phpanta\Support\AdminPath;
 use Phpanta\Support\Collection;
 use Phpanta\Support\Directory;
 use Phpanta\Support\File;
@@ -56,7 +62,11 @@ use Phpanta\Support\PublicKey;
 use Phpanta\Support\RequirementInitialization;
 use Phpanta\Support\Route;
 use Phpanta\Test\TestRequest;
+use Phpanta\Text\AdminText;
+use Phpanta\Text\Language;
 use Phpanta\Tool\Api\ResultReader;
+use Phpanta\View\AdminEntranceView;
+use Phpanta\View\ApiListingView;
 use Phpanta\View\ApiResultView;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -65,19 +75,20 @@ use ReflectionProperty;
 use stdClass;
 
 /**
- * `/api`: what it refuses, how quietly it refuses it, and what it does when it does not.
+ * `/admin`: what it tells a stranger, what it proves of a caller, and what it answers one it can
+ * verify.
  *
- * **The half of the update feature that answers in silence**, split from {@link UpdateTest} when
- * `/update` became one address in a family. {@link ApiGate} refuses without saying why, so these
- * tests assert a *response* rather than a message — the whole point being that a caller cannot tell
- * one refusal from another, or from a path that was never there. Past the signature the posture
- * inverts and the sentence is the assertion, which is what the other file is about.
+ * **The half of the update feature at the door**, split from {@link UpdateTest} when `/update` became
+ * one address in a family. {@link ApiGate} refuses without saying why, so a refusal here is asserted
+ * as a *response* rather than a message. Past the signature the posture inverts and the sentence is
+ * the assertion, which is what the other file is about.
  *
  * Three properties are worth naming, because everything here is one of them:
  *
- * - **Indistinguishability.** Every depth under `/api`, under every verb, answers exactly as
- *   `/no-such-page` does. Compared against a path that genuinely is not there rather than against a
- *   remembered status code, because what must hold is that the two *agree*.
+ * - **Uniformity.** Below the entrance, a caller the gate cannot verify gets one answer at every
+ *   depth, under every verb, whether the address exists or not: a page request is sent to the
+ *   entrance, a request for data is challenged. So a stranger learns there is an admin and nothing
+ *   about what is in it.
  * - **Binding.** A credential authenticates one request — one method, one path, one body — and not
  *   merely *some* request. That is what stops a read's credential being replayed as a write, and it
  *   is the property the framed-body predecessor did not have.
@@ -122,14 +133,40 @@ use stdClass;
 #[CoversClass(Representation::class)]
 #[CoversClass(HealthSection::class)]
 #[CoversClass(HealthFact::class)]
+#[CoversClass(SignedChallenge::class)]
+#[CoversClass(RedirectResponse::class)]
+#[CoversClass(ApiListing::class)]
+#[CoversClass(ListingEntry::class)]
+#[CoversClass(ApiListingView::class)]
+#[CoversClass(AdminEntranceView::class)]
 final class ApiTest extends TestCase
 {
-    private const string PATCH      = '/api/update/v1/patch';
-    private const string VERSION    = '/api/update/v1/version';
-    private const string ROLLBACK   = '/api/update/v1/rollback';
-    private const string PROBE      = '/api/update/v1/probe';
-    private const string HEALTH     = '/api/health/v1/report';
-    private const string CAPABILITY = '/api/capability/v1/extensions';
+    /**
+     * Every depth below the entrance, of every service, real and not — what a stranger's every
+     * request has to be answered alike at.
+     */
+    private const array DEPTHS = [
+        '/admin/update',
+        '/admin/update/v1',
+        self::PATCH,
+        '/admin/update/v1/nope',
+        '/admin/update/v9',
+        '/admin/health',
+        '/admin/health/v1',
+        self::HEALTH,
+        '/admin/capability/v1',
+        self::CAPABILITY,
+        '/admin/nope',
+        '/admin/nope/v1',
+        '/admin/nope/v1/nope',
+    ];
+
+    private const string PATCH      = '/admin/update/v1/patch';
+    private const string VERSION    = '/admin/update/v1/version';
+    private const string ROLLBACK   = '/admin/update/v1/rollback';
+    private const string PROBE      = '/admin/update/v1/probe';
+    private const string HEALTH     = '/admin/health/v1/report';
+    private const string CAPABILITY = '/admin/capability/v1/extensions';
 
     private string $sandbox = '';
     private OpenSSLAsymmetricKey $privateKey;
@@ -172,57 +209,98 @@ final class ApiTest extends TestCase
         }
     }
 
-    // ───────────────────────────── the decoy ─────────────────────────────
+    // ───────────────────────────── the stranger ─────────────────────────────
 
     /**
-     * Every address under `/api` answers exactly as an address that is not there, under every verb.
+     * Below the entrance, a caller the gate cannot verify gets one answer at every depth, under
+     * every verb, whether the address exists or not: a page request is sent to the entrance, and a
+     * request for data is challenged for a signature. Neither names a method.
      *
-     * The depths matter as much as the verbs. `/api` and `/api/update` match no route at all and
-     * reach {@link UnroutedController} through the router; `/api/update/v1/patch` matches and
-     * reaches it through {@link ApiController}. Those are two code paths that must not be
-     * distinguishable, and this is the test that says so — including for `nope`, an address that
-     * looks exactly like the real one and is not.
+     * The depths matter as much as the verbs, and so does `nope` — an address that looks exactly like
+     * a real one and is not. What a stranger may learn is that there is an admin; which services,
+     * versions and actions are under it is what this holds back.
      *
      * @param string $method
      * @return void
      */
     #[DataProvider('everyMethodProvider')]
-    public function testEveryDepthUnderApiAnswersExactlyLikeAnUnroutedPath(string $method): void
+    public function testEveryDepthBelowTheEntranceAnswersAStrangerAlike(string $method): void
+    {
+        $router = new Router(App::current()->routeTable());
+
+        foreach (self::DEPTHS as $path) {
+            $asked = self::request($method, $path);
+            $page  = $router->dispatch($asked)->answer($asked);
+            $wants = self::request($method, $path, '', null, 'application/json');
+            $data  = $router->dispatch($wants)->answer($wants);
+
+            self::assertSame(HttpStatusCode::SeeOther, $page->status(), "$method $path");
+            self::assertSame('/admin', $page->header(ResponseHeader::Location)?->value->render(), "$method $path");
+            self::assertSame(HttpStatusCode::Unauthorized, $data->status(), "$method $path");
+            self::assertSame('NS1', $data->header(ResponseHeader::WwwAuthenticate)?->value->render(), "$method $path");
+            self::assertNull($page->header(ResponseHeader::Allow), "$method $path named a method");
+            self::assertNull($data->header(ResponseHeader::Allow), "$method $path named a method");
+        }
+    }
+
+    /**
+     * The entrance is the one admin page anybody may see: a read of it is the page, kept by no
+     * cache and not to be indexed, and anything else is sent back to it.
+     *
+     * @return void
+     */
+    public function testTheEntranceIsAPageForAnyone(): void
+    {
+        $page = TestRequest::get('/admin')->answer();
+        $body = $page->body();
+
+        self::assertSame(HttpStatusCode::Ok, $page->status());
+        self::assertTrue(
+            str_contains($body, AdminText::Entrance->in(Language::English))
+            || str_contains($body, AdminText::Entrance->in(Language::German)),
+            'the entrance does not say what it is',
+        );
+        self::assertSame('no-store, private', $page->header(ResponseHeader::CacheControl)?->value->render());
+        self::assertSame(RobotsPolicy::hide()->render(), $page->header(ResponseHeader::Robots)?->value->render());
+        self::assertSame(HttpStatusCode::Ok, TestRequest::to('HEAD', '/admin')->answer()->status());
+        self::assertSame(HttpStatusCode::SeeOther, TestRequest::to('POST', '/admin')->answer()->status());
+    }
+
+    /**
+     * A stranger naming only types the admin cannot write is told so, the same at every depth —
+     * existence is not the question a `406` answers.
+     *
+     * @return void
+     */
+    public function testAStrangerAskingForAnotherTypeIsTold(): void
+    {
+        foreach (['/admin', self::VERSION, '/admin/nope'] as $path) {
+            $answer = TestRequest::get($path)->with(RequestHeader::Accept, 'text/plain')->answer();
+
+            self::assertSame(HttpStatusCode::NotAcceptable, $answer->status(), $path);
+        }
+    }
+
+    /**
+     * What used to be the API is an address that is not there: no route claims anything under
+     * `/api`, so it answers exactly as `/no-such-page` does, under every verb.
+     *
+     * @param string $method
+     * @return void
+     */
+    #[DataProvider('everyMethodProvider')]
+    public function testTheOldApiIsAnAddressThatIsNotThere(string $method): void
     {
         $router  = new Router(App::current()->routeTable());
         $nowhere = self::request($method, '/no-such-page');
-        $absent  = $router->dispatch($nowhere);
+        $absent  = $router->dispatch($nowhere)->answer($nowhere);
 
-        $depths = [
-            '/api',
-            '/api/update',
-            '/api/update/v1',
-            self::PATCH,
-            '/api/update/v1/nope',
-            // Every service, swept to the same depths as the first. A service that writes and ones
-            // that only read have to be equally invisible, and they are for the same reason —
-            // ApiController hands every one to UnroutedController — but "for the same reason" is
-            // what a test is for, and the third service is the one that arrived to check it.
-            '/api/health',
-            '/api/health/v1',
-            self::HEALTH,
-            '/api/health/v1/nope',
-            '/api/capability',
-            '/api/capability/v1',
-            self::CAPABILITY,
-            '/api/capability/v1/nope',
-        ];
+        foreach (['/api', '/api/update/v1/patch', '/api/health/v1/report'] as $path) {
+            $request = self::request($method, $path);
 
-        foreach ($depths as $path) {
-            $request  = self::request($method, $path);
-            $response = $router->dispatch($request);
+            $answer  = $router->dispatch($request)->answer($request);
 
-            self::assertSame($absent::class, $response::class, "$method $path answered a different class");
-            self::assertSame(
-                $absent->answer($nowhere)->status(),
-                $response->answer($request)->status(),
-                "$method $path answered a different status, so the endpoint announces itself",
-            );
+            self::assertSame($absent->status(), $answer->status(), "$method $path");
         }
     }
 
@@ -232,9 +310,9 @@ final class ApiTest extends TestCase
      * **The unrecognised verb is the row that matters**, and it is here rather than in a test of its
      * own because it is the same claim. {@link Request::method()} is null for it,
      * {@link MethodPolicy::Delegated} lets null reach the controller on purpose, and a gate that
-     * asked `$method->value` without checking would raise an uncaught `TypeError` — a 500 where an
-     * address that does not exist sends a 405. One differing status code and the whole property is
-     * gone, to anybody who types `BREW`.
+     * asked `$method->value` without checking would raise an uncaught `TypeError` — a 500 where
+     * every other verb is sent to the entrance. One differing status code and the property is gone,
+     * to anybody who types `BREW`.
      *
      * @return iterable<string, array{string}>
      */
@@ -248,37 +326,17 @@ final class ApiTest extends TestCase
     }
 
     /**
-     * The 405 never names POST.
-     *
-     * The route accepts one, so a 405 naming its own methods would read `GET, HEAD, POST` — and
-     * that POST is exactly the fact the endpoint exists to hide.
-     *
-     * @return void
-     */
-    public function testTheRefusalNeverNamesPost(): void
-    {
-        $request  = self::request('PUT', self::PATCH);
-        $response = new Router(App::current()->routeTable())->dispatch($request);
-
-        self::assertInstanceOf(PlainTextResponse::class, $response);
-        self::assertSame(
-            ['Content-Type: text/plain; charset=utf-8', 'Allow: GET, HEAD'],
-            self::lines($response->answer($request)),
-        );
-    }
-
-    /**
-     * `/api` is the one route that accepts a write method, and the only one.
+     * The admin's routes are the ones that accept a write method, and the only ones.
      *
      * Asserted over the table an app hands the router, by reflection rather than by reading the
      * registration, because what matters is what the router will do and not what anybody wrote
      * down. The booted app declares no routes of its own, so fixture routes stand in front of the
-     * API's for a site's, registered the way a site registers one. Both directions: a second route
-     * accepting a write, and a second route made `Delegated`, are each a hole.
+     * admin's for a site's, registered the way a site registers one. Both directions: another route
+     * accepting a write, and another route made `Delegated`, are each a hole.
      *
      * @return void
      */
-    public function testOnlyTheApiRouteAcceptsAWriteMethod(): void
+    public function testOnlyTheAdminRoutesAcceptAWriteMethod(): void
     {
         $accepting = [];
         $delegated = [];
@@ -305,12 +363,12 @@ final class ApiTest extends TestCase
             }
         }
 
-        self::assertSame([ApiPath::Api], $accepting);
-        self::assertSame([ApiPath::Api], $delegated, 'a second route stopped being method-gated');
+        self::assertSame(AdminPath::cases(), $accepting);
+        self::assertSame(AdminPath::cases(), $delegated, 'another route stopped being method-gated');
     }
 
     /**
-     * A route with no declared policy is read-only, which is every route but the API's.
+     * A route with no declared policy is read-only, which is every route but the admin's.
      *
      * @return void
      */
@@ -328,13 +386,13 @@ final class ApiTest extends TestCase
      * A delegated route accepts even a method the framework does not recognise.
      *
      * Deliberate: the controller has to *see* null, because the alternative is the router answering
-     * `BREW /api/…` differently from `BREW /no-such-page`.
+     * `BREW /admin/…` before the controller could say who is asking.
      *
      * @return void
      */
     public function testADelegatedRouteAcceptsEvenAnUnknownMethod(): void
     {
-        $route = new Route(ApiPath::Api, static fn(): object => new stdClass(), MethodPolicy::Delegated);
+        $route = new Route(AdminPath::Action, static fn(): object => new stdClass(), MethodPolicy::Delegated);
 
         self::assertTrue($route->accepts(null));
 
@@ -504,8 +562,8 @@ final class ApiTest extends TestCase
     {
         yield 'a read replayed as a write' => [self::VERSION, 'GET', self::VERSION, 'POST'];
         yield 'one action replayed at another' => [self::VERSION, 'GET', self::PATCH, 'GET'];
-        yield 'a percent-encoded path' => [self::VERSION, 'GET', '/api/update/v1/%76ersion', 'GET'];
-        yield 'another service' => [self::VERSION, 'GET', '/api/other/v1/version', 'GET'];
+        yield 'a percent-encoded path' => [self::VERSION, 'GET', '/admin/update/v1/%76ersion', 'GET'];
+        yield 'another service' => [self::VERSION, 'GET', '/admin/other/v1/version', 'GET'];
     }
 
     /**
@@ -676,7 +734,7 @@ final class ApiTest extends TestCase
     public static function badEnvelopeProvider(): iterable
     {
         $digest = str_repeat('a', 64);
-        $full   = ['serial' => 1, 'method' => 'GET', 'path' => '/api/update/v1/version',
+        $full   = ['serial' => 1, 'method' => 'GET', 'path' => '/admin/update/v1/version',
                    'digest' => $digest, 'size' => 0];
 
         yield 'not JSON'      => ['{'];
@@ -957,20 +1015,20 @@ final class ApiTest extends TestCase
      */
     public static function unknownAddressProvider(): iterable
     {
-        yield 'no such service'          => ['/api/nope/v1/version'];
-        yield 'no such version'          => ['/api/update/v9/version'];
-        yield 'no such action'           => ['/api/update/v1/nope'];
-        yield 'no such version, health'  => ['/api/health/v9/report'];
-        yield 'no such action, health'   => ['/api/health/v1/nope'];
-        yield 'no such version, capability' => ['/api/capability/v9/runtime'];
-        yield 'no such action, capability'  => ['/api/capability/v1/nope'];
+        yield 'no such service'          => ['/admin/nope/v1/version'];
+        yield 'no such version'          => ['/admin/update/v9/version'];
+        yield 'no such action'           => ['/admin/update/v1/nope'];
+        yield 'no such version, health'  => ['/admin/health/v9/report'];
+        yield 'no such action, health'   => ['/admin/health/v1/nope'];
+        yield 'no such version, capability' => ['/admin/capability/v9/runtime'];
+        yield 'no such action, capability'  => ['/admin/capability/v1/nope'];
 
         // An action of *another* service, which is the row a flat enum of every action the API has
         // would have passed: `patch` names something real, and it names nothing under `health`;
         // `report` is health's, and names nothing under `capability`. See ApiAction, where the
         // argument for an enum per service is made.
-        yield 'another service\'s action' => ['/api/health/v1/patch'];
-        yield 'health\'s action, capability' => ['/api/capability/v1/report'];
+        yield 'another service\'s action' => ['/admin/health/v1/patch'];
+        yield 'health\'s action, capability' => ['/admin/capability/v1/report'];
     }
 
     /**
@@ -989,7 +1047,13 @@ final class ApiTest extends TestCase
         self::assertSame(HttpStatusCode::MethodNotAllowed, $response->status());
         self::assertStringContainsString('patch answers POST', self::text($response));
         self::assertSame(
-            ['Content-Type: application/json', 'Cache-Control: no-store, private', 'Allow: POST', 'Vary: Accept'],
+            [
+                'Content-Type: application/json',
+                'Cache-Control: no-store, private',
+                'X-Robots-Tag: ' . RobotsPolicy::hide()->render(),
+                'Allow: POST',
+                'Vary: Accept',
+            ],
             self::lines($response),
         );
     }
@@ -1024,7 +1088,7 @@ final class ApiTest extends TestCase
      */
     public function testAVerifiedCallerAskingForJsonGetsData(): void
     {
-        $answer = $this->respond('/api/update/v1/nope', HttpMethod::Get, '');
+        $answer = $this->respond('/admin/update/v1/nope', HttpMethod::Get, '');
 
         self::assertSame(HttpStatusCode::NotFound, $answer->status());
         self::assertSame(
@@ -1048,28 +1112,66 @@ final class ApiTest extends TestCase
         self::assertSame(HttpStatusCode::NotAcceptable, $answer->status());
         self::assertSame("this answers text/html or application/json\n", $answer->body());
         self::assertSame(
-            ['Content-Type: text/plain; charset=utf-8', 'Cache-Control: no-store, private', 'Vary: Accept'],
+            [
+                'Content-Type: text/plain; charset=utf-8',
+                'Cache-Control: no-store, private',
+                'X-Robots-Tag: ' . RobotsPolicy::hide()->render(),
+                'Vary: Accept',
+            ],
             self::lines($answer),
         );
         self::assertSame($before, $this->serialFile->read(), 'a 406 spent a serial');
     }
 
     /**
-     * An unverified caller is never asked what it reads: whatever it names, it gets what an absent
-     * address gets, because negotiating first would answer it differently from a typo.
+     * A verified caller can walk the admin from the top: the entrance lists the services, a service
+     * its versions, a version its actions — as data, and as a page that links each.
      *
      * @return void
      */
-    public function testAnUnverifiedCallerIsNeverAskedWhatItReads(): void
+    public function testAVerifiedCallerCanWalkTheAdminFromTheTop(): void
     {
-        foreach (['text/plain', 'application/json'] as $accept) {
-            $request  = self::request('GET', self::VERSION, '', null, $accept);
-            $answer   = new ApiController('update', 'v1', 'version', $this->gate())->handle($request)->answer($request);
-            $unrouted = new UnroutedController()->handle($request)->answer($request);
+        $top     = $this->respond('/admin', HttpMethod::Get, '');
+        $service = $this->respond('/admin/update', HttpMethod::Get, '');
+        $version = $this->respond('/admin/update/v1', HttpMethod::Get, '');
+        $page    = $this->respond('/admin/update/v1', HttpMethod::Get, '', accept: '');
 
-            self::assertSame($unrouted->status(), $answer->status(), $accept);
-            self::assertSame($unrouted->body(), $answer->body(), $accept);
+        foreach ([$top, $service, $version] as $answer) {
+            self::assertSame(HttpStatusCode::Ok, $answer->status());
+            self::assertContains('Content-Type: application/json', self::lines($answer));
         }
+
+        self::assertSame(['update', 'health', 'capability'], array_column(self::decoded($top)['entries'], 'name'));
+        self::assertSame(['v1'], array_column(self::decoded($service)['entries'], 'name'));
+        self::assertSame(
+            array_map(static fn(UpdateAction $action): string => $action->value, UpdateAction::cases()),
+            array_column(self::decoded($version)['entries'], 'name'),
+        );
+
+        self::assertSame(HttpStatusCode::Ok, $page->status());
+        self::assertContains('Content-Type: text/html; charset=utf-8', self::lines($page));
+        self::assertStringContainsString('<a href="/admin/update/v1/version">version</a>', $page->body());
+    }
+
+    /**
+     * Past the gate, an address that is not there is a real `404` with a sentence, at every depth,
+     * and a listing answers only a read — a `405` naming the read methods.
+     *
+     * @return void
+     */
+    public function testAVerifiedCallerIsToldWhatIsNotThereAndThatAListingOnlyLists(): void
+    {
+        foreach (['/admin/nope', '/admin/nope/v1', '/admin/update/v9'] as $path) {
+            $answer = $this->respond($path, HttpMethod::Get, '');
+
+            self::assertSame(HttpStatusCode::NotFound, $answer->status(), $path);
+            self::assertSame("no such admin address: $path\n", self::text($answer), $path);
+        }
+
+        $post = $this->respond('/admin', HttpMethod::Post, '');
+
+        self::assertSame(HttpStatusCode::MethodNotAllowed, $post->status());
+        self::assertSame('GET, HEAD', $post->header(ResponseHeader::Allow)?->value->render());
     }
 
     /**
@@ -1338,9 +1440,9 @@ final class ApiTest extends TestCase
         $segments = explode('/', ltrim($path, '/'));
 
         $controller = new ApiController(
-            $segments[1] ?? '',
-            $segments[2] ?? '',
-            $segments[3] ?? '',
+            $segments[1] ?? null,
+            $segments[2] ?? null,
+            $segments[3] ?? null,
             new ApiGate($this->keyFile, $serialFile ?? $this->serialFile),
         );
 
@@ -1413,6 +1515,20 @@ final class ApiTest extends TestCase
     private static function text(Answer $answer): string
     {
         return ResultReader::read($answer->body())?->text() ?? $answer->body();
+    }
+
+    /**
+     * A listing's data, decoded.
+     *
+     * @param Answer $answer
+     * @return array{address: string, entries: list<array<string, mixed>>}
+     */
+    private static function decoded(Answer $answer): array
+    {
+        /** @var array{address: string, entries: list<array<string, mixed>>} $data */
+        $data = json_decode($answer->body(), true, 8, JSON_THROW_ON_ERROR);
+
+        return $data;
     }
 
     /**

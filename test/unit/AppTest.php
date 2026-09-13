@@ -16,7 +16,7 @@ use Phpanta\Http\Response;
 use Phpanta\Http\Security\CspDirective;
 use Phpanta\Http\ServerVariable;
 use Phpanta\Model\Health\Requirement;
-use Phpanta\Support\ApiPath;
+use Phpanta\Support\AdminPath;
 use Phpanta\Support\Collection;
 use Phpanta\Support\Directory;
 use Phpanta\Support\RequirementInitialization;
@@ -189,18 +189,23 @@ final class AppTest extends TestCase
     }
 
     /**
-     * The route table is the app's own routes and then the API's, which no app registers and so
-     * none can forget. An app with no routes of its own has exactly one.
+     * The route table is the app's own routes and then the admin's, which no app registers and so
+     * none can forget. An app with no routes of its own has exactly the admin's four, and none of
+     * them is a page of a static export.
      *
      * @return void
      */
-    public function testTheRouteTableEndsInTheApiRoute(): void
+    public function testTheRouteTableEndsInTheAdminRoutes(): void
     {
         $routes = App::current()->routeTable()->toValues();
 
-        self::assertCount(1, $routes);
-        self::assertSame(ApiPath::Api, $routes[0]->path());
-        self::assertTrue($routes[0]->accepts(null), 'the API route stopped delegating its methods');
+        self::assertCount(4, $routes);
+
+        foreach ($routes as $index => $route) {
+            self::assertSame(AdminPath::cases()[$index], $route->path());
+            self::assertTrue($route->accepts(null), 'an admin route stopped delegating its methods');
+            self::assertTrue($route->exportedPaths()->isEmpty(), 'an admin route became a page to export');
+        }
     }
 
     // ───────────────────────────── the webroot ─────────────────────────────

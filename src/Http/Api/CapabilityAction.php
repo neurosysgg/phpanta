@@ -11,6 +11,9 @@ use Phpanta\Service\Api\CapabilityErrors;
 use Phpanta\Service\Api\CapabilityExtensions;
 use Phpanta\Service\Api\CapabilityRuntime;
 use Phpanta\Service\Api\CapabilitySettings;
+use Phpanta\Support\Collection;
+use Phpanta\Text\AdminText;
+use Phpanta\Text\Translatable;
 
 /**
  * The CapabilityAction enum. What the `capability` service can be asked to list.
@@ -46,6 +49,40 @@ enum CapabilityAction: string implements ApiAction
     public function method(): HttpMethod
     {
         return HttpMethod::Get;
+    }
+
+    /**
+     * @return Translatable
+     */
+    public function describe(): Translatable
+    {
+        return match ($this) {
+            self::Runtime    => AdminText::CapabilityRuntime,
+            self::Extensions => AdminText::CapabilityExtensions,
+            self::Settings   => AdminText::CapabilitySettings,
+            self::Deployment => AdminText::CapabilityDeployment,
+            self::Errors     => AdminText::CapabilityErrors,
+        };
+    }
+
+    /**
+     * None; see {@link HealthAction::fields()}.
+     *
+     * @return Collection<ActionField>
+     */
+    public function fields(): Collection
+    {
+        return new Collection(ActionField::class);
+    }
+
+    /**
+     * Every inventory, since each only reads.
+     *
+     * @return bool
+     */
+    public function fromBrowser(): bool
+    {
+        return true;
     }
 
     /**

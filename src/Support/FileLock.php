@@ -9,7 +9,7 @@ use NoDiscard;
 /**
  * The FileLock class. An exclusive `flock()` on one file, held until it is released.
  *
- * **Non-blocking, deliberately.** Its caller is a write through `/api`, and a second write arriving
+ * **Non-blocking, deliberately.** Its caller is a write through the admin, and a second write arriving
  * while the first is still running has nothing worth waiting for: it was minted against the tree as
  * it stood before the first, and queueing it would apply it on top of a push it never saw. Answering
  * at once lets whoever sent it decide.

@@ -1400,7 +1400,7 @@ final class RollbackTest extends TestCase
         $manifest = json_encode([
             'serial' => time(),
             'method' => 'POST',
-            'path'   => '/api/update/v1/rollback',
+            'path'   => '/admin/update/v1/rollback',
             'digest' => hash('sha256', ''),
             'size'   => 0,
             ...$fields,

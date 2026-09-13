@@ -63,8 +63,8 @@ final readonly class Url
     /**
      * An origin — `https://` and a host, a port if it has one, and nothing after it.
      *
-     * The shape `--url` takes. A path there would be signed as `/api/…` and sent to `/sub/api/…`,
-     * and come back as the refusal that says nothing about why; a user part would be a credential in
+     * The shape `--url` takes. A path there would be signed as `/admin/…` and sent to
+     * `/sub/admin/…`, and come back as an answer that is not the admin's at all; a user part would be a credential in
      * an address. Both are refused where they are typed. The host is lower-cased and a trailing slash
      * dropped, so two spellings of one origin compare equal.
      *

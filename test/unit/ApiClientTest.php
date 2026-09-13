@@ -104,7 +104,7 @@ final class ApiClientTest extends TestCase
 
         self::assertInstanceOf(VerifiedRequest::class, $verified);
         self::assertSame($archive, $verified->body);
-        self::assertSame('/api/update/v1/patch', $verified->envelope->path);
+        self::assertSame('/admin/update/v1/patch', $verified->envelope->path);
         self::assertSame('POST', $verified->envelope->method);
     }
 
@@ -119,7 +119,7 @@ final class ApiClientTest extends TestCase
 
         self::assertInstanceOf(VerifiedRequest::class, $verified);
         self::assertSame('', $verified->body);
-        self::assertSame('/api/update/v1/version', $verified->envelope->path);
+        self::assertSame('/admin/update/v1/version', $verified->envelope->path);
         self::assertSame('GET', $verified->envelope->method);
     }
 
@@ -139,11 +139,11 @@ final class ApiClientTest extends TestCase
         $request = $this->build(UpdateAction::Version, '', []);
 
         self::assertSame(
-            'https://example.test/api/update/v1/version',
+            'https://example.test/admin/update/v1/version',
             $request->url->render(),
         );
         self::assertSame(
-            '/api/update/v1/version',
+            '/admin/update/v1/version',
             $this->verify($request)?->envelope->path,
         );
     }
@@ -156,8 +156,8 @@ final class ApiClientTest extends TestCase
      * the method and the scheme from them — so `health` and `capability` are signed and addressed
      * by the same code that signs a push, with no branch anywhere naming a service. That is easy to
      * believe and was worth a row each: `ApiCall` also refuses an action it cannot resolve *before*
-     * sending, because `/api` answers a typo exactly as it answers a bad key, and a client that
-     * could not see a new service would send somebody looking at their key.
+     * sending, because the method it signs for comes from the action's own enum, and it lists what
+     * the server offers when it is given less than a whole address.
      *
      * @param ApiService $service
      * @param ApiAction&BackedEnum $action
@@ -194,14 +194,14 @@ final class ApiClientTest extends TestCase
      */
     public static function serviceProvider(): iterable
     {
-        yield 'health'     => [ApiService::Health, HealthAction::Report, '/api/health/v1/report'];
-        yield 'capability' => [ApiService::Capability, CapabilityAction::Settings, '/api/capability/v1/settings'];
+        yield 'health'     => [ApiService::Health, HealthAction::Report, '/admin/health/v1/report'];
+        yield 'capability' => [ApiService::Capability, CapabilityAction::Settings, '/admin/capability/v1/settings'];
     }
 
     /**
      * A base given with a trailing slash does not become a different host.
      *
-     * `//api/update/v1/version` parses as an *authority*, so the first segment would be read as a
+     * `//admin/update/v1/version` parses as an *authority*, so the first segment would be read as a
      * host and the request would go somewhere else entirely. Measured, not assumed.
      *
      * @return void
@@ -218,7 +218,7 @@ final class ApiClientTest extends TestCase
             PrivateKey::fromFile($this->keyFile),
         );
 
-        self::assertSame('https://example.test/api/update/v1/version', $request->url->render());
+        self::assertSame('https://example.test/admin/update/v1/version', $request->url->render());
     }
 
     /**

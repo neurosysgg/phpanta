@@ -4,14 +4,16 @@ declare(strict_types=1);
 
 namespace Phpanta\Tool\Command;
 
-use BackedEnum;
+use Closure;
 use Phpanta\Http\Api\ApiService;
 use Phpanta\Http\Api\ApiVersion;
 use Phpanta\Http\Api\UpdateAction;
 use Phpanta\Http\HttpMethod;
 use Phpanta\Http\HttpStatusCode;
 use Phpanta\Model\Update\UpdateManifest;
+use Phpanta\Support\AdminPath;
 use Phpanta\Tool\Api\ApiTarget;
+use Phpanta\Tool\Api\ListingReader;
 use Phpanta\Tool\Api\PrivateKey;
 use Phpanta\Tool\Api\ResultReader;
 use Phpanta\Tool\Api\SignedRequest;
@@ -23,36 +25,35 @@ use Phpanta\Tool\Cli\Option;
 use Phpanta\Tool\Cli\Output;
 use Phpanta\Tool\Cli\UsageException;
 use Phpanta\Tool\Http\CurlTransport;
+use Phpanta\Tool\Http\Request;
 use Phpanta\Tool\Http\Transport;
 use Phpanta\Tool\Http\TransportException;
+use Phpanta\Tool\Http\Url;
 
 /**
- * The ApiCall command. One signed call to `/api`, named on the command line.
+ * The ApiCall command. One signed call to the admin, named on the command line — or, given less than
+ * a whole address, what the admin offers there.
  *
- * `php tools/api.php update v1 version` is the shape of it — `health v1 report`,
- * `capability v1 extensions` and `update v1 rollback` are the same command. It is the client for
- * every action that carries **no body** — which is every action but `patch`, and that one has
+ * `php tools/api.php update v1 version` is the shape of a call — `health v1 report`,
+ * `capability v1 extensions` and `update v1 rollback` are the same command. `php tools/api.php`
+ * alone lists the services the *server* offers, `php tools/api.php update` that service's versions,
+ * and `php tools/api.php update v1` its actions: the admin discovers itself, so a server newer than
+ * this checkout says what it has rather than this command guessing. It is the client for every
+ * action that carries **no body** — which is every action but `patch`, and that one has
  * {@link PushUpdate} because building the tree it sends is most of what that command does.
  *
  * **A write is signed with `apply`**, the one field every write action reads — false under
  * `--dry-run`, so the server reports what it would do, changes nothing and spends no serial. A
- * read refuses `--dry-run` rather than ignoring it: a flag that does nothing on one address and
- * everything on another is a flag somebody will one day trust on the wrong one.
- *
- * **A new service costs this file nothing**, which is the property worth stating rather than
- * assuming: the vocabulary below is the server's own {@link ApiService} and {@link ApiVersion}, and
- * the address, method and scheme all come off the action, so a service is reachable here the day
- * its enum exists and not a line later.
+ * read, and a listing, refuse `--dry-run` rather than ignoring it: a flag that does nothing on one
+ * address and everything on another is a flag somebody will one day trust on the wrong one.
  *
  * **The exit code is the answer's**: 0 for a 2xx and 1 for anything else, so a failed `health`
- * check — a 503 with the report in its body — can end a script. Only a 404 is explained as a
- * refusal, because only a 404 is one.
+ * check — a 503 with the report in its body — can end a script. A `401` is explained as the refusal
+ * it is, and an answer that is not the admin's at all as a server older than it.
  *
- * **It refuses an action it does not recognise before sending anything**, which is not politeness:
- * `/api` answers an unrecognised address exactly as it answers a wrong signature, so a typo here
- * would come back as the same 404 as a bad key and send somebody looking at their key. The
- * vocabulary is the server's own {@link ApiService} and {@link ApiVersion}, so this cannot be wrong
- * about what exists.
+ * **A whole address is refused before anything is sent when this checkout does not know it**, since
+ * the method a call is signed for comes from the action's own enum; a listing of the address's
+ * parent says what the server offers instead.
  *
  * **And it refuses an action that takes a body**, for the honest reason: this command has no way to
  * produce one. A `--body-file` would be the beginning of a general-purpose HTTP client, which is
@@ -91,7 +92,7 @@ final readonly class ApiCall implements Command
      */
     public function usage(): string
     {
-        return '<service> <version> <action> [--dry-run] [--url <origin>] [--key <file>]';
+        return '[<service> [<version> [<action>]]] [--dry-run] [--url <origin>] [--key <file>]';
     }
 
     /**
@@ -99,7 +100,7 @@ final readonly class ApiCall implements Command
      */
     public function description(): string
     {
-        return 'Make one signed call to the owner-only API.';
+        return 'Make one signed call to the admin, or list what it offers.';
     }
 
     /**
@@ -115,7 +116,7 @@ final readonly class ApiCall implements Command
      */
     public function operands(): Arity
     {
-        return Arity::exactly(3);
+        return Arity::between(0, 3);
     }
 
     /**
@@ -125,45 +126,94 @@ final readonly class ApiCall implements Command
      */
     public function run(Input $input, Output $output): ExitCode
     {
-        $service = ApiService::tryFrom($input->operand(0) ?? '');
-        $version = ApiVersion::tryFrom($input->operand(1) ?? '');
-        $action  = $service?->action($version ?? ApiVersion::V1, $input->operand(2) ?? '');
+        $service = $input->operand(0);
+        $version = $input->operand(1);
+        $action  = $input->operand(2);
 
-        if ($service === null || $version === null || $action === null) {
+        if ($action === null) {
+            return $this->list($input, $output, $service, $version);
+        }
+
+        $known   = ApiService::tryFrom($service ?? '');
+        $revised = ApiVersion::tryFrom($version ?? '');
+        $named   = $revised === null ? null : $known?->action($revised, $action);
+
+        if ($known === null || $revised === null || $named === null) {
             $output->error(sprintf(
-                "%s: no such action — %s/%s/%s\n",
+                "%s: no such action here — %s/%s/%s. Leave the action off to see what the server offers.\n",
                 $this->name(),
-                $input->operand(0) ?? '',
-                $input->operand(1) ?? '',
-                $input->operand(2) ?? '',
+                $service ?? '',
+                $version ?? '',
+                $action,
             ));
 
             return ExitCode::Usage;
         }
 
-        if (!$action instanceof BackedEnum || $action === UpdateAction::Patch) {
-            $output->error(sprintf(
-                "%s: %s carries a body, so it has a command of its own.\n",
-                $this->name(),
-                $input->operand(2) ?? '',
-            ));
+        if ($named === UpdateAction::Patch) {
+            $output->error(sprintf("%s: %s carries a body, so it has a command of its own.\n", $this->name(), $action));
 
             return ExitCode::Usage;
         }
 
-        $write  = $action->method() !== HttpMethod::Get;
+        $write  = $named->method() !== HttpMethod::Get;
         $dryRun = $input->has(ApiCallOption::DryRun);
 
         if ($dryRun && !$write) {
             $output->error(sprintf(
                 "%s: %s is a read, which changes nothing, so it has no dry run.\n",
                 $this->name(),
-                $input->operand(2) ?? '',
+                $action,
             ));
 
             return ExitCode::Usage;
         }
 
+        // The flag is negative and the field positive, as in PushUpdate: `--dry-run` means
+        // `apply: false`. The key is the server's own constant, so the two cannot drift.
+        $fields = $write ? [UpdateManifest::APPLY => !$dryRun] : [];
+
+        return $this->send($input, $output, static fn(Url $origin, PrivateKey $key): Request
+            => SignedRequest::build($origin, $known, $revised, $named, '', $fields, $key));
+    }
+
+    /**
+     * What the admin offers at the address the operands name so far.
+     *
+     * @param Input $input
+     * @param Output $output
+     * @param string|null $service
+     * @param string|null $version
+     * @return ExitCode
+     */
+    private function list(Input $input, Output $output, ?string $service, ?string $version): ExitCode
+    {
+        if ($input->has(ApiCallOption::DryRun)) {
+            $output->error(sprintf("%s: a listing only reads, so it has no dry run.\n", $this->name()));
+
+            return ExitCode::Usage;
+        }
+
+        $path = match (true) {
+            $service === null => AdminPath::Index->to(),
+            $version === null => AdminPath::Service->to($service),
+            default           => AdminPath::Version->to($service, $version),
+        };
+
+        return $this->send($input, $output, static fn(Url $origin, PrivateKey $key): Request
+            => SignedRequest::signed($origin, $path, HttpMethod::Get, '', [], $key));
+    }
+
+    /**
+     * Signs the request $build makes, sends it, and says what came back.
+     *
+     * @param Input $input
+     * @param Output $output
+     * @param Closure(Url, PrivateKey): Request $build
+     * @return ExitCode
+     */
+    private function send(Input $input, Output $output, Closure $build): ExitCode
+    {
         try {
             $target = ApiTarget::resolve(
                 $input->value(ApiCallOption::Url),
@@ -173,55 +223,43 @@ final readonly class ApiCall implements Command
                 ApiTarget::home(),
             );
 
-            $request = SignedRequest::build(
-                $target->origin,
-                $service,
-                $version,
-                $action,
-                '',
-                // The flag is negative and the field positive, as in PushUpdate: `--dry-run` means
-                // `apply: false`. The key is the server's own constant, so the two cannot drift.
-                $write ? [UpdateManifest::APPLY => !$dryRun] : [],
-                PrivateKey::fromFile($target->key),
+            $response = ($this->transport ?? new CurlTransport())->send(
+                $build($target->origin, PrivateKey::fromFile($target->key)),
             );
-
-            $response = ($this->transport ?? new CurlTransport())->send($request);
         } catch (UsageException | TransportException $exception) {
             $output->error($this->name() . ': ' . $exception->getMessage() . "\n");
 
             return $exception instanceof UsageException ? ExitCode::Usage : ExitCode::Failure;
         }
 
-        // The answer's own text where it is a result, and the body as it came where it is not — an
-        // unverified call is answered with the site's 404 page, which the lines below explain.
-        $output->out(ResultReader::read($response->body)?->text() ?? $response->body);
+        // The answer's own text where it is a result or a listing. An answer that is not the
+        // admin's at all — a site's own page — says nothing worth printing, and the lines below
+        // say what it means instead.
+        $text = ResultReader::read($response->body)?->text() ?? ListingReader::text($response->body);
+
+        if ($text !== null || $response->isOk()) {
+            $output->out($text ?? $response->body);
+        }
 
         if ($response->isOk()) {
             return ExitCode::Success;
         }
 
-        // A read that is not verified gets the rendered 404 an address that is not there gets,
-        // which is a whole HTML page — so say what it means rather than leaving the operator to
-        // read markup. A write that is not verified gets the 405 an unrouted write gets, which is
-        // the same answer wearing the other face. Same three causes a refused push has, in the
-        // same order.
-        //
-        // Anything else was answered by a verified handler, whose body above already says what
-        // went wrong — a `health` check that failed is a 503 carrying the whole report, a rollback
-        // with nothing to roll back is a 422 saying so. Calling that "refused" would send somebody
-        // looking at their key. This command never signs a verb its action does not answer, so a
-        // 405 here is never the verified one.
-        $unverified = $response->code() === HttpStatusCode::NotFound
-            || ($write && $response->code() === HttpStatusCode::MethodNotAllowed);
-
-        $output->error($unverified
-            ? sprintf("\nrefused with %d.\n", $response->status)
-            . "  That is what /api answers to anything it will not verify — it does not"
-            . " say which check failed, by design. In order of likelihood:\n"
-            . "    1. data/update.pub on the server does not match this private key\n"
-            . "    2. this machine's clock is more than five minutes from the server's\n"
-            . "    3. the server is older than /api\n"
-            : sprintf("\nanswered %d.\n", $response->status));
+        $output->error(match (true) {
+            // Anything the gate will not verify is one answer, which does not say which check
+            // failed, by design. The two causes are the ones a signing machine can check.
+            $response->code() === HttpStatusCode::Unauthorized => sprintf("\nrefused with %d.\n", $response->status)
+                . "  That is what the admin answers a request it cannot verify — it does not say which"
+                . " check failed, by design. In order of likelihood:\n"
+                . "    1. data/update.pub on the server does not match this private key\n"
+                . "    2. this machine's clock is more than five minutes from the server's\n",
+            $text === null => sprintf("\nanswered %d, and not the way the admin answers.\n", $response->status)
+                . "  The server has no /admin: it is older than this command, and a full deploy updates it.\n",
+            // Anything else was answered by the admin to a verified caller, whose body above
+            // already says what went wrong — a failed health check is a 503 carrying the whole
+            // report, a rollback with nothing to roll back is a 422 saying so.
+            default => sprintf("\nanswered %d.\n", $response->status),
+        });
 
         return ExitCode::Failure;
     }

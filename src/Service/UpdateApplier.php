@@ -1042,7 +1042,7 @@ final readonly class UpdateApplier
      * answer "no" means the push says nothing about that root — not that the root should be empty.
      * The two readings differ by exactly one deployed framework: a push from a clone whose submodule
      * was never checked out carries no `phpanta/`, and a mirror that took the silence as an
-     * instruction would delete the framework every request runs on, `/api` included, leaving only a
+     * instruction would delete the framework every request runs on, the admin included, leaving only a
      * full deploy to put it back.
      *
      * @param Collection<UpdateFile> $files

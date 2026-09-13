@@ -99,7 +99,7 @@ final class CapabilityTest extends TestCase
     #[DataProvider('actionProvider')]
     public function testEveryActionIsAReadAnsweringOnGet(CapabilityAction $action): void
     {
-        $handler  = $action->handler(self::verified('/api/capability/v1/' . $action->value));
+        $handler  = $action->handler(self::verified('/admin/capability/v1/' . $action->value));
         $response = $handler->handle();
 
         self::assertSame(HttpMethod::Get, $action->method());
@@ -125,7 +125,7 @@ final class CapabilityTest extends TestCase
      */
     public function testEachActionIsAnsweredByItsOwnHandler(): void
     {
-        $verified = self::verified('/api/capability/v1/runtime');
+        $verified = self::verified('/admin/capability/v1/runtime');
 
         self::assertInstanceOf(CapabilityRuntime::class, CapabilityAction::Runtime->handler($verified));
         self::assertInstanceOf(CapabilityExtensions::class, CapabilityAction::Extensions->handler($verified));

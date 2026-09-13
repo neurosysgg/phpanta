@@ -1,7 +1,8 @@
 # Health and capability
 
-Two read-only services under `/api`. Each call is signed like every other one, and each is just as
-invisible without a signature. They answer two different questions and never mix them:
+Two read-only services of the admin, at `/admin/capability` and `/admin/health`. Each call is signed
+like every other one, and a caller without a signature learns nothing more of them than of the rest:
+the admin's one answer, at every depth. They answer two different questions and never mix them:
 
 - **`capability` says what this host has**: every extension it loaded, every php.ini directive, its
   runtime, its deployment's files, its error log. No line is a claim and nothing is judged.
@@ -24,6 +25,7 @@ its origin and its key. The examples below call that command `tools/api.php`:
 ```bash
 php tools/api.php capability v1 <action>
 php tools/api.php health v1 <action>
+php tools/api.php health v1                # what the server offers there: each action, and what it says of itself
 ```
 
 | `capability v1` | answers |
@@ -50,7 +52,7 @@ settings
 
 **Each area has an address of its own and is never a parameter.** The signature does not cover the
 query string, so `?area=settings` would be the one input reaching a verified handler unsigned. See
-[security.md](security.md#the-api).
+[security.md](security.md#what-a-signature-covers-and-why-replay-is-closed).
 
 ## The status is the verdict
 
@@ -67,9 +69,9 @@ and that would report an unhealthy host as a malformed request.
 
 `ApiCall` asks for the answer as data, prints the report's text from it, and exits on the status, so
 a failed check can stop a script after a push.
-It explains only a `404` as a refusal ("check the key, the clock, the server's age"), because only a
-`404` is one. It reports any other status as `answered 503.`, and the body above that line already
-says what failed.
+It explains only a `401` as a refusal ("check the key, the clock"), because only a `401` is one, and
+an answer that is not the admin's at all as a server older than `/admin`. It reports any other
+status as `answered 503.`, and the body above that line already says what failed.
 
 **A front proxy can substitute its own page for a 5xx.** Whether a host's proxy does that is a
 question to ask of the host, not an assumption to make. Push a probe declaring one impossible

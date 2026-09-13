@@ -41,14 +41,14 @@ enum AuthScheme: string
     case Basic = 'Basic';
 
     /**
-     * The scheme every signed API request carries, and the only credential `/api` accepts.
+     * The scheme every signed API request carries, and the only credential the admin accepts.
      *
      * Its parameters are one opaque base64 token — {@link \Phpanta\Model\Api\ApiCredential}'s
      * framing, a length-prefixed manifest followed by the ECDSA signature over it — so there is no
      * grammar here beyond "the rest of the header", and {@link self::parameters()} is all the
      * reading this class does. The structure inside is that class's business.
      *
-     * **The digit is a format version and is deliberately not the API's.** `/api/{service}/v1/…`
+     * **The digit is a format version and is deliberately not the API's.** `/admin/{service}/v1/…`
      * versions what is being asked for; this versions how the asking is signed, and the two move
      * for different reasons. It is the argument a binary format makes for its magic number, and
      * this token *is* the magic: the credential needs no magic bytes of its own when the

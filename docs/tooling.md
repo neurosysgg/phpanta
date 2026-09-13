@@ -16,7 +16,7 @@ tools/
     ├── Cli/              ← Command, Option, Arity, Input, Output, ExitCode, UsageException, Runner
     ├── Command/          ← ApiCall, PushUpdate, MergeCoverage, Export, each with its option enum
     ├── Api/              ← the signing side: ApiTarget, PrivateKey, SignedCredential, SignedRequest,
-    │                       and ResultReader, which reads an answer back
+    │                       and ResultReader and ListingReader, which read an answer back
     ├── Http/             ← outbound requests: Transport + CurlTransport, Request/Response, Url,
     │                       JsonBody, FormField, FilePart, OutboundHeader
     ├── Update/           ← the push side: TarWriter, PackedFile, FrameworkCheckout. The reader
@@ -45,8 +45,20 @@ Runner::run(new ApiCall('https://example.test', '.config/example/update.key'), $
 application/json`, and `ResultReader` reads the answer back into the server's own `ApiResult`, whose
 `text()` is what the terminal shows. So the report a terminal reads is written by the model that
 wrote the data, not by a second formatter here, and the keys it reads are the server's own
-`ResultKey` cases. An answer that is not a result — the page an unverified call gets — is printed as
-it came, and the command explains it.
+`ResultKey` cases. `ListingReader` does the same for a listing, one line an entry.
+
+**`ApiCall` takes up to three operands, and fewer than three is a question.** `api`, `api update`
+and `api update v1` each ask the server, as a signed `GET`, what it offers at that depth, and print
+its listing: services, versions, or actions with their method and description. A whole address runs
+the action, and that one the local enums must know — a listing says what the server has, and the
+command signs only what it can name.
+
+**A refusal is explained as what it is.** A `401` is the admin's one answer to a request it cannot
+verify, which does not say which check failed; `ApiCall` lists the two a signing machine can check,
+a key that does not match `data/update.pub` and a clock more than five minutes out, and `PushUpdate`
+adds a third, another call signed in the same second. An answer that is neither a result nor a
+listing — a site's own 404 page — is not the admin's at all, and the command says the server is
+older than `/admin`, which a full deploy updates.
 
 `dev-router.php` and `coverage-prepend.php` are not commands, and cannot be. PHP loads each of them
 itself: one is handed to `php -S` per request, and the other is an `auto_prepend_file`. Neither has

@@ -55,8 +55,8 @@ readonly class Router implements Controller
     {
         // The path is asked first and the method second, because the method question belongs to
         // the route: each Route carries a MethodPolicy. A read-only one answers POST with a 405 and
-        // `Allow: GET, HEAD` rather than handling it like a GET; ApiPath::Api delegates the question
-        // to its own controller. See docs/security.md. The route's own layers stand around its
+        // `Allow: GET, HEAD` rather than handling it like a GET; the admin's routes delegate the
+        // question to their controller. See docs/security.md. The route's own layers stand around its
         // controller only, and only past the method gate: a refused POST never reaches them.
         foreach ($this->routes as $route) {
             if (($params = $route->matches($request->path())) !== false) {
@@ -79,8 +79,7 @@ readonly class Router implements Controller
         }
 
         // No route claimed the path, so there is no route's opinion to ask. UnroutedController
-        // owns that answer — a 404 for a read verb, a 405 for a write one — and owns it because
-        // ApiController has to give the identical one for a request it will not verify.
+        // owns that answer — a 404 for a read verb, a 405 for a write one.
         return new UnroutedController()->handle($request);
     }
 
@@ -88,10 +87,9 @@ readonly class Router implements Controller
      * The 405, naming the methods that would have worked.
      *
      * The `Allow` is the matched route's own gate's: the read-only set for every page, and the set a
-     * {@link \Phpanta\Support\MethodSet} route names for itself. The API has a set it must not name,
-     * because `Allow: GET, HEAD, POST` on `/api` announces the endpoint that exists to be
-     * unannounceable — so it never reaches here at all, having
-     * {@link \Phpanta\Support\MethodPolicy::Delegated} instead.
+     * {@link \Phpanta\Support\MethodSet} route names for itself. The admin's routes never reach here
+     * at all: they are {@link \Phpanta\Support\MethodPolicy::Delegated}, and their controller
+     * answers every method itself — a caller it cannot verify the same way at every depth.
      *
      * @param Request $request
      * @param Route   $route

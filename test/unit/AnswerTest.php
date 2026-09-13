@@ -111,8 +111,9 @@ final class AnswerTest extends TestCase
     }
 
     /**
-     * The API unsigned is an address that is not there — to every verb, including one nobody knows,
-     * and to the German it would be refused in. Nothing on the wire tells the two apart.
+     * What used to be the API is an address that is not there, now that the admin is at `/admin` —
+     * to every verb, including one nobody knows, and to the German it would be refused in. Nothing on
+     * the wire tells the two apart: there is no alias, and no route under `/api` at all.
      *
      * @param string $method
      * @param string $api
@@ -167,7 +168,9 @@ final class AnswerTest extends TestCase
     {
         yield 'a 404' => ['GET', '/no-such-page'];
         yield 'a 405' => ['DELETE', '/'];
-        yield 'the API, unsigned' => ['POST', '/api/update/v1/patch'];
+        yield 'the old API'           => ['POST', '/api/update/v1/patch'];
+        yield 'the admin, unsigned'   => ['POST', '/admin/update/v1/patch'];
+        yield 'the admin, a read'     => ['GET', '/admin/update/v1/version'];
     }
 
     // ───────────────────────── the pre-launch gate ─────────────────────────

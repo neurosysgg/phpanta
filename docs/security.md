@@ -138,20 +138,23 @@ method. Should one reach the router, `HttpMethod::Trace` is a case and not read-
 `405` like any other write.
 
 **The method question lives on the route, as a `MethodPolicy` rather than a set of methods.** That
-is not a stylistic choice. A route carrying its own set would make the `405` name it, so
-`PUT /api/update/v1/patch` would answer `Allow: GET, HEAD, POST` — and that `POST` is precisely the
-fact the endpoint exists to hide; an unrecognised verb, being in no set, would make the refusal name
+is not a stylistic choice. A route carrying its own set would make the `405` name it — right for
+nearly every route, and wrong for the admin's, whose controller answers a caller it cannot verify
+the same way at every depth, whether the address exists or not. A router that refused a `PUT` to
+one depth with one `Allow` and let it through to another would say which depth is an action before
+the caller had proved anything; an unrecognised verb, being in no set, would make the refusal name
 the whole set. So there are two policies, not one set per route: every route a site registers is
-`ReadOnly` unless it says otherwise, and the framework's own `ApiPath::Api` is `Delegated`, which
-means the router forms **no opinion at all** and the controller answers every method itself. The
-only `Allow` the router ever sends is `GET, HEAD`.
+`ReadOnly` unless it says otherwise, and the framework's four `AdminPath` routes are `Delegated`,
+which means the router forms **no opinion at all** and the controller answers every method itself.
+The only `Allow` the router ever sends is `GET, HEAD`, and the admin sends one only to a caller it
+has verified.
 
 **That `null` has a second job at the gate**, and it is the sharper half. `ApiGate::accepts()`
 refuses an unrecognised method on its first line, before anything else — because the envelope binds
-a method, and comparing `null->value` against it would be an uncaught `TypeError`: a `500` where an
-absent address sends a `405`. One differing status code and the whole property is gone, to anybody
-who types `BREW` — which is why an end-to-end sweep of every real verb belongs beside it, `BREW`
-included, at every depth.
+a method, and comparing `null->value` against it would be an uncaught `TypeError`: a `500` where
+every other unverified request gets the admin's one answer. One differing status code and the
+uniformity is gone, to anybody who types `BREW` — which is why an end-to-end sweep of every real
+verb belongs beside it, `BREW` included, at every depth.
 
 ## 2 (again). Parsing the request defensively
 
@@ -306,29 +309,36 @@ bound twice: its `action` is scheme-checked like any `href`, and the policy's `f
 already refuses any other origin in the browser.
 
 **Both are listed on the routes that take them, never on the app.** An app layer stands in front of
-every address, and would answer one that does not exist differently from the API, which answers every
-method itself exactly as an absent address would. That difference is the one fact the API is built to
-keep; on a route, past its method gate, the difference cannot arise.
+every address, the admin's included: as one, `CsrfGuard` would refuse every signed write, which
+carries a signature rather than a form token, and `LoginGate` would answer a stranger at the admin
+with a login page instead of the admin's one answer. On a route, past its method gate, only the
+requests that route takes ever reach them.
 
 A site's own session keys are a [`SessionKey`](../src/Http/SessionKey.php) enum, and a key may not
 begin with `_`, where the framework keeps who is logged in and the token. Otherwise a site could log
 a visitor in by setting a value. A message left for the next page is a catalog case, so it is in the
 visitor's language on whichever page shows it, and is shown once.
 
-## The API
+## The admin
 
-`/api/{service}/{version}/{action}` is the one address family that writes. It exists because a
-deployment reachable only through a file-transfer mount pays for every `stat`, and walking a tree
-file by file to find what changed costs seconds where one request carrying the whole tree costs
-one round trip. A push's dry run reports the payload's size, which grows with the codebase.
+`/admin` is where a deployment is administered, and the actions under it are the one address family
+that writes. It exists because a deployment reachable only through a file-transfer mount pays for
+every `stat`, and walking a tree file by file to find what changed costs seconds where one request
+carrying the whole tree costs one round trip. A push's dry run reports the payload's size, which
+grows with the codebase.
 
-**One `ApiPath` case matches the whole family**, and `App::routeTable()` appends it to every site's
-routes, last, so a site can neither shadow it nor forget it. A new service is an `ApiService` case
-and its handlers, with no route to register, and it inherits the silence, the method policy, the
-key, the serial rule and the indistinguishability without a line arranging any of them. The signed
-commands resolve an address through the same `ApiService` and `ApiAction`, so a new service needs
-no change there either. There are no aliases: an endpoint whose design is to be unfindable does not
-want two doors.
+**Four `AdminPath` cases, one per depth**, and `App::adminRoutes()` makes a route of each: the
+entrance at `/admin`, a service at `/admin/{service}`, one of its versions at
+`/admin/{service}/{version}`, and an action at `/admin/{service}/{version}/{action}`.
+`App::routeTable()` appends them to every site's routes, last, so a site can neither shadow them nor
+forget them. All four are `Delegated`, and none is a page of a static export — an export makes only
+anonymous requests, and the admin has nothing to show one. A new service is an `ApiService` case,
+its action enum and its handlers, with no route to register: it inherits the gate, the method
+policy, the key and the serial rule without a line arranging any of them, and it appears in the
+listings the moment it exists. The signed commands resolve an address through the same
+`ApiService` and `ApiAction`, so a new service needs no change there either. There are no aliases,
+and nothing answers under any other prefix: an address outside `/admin` is a site's to route or to
+leave unrouted.
 
 `health` and `capability` are the second and third services, and each cost exactly that: an
 `ApiService` case, an action enum and its handlers.
@@ -341,57 +351,84 @@ In anyone else's hands, either answer is reconnaissance. That is exactly why the
 behind this signature rather than the public `/health` a monitor would ping. See
 [health.md](health.md).
 
-### It answers as though it is not there
+### It says it is there, and nothing about what is in it
 
-An unsigned request gets **exactly** what the site gives for an address that does not exist: the
-app's `404` for a read method, the `text/plain` `405` with `Allow: GET, HEAD` for anything else,
-and the same for a verb the framework does not recognise. Not a `401`, which would prompt; not a
-`403`, which would confirm; not a `405` naming `POST`, which would confirm more precisely.
+**That there is an admin is not a secret.** The framework's source is public, and a site may link to
+its admin; an address pretending not to exist would be hiding a fact every reader already has. What
+a stranger must not learn is what is *in* it — which services a deployment offers, which of them
+write, what an action is called — and that is what the gate keeps, by giving one answer at every
+depth. ([history](history/admin.md))
 
-That is a property of the structure rather than of two implementations kept in step: both responses
-come from `UnroutedController`, the very object `Router` delegates to when no route matches at all.
-`ApiController` hands it anything it will not verify. The claim is about status codes, headers and
-bodies, so it is worth checking over real HTTP, per method **and per depth**, against an address
-like `/no-such-page` — only a real server has those.
+[`ApiController`](../src/Controller/ApiController.php) asks three questions, in this order, and the
+order is the design:
 
-**`public/api/` must never exist.** A webroot that passes real files and directories straight
-through (`RewriteCond !-f` / `!-d`) would have a directory there answered by Apache — a listing or a
-`403` — and `/api` would stop looking like a typo without a line of PHP being involved. A push is no
-guard against it: `public/` is a root, so a signed member named `public/api/...` would be written.
-The rule is about what a site's repository holds, not about what a signed caller can do.
+1. **What can the caller read?** A request's `Accept` is negotiated first. Absent, `*/*` or a
+   browser's header is a page, in the app's own shell; `application/json` is data, which is what the
+   signing commands ask for; a request naming only other types gets a `406` in `text/plain` naming
+   the two it can have. Asked before anything else, the `406` is the same at every address, and a
+   write is never carried out for a caller who then could not be told how it went.
+2. **Who is asking?** A request [`ApiGate`](../src/Service/ApiGate.php) cannot verify gets **one
+   answer at every depth below the entrance, whether the address exists or not**, under every verb —
+   one the framework does not recognise included, since `Request::method()` is null for it and the
+   routes are `Delegated`. A page request is a `303` to `/admin`; a request for data is a `401`
+   carrying `WWW-Authenticate: NS1` — [`SignedChallenge`](../src/Http/SignedChallenge.php), a
+   scheme no browser has a prompt for, so none shows one — and a JSON refusal. No `Allow` header is
+   ever sent to a stranger. `GET` or `HEAD /admin` itself is the entrance,
+   [`AdminEntranceView`](../src/View/AdminEntranceView.php), a `200` that says only that everything
+   there needs a credential; anything else at `/admin` is a `303` to it.
+3. **What is here?** Only past the gate, and reported in full, because the caller has proved it holds
+   the key — see [What a verified caller gets back](#what-a-verified-caller-gets-back).
 
-**That scope is deliberate: status, headers and bodies, and not timing.** A request carrying an
-`NS1` credential reaches `ApiGate`, which reads the key and — once the frame parses — runs
-`openssl_verify`; a path that matches no route never does either, because it never leaves
-`UnroutedController`. Measured on localhost, the gap between the `/api` shape and a typo of the
-same length, both carrying a well-formed-but-bogus `NS1` header, is about **180 µs**. It is not a
-usable oracle, and the reason is its precondition rather than its size: the gap appears only for a
-caller already sending an `NS1`-framed `Authorization`, and knowing that scheme exists — the source
-is public — already implies knowing `/api` does. It is well below WAN jitter, and it vanishes
-entirely on a deployment holding no key, which is the one place the silence has to be perfect. It is
-written down because the "same `null` reaching the same line" phrasing below reads as a timing
-identity it does not claim; closing the axis for real would mean a constant-time dummy verify on
-every unrouted path, which protects nothing a reader of the source could not already know.
-
-**The gate verifies before it resolves**, which is what keeps that structural. Asking "does this
-service exist" first would answer an unsigned caller through a different path depending on what they
+**It verifies before it resolves**, which is what keeps the second answer uniform. Asking "does this
+service exist" first would answer a stranger through a different path depending on what they
 guessed, and two paths that agree today are two paths free to stop agreeing. Verified first, a
 service that does not exist and a signature that does not verify are the same `null` reaching the
-same line. Past the gate the posture inverts: an unknown action is a real `404` with a sentence, a
-verb that is not the action's is a real `405` naming the one that is, and only the key holder ever
-sees either.
+same line. The claim is about status codes, headers and bodies, so it is worth checking over real
+HTTP, per method **and per depth** — only a real server has those.
+
+**`public/admin/` must never exist.** A webroot that passes real files and directories straight
+through (`RewriteCond !-f` / `!-d`) would have a directory there answered by Apache — a listing or a
+`403` — before the admin could give its own answer, and the one answer would no longer be one. A push
+is no guard against it: `public/` is a root, so a signed member named `public/admin/...` would be
+written. The rule is about what a site's repository holds, not about what a signed caller can do.
+
+Every answer under `/admin`, at every depth and to every caller, says `Cache-Control: no-store,
+private`, asks not to be indexed (`X-Robots-Tag`, `RobotsPolicy::hide()`), and varies on `Accept` —
+a page through its view's `varyOn()`, data by saying so — so two callers asking one address for
+different forms get different bytes, and none of it is for a cache to keep.
 
 ### What a verified caller gets back
 
-A handler answers an [`ApiResult`](../src/Http/Api/ApiResult.php) — a status and the sections of a
-report — and the controller writes it in the form the request's `Accept` asks for: a page in the
-app's shell by default, which is what a browser and `curl` get, and data for `application/json`,
-which is what the signing commands ask for and print as text. A request naming only types it cannot
-have gets a `406` naming the two it can. **That question is asked after the gate and before the
-action**, so an unverified caller is never answered differently for what it named, and a write is
-never carried out for a caller who then could not be told how it went. Every answer past the gate
-says `Cache-Control: no-store, private` and `Vary: Accept`: two callers asking the same address for
-different forms get different bytes, and none of it is for a cache to keep.
+Past the gate the posture inverts, and failures are reported in full. Today the only caller the gate
+verifies is one whose `NS1` signature checks out, so a browser, which cannot sign, sees the entrance
+and nothing else.
+
+- **Above an action, a listing.** At `/admin`, a service or a version, an
+  [`ApiListing`](../src/Http/Api/ApiListing.php) names what is under it: for each entry its name,
+  its address and a description, and for an action also its method, whether it writes, whether a
+  browser may run it (`ApiAction::fromBrowser()`, false only for `update v1 patch`, whose tree only
+  the signing commands can send), and the fields it takes beside its address. A service or version
+  that does not exist is a real `404` — `no such admin address: <path>` — and a listing answers reads
+  only: anything else is a `405` with `Allow: GET, HEAD`.
+- **At an action, its answer.** An action that does not exist is a `404` — `no such API action: …` —
+  and a verb that is not the action's is a `405` whose `Allow` names the one that is. Otherwise the
+  handler answers an [`ApiResult`](../src/Http/Api/ApiResult.php), a status and the sections of a
+  report; an `ApiException` from building or running it is a `422`, `refused: …`, and a serial
+  refusal is the `409` or `500` [below](#what-a-signature-covers-and-why-replay-is-closed).
+
+Either is written in the form negotiated first: a page — `ApiListingView`, `ApiResultView` — or the
+same value as JSON, whose keys are the [`ResultKey`](../src/Http/Api/ResultKey.php) cases, so the
+commands that read it back read the server's own names.
+
+**A listing and the resolver cannot disagree**, because both ask one method.
+`ApiService::actions(ApiVersion)` is the only place a service is mapped to its actions;
+`ApiService::versions()` is the versions at which it has any, and `ApiService::action()` resolves an
+address through the same set. `ApiAction` extends `BackedEnum`, so an action's segment is its value,
+spelled once. What a listing says of each entry is `describe()` — on `ApiService`, `ApiVersion` and
+`ApiAction` alike — from the framework's own catalog, `AdminText`, in English and German. An action's
+fields are [`ActionField`](../src/Http/Api/ActionField.php) cases, `apply` and `mirror`, whose values
+are `UpdateManifest::APPLY` and `UpdateManifest::MIRROR`: one spelling for what a listing names and
+what a manifest carries.
 
 ### The credential is a key the server cannot use
 
@@ -412,8 +449,9 @@ one-shot. P-256 was verified end to end on a live shared host before it was reli
 SHA-256 signature just as happily, which would widen the algorithm without anybody having decided to.
 
 **Its absence is the off switch, with the opposite polarity to `data/site_auth.php`.** No key file,
-no endpoint, for everyone, forever — and a deployment holding no key does no verification work at
-all. So a fresh clone and every machine that has not deliberately been given a key are closed rather
+no signed call verifies, for anyone, forever: the entrance still answers, and every stranger still
+gets the one answer, but there is nobody the gate lets past — and a deployment holding no key does
+no verification work at all. So a fresh clone and every machine that has not deliberately been given a key are closed rather
 than open — worth reading twice, because the two files look alike and mean opposite things.
 
 `PublicKey` is the only `openssl_*` call site under `src/`. It asks `=== 1`, because
@@ -431,10 +469,10 @@ of no size at all**, which is why it rides in a header: a `GET` has nothing to f
 into, and every action after the first one is a read.
 
 `ApiCredential::parse()` bounds every length in the frame against what is actually present before
-using it as an offset, and each failure is an exception the gate turns into the same silence as any
-other — a malformed credential is never a `500`. One over the server's header size limit is refused
-by Apache with a `400` before PHP sees it, which is a refusal from the wrong layer but not one that
-says `/api` is there. The envelope is not even parsed until the signature has verified.
+using it as an offset, and each failure is an exception the gate turns into the same `null` as any
+other, so a malformed credential gets the stranger's one answer and is never a `500`. One over the
+server's header size limit is refused by the web server — Apache's `400`, or a `431` — before PHP
+sees it, which is a refusal from the wrong layer, and says no more than the admin's own would. The envelope is not even parsed until the signature has verified.
 
 **The manifest binds the request, not just the payload.** It carries `method` and `path` beside the
 digest, and both are checked against the request carrying them. Without them a credential would

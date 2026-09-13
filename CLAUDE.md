@@ -125,10 +125,14 @@ These fail silently — no error, no log, a page that looks fine.
   turns into a 413 from the sender's `Content-Length`, rather than a form that sent nothing.
 
 **The API and deploying**
-- **`data/update.pub` absent means `/api` is off; `data/site_auth.php` absent means the site gate is
-  off.** The two files look alike and have opposite polarity.
-- `public/api/` must never exist, and an API action never reads a query parameter or a form field
-  — `InputTest` reads the API's code and fails on either.
+- **`data/update.pub` absent means the admin lets nobody past its entrance; `data/site_auth.php`
+  absent means the site gate is off.** The two files look alike and have opposite polarity.
+- **The admin negotiates, then verifies, then resolves.** A caller it cannot verify gets one answer
+  at every depth below `/admin`, whether the address exists or not — a `303` for a page, a `401`
+  challenging for `NS1` for data, never an `Allow`. An answer that differs for a real address tells
+  a stranger what is in it, and looks like nothing at all.
+- `public/admin/` must never exist, and an admin action never reads a query parameter or a form
+  field — `InputTest` reads the API's code and fails on either.
 - A write spends its serial **before** applying, under a lock it holds to the end; a second write
   meanwhile is a 409 that spends nothing. A dry run and a read never spend one.
 - `App::webroot()` takes only `DOCUMENT_ROOT`'s basename and refuses a blank, relative,
@@ -151,7 +155,8 @@ These fail silently — no error, no log, a page that looks fine.
 - **`data/session.key` is per deployment and never ships.** Nothing asks for it until something keeps
   a session; then its absence is a loud refusal, never a session sealed under something made up. A
   session cookie that does not open is no session, not an error. `CsrfGuard` and `LoginGate` go on
-  routes, never on the app — as app layers they would tell an absent address from the API.
+  routes, never on the app — as app layers they would stand in front of the admin, refusing a signed
+  write for the form token it does not carry and answering a stranger with a login page.
 - **A trace is shown only in development, and only to loopback.** Development is the server
   variable `PHPANTA_ENVIRONMENT=development`, exactly — `SetEnv` in a vhost, or the dev router for
   `php -S`, which hands its own environment to nothing. Any other value, a capital included, is
@@ -204,7 +209,7 @@ serves its export; `.github/workflows/pages.yml` runs the suite first and publis
 | [docs/guidelines.md](docs/guidelines.md) | a bare array, a bare string, an `array_*` call, an `@`, a `throw` |
 | [docs/language.md](docs/language.md) | any visible word, `Translation`, `Languages` |
 | [docs/frontend.md](docs/frontend.md) | the build, the element model, SPA navigation |
-| [docs/security.md](docs/security.md) | headers, the method gate, the guards, the API |
+| [docs/security.md](docs/security.md) | headers, the method gate, the guards, the admin and its signed calls |
 | [docs/login.md](docs/login.md) | a login page — the recipe that puts `Form`, `Session`, the two guards and `Login` together |
 | [docs/health.md](docs/health.md) | `health` and `capability`, or a requirement to declare |
 | [docs/data.md](docs/data.md) | `Phpanta\Data` — a database, a statement, a row, a migration |

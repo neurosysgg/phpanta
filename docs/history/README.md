@@ -5,8 +5,8 @@ why; this directory keeps the stories they used to carry — the bug that was fo
 was reversed, the count that moved.
 
 Phpanta was extracted from neuro.SYS, and most of its history happened there, before it had a name.
-The two topics below are the framework's own and moved with it; the rest — coverage, security,
-the API, hosting, the front end — stays in [neuro.SYS's history](https://github.com/neurosysgg/neurosys-webspace/blob/master/docs/history/README.md),
+The topics below are the framework's own: two moved with it, and the admin's has been kept here
+since it became the admin; the rest — coverage, security, the API before that, hosting, the front end — stays in [neuro.SYS's history](https://github.com/neurosysgg/neurosys-webspace/blob/master/docs/history/README.md),
 where it happened.
 
 A rule that exists because of one of these stories is still stated in the current document, as one
@@ -35,3 +35,4 @@ a sentence of context is added in front of it rather than the passage being reph
 |---|---|
 | [types.md](types.md) | collections, exceptions, `Config` (now the app), `SitePath` (now `Path`), `File`, and the guidelines' first run |
 | [markup.md](markup.md) | the markup tree: attributes, the scheme check, `RawHtml` becoming `MarkupParser` |
+| [admin.md](admin.md) | `/api` becoming `/admin`, and the indistinguishability it gave up for uniformity |

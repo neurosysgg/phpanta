@@ -6,7 +6,7 @@ namespace Phpanta\Test\Unit;
 
 use Phpanta\App;
 use Phpanta\Exception\RouteException;
-use Phpanta\Support\ApiPath;
+use Phpanta\Support\AdminPath;
 use Phpanta\Support\Route;
 use Phpanta\Test\TestRequest;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -102,16 +102,17 @@ final class RouteTest extends TestCase
         self::assertSame(['x?a=1'], $page->matches('/pages/x?a=1'));
     }
 
-    // ───────────────────────── the API's pattern ─────────────────────────
+    // ───────────────────────── the admin's patterns ─────────────────────────
 
     /**
-     * The API's pattern is plain segments and placeholders, like every address a site should name.
+     * The admin's patterns are plain segments and placeholders, like every address a site should
+     * name.
      *
      * @return void
      */
-    public function testTheApiPatternIsPlainSegmentsAndPlaceholders(): void
+    public function testTheAdminPatternsArePlainSegmentsAndPlaceholders(): void
     {
-        foreach (ApiPath::cases() as $path) {
+        foreach (AdminPath::cases() as $path) {
             self::assertMatchesRegularExpression(
                 '#^(/|(/[\w-]+|/\{\w+\})+)$#',
                 $path->value,
@@ -121,15 +122,15 @@ final class RouteTest extends TestCase
     }
 
     /**
-     * Every depth short of `/api`'s four segments, and one past it, matches nothing at all, which
-     * is what makes `/api` and everything under it fall through to the same 404 as any other
-     * address that is not there — a property of the pattern rather than of a check anywhere.
+     * Past the admin's four depths nothing matches, and nothing at all matches under `/api`, which
+     * the admin used to be at — both fall through to the same 404 as any other address that is
+     * not there.
      *
      * @param string $path
      * @return void
      */
-    #[DataProvider('apiDepthProvider')]
-    public function testAnAddressUnderApiOfAnyOtherDepthMatchesNoRoute(string $path): void
+    #[DataProvider('unadministeredProvider')]
+    public function testAnAddressPastTheAdminOrUnderTheOldApiMatchesNoRoute(string $path): void
     {
         foreach (App::current()->routeTable() as $route) {
             self::assertFalse($route->matches($path), "$path unexpectedly matched a route");
@@ -137,20 +138,32 @@ final class RouteTest extends TestCase
     }
 
     /**
-     * The same depths under a second service cost nothing to keep in line: the pattern is four
-     * segments whatever the first of them says.
-     *
      * @return iterable<array{string}>
      */
-    public static function apiDepthProvider(): iterable
+    public static function unadministeredProvider(): iterable
     {
+        yield ['/admin/update/v1/patch/extra'];
+        yield ['/admin/health/v1/report/extra'];
         yield ['/api'];
         yield ['/api/update'];
         yield ['/api/update/v1'];
-        yield ['/api/update/v1/patch/extra'];
-        yield ['/api/health'];
-        yield ['/api/health/v1'];
-        yield ['/api/health/v1/report/extra'];
+        yield ['/api/update/v1/patch'];
+        yield ['/api/health/v1/report'];
+    }
+
+    /**
+     * Every depth of the admin is an address, each matched by its own pattern.
+     *
+     * @return void
+     */
+    public function testEveryDepthOfTheAdminMatches(): void
+    {
+        $routes = App::current()->adminRoutes()->toValues();
+
+        self::assertSame([], $routes[0]->matches('/admin'));
+        self::assertSame(['update'], $routes[1]->matches('/admin/update'));
+        self::assertSame(['update', 'v1'], $routes[2]->matches('/admin/update/v1'));
+        self::assertSame(['update', 'v1', 'patch'], $routes[3]->matches('/admin/update/v1/patch'));
     }
 
     // ───────────────────────── to() ─────────────────────────

@@ -56,9 +56,9 @@ that depends on nothing, because it has to work when nothing else did — and th
 
 ## The request, traced
 
-Follow one request all the way through. The app is `TestApp`, and the request is the one route its
-table holds: **`GET /api/update/v1/version`**, the signed read that asks a deployment what it is
-running. A site's page route takes the same road as far as the controller; where it parts is
+Follow one request all the way through. The app is `TestApp`, whose table holds the framework's four
+admin routes and nothing else, and the request is **`GET /admin/update/v1/version`** with `Accept:
+application/json`, the signed read that asks a deployment what it is running. A site's page route takes the same road as far as the controller; where it parts is
 [at the end](#a-page-instead).
 
 ### ⓪ The last-resort handler
@@ -112,7 +112,7 @@ any of the framework's code runs. See [security.md](security.md) for the policie
 from the superglobals: it hands [`ServerParameters`](../src/Http/ServerParameters.php) — the one
 reader of `$_SERVER` — and [`MultipartParameters`](../src/Http/MultipartParameters.php), the one
 reader of `$_POST` and `$_FILES`, to `Request::from()`, which is also how a test builds any other request. What comes out is `readonly` and typed — here, method `HttpMethod::Get` and
-path `/api/update/v1/version` — and three of its decisions are deliberate:
+path `/admin/update/v1/version` — and three of its decisions are deliberate:
 
 | Member | Decision |
 |---|---|
@@ -152,9 +152,9 @@ holds no `data/` at all, so the request walks through.
 ### ④ Routing
 
 [`Router::dispatch()`](../src/Router.php) asks the table [`App::routeTable()`](../src/App.php)
-builds: the site's `routes()`, in match order, then the framework's API route, last, so no site route
-can be shadowed by it. `TestApp`'s `routes()` is empty, so its table is one entry. The router does two
-things, in order:
+builds: the site's `routes()`, in match order, then the framework's four admin routes,
+`App::adminRoutes()`, last, so no site route can be shadowed by one. `TestApp`'s `routes()` is empty,
+so its table is those four. The router does two things, in order:
 
 1. **The match.** Each [`Route`](../src/Support/Route.php) is a
    [`Path`](../src/Support/Path.php) case, a factory closure and a
@@ -162,37 +162,37 @@ things, in order:
    `{id:int}`, `{tag:slug}`, see [`PlaceholderType`](../src/Support/PlaceholderType.php) — to its
    type's expression, so a segment of the wrong kind is simply no match. Static parts are quoted,
    the expression ends in `\z`, and the captures — decoded, and an `int` for `{id:int}` — are passed
-   positionally to the factory. `ApiPath::Api` is `/api/{service}/{version}/{action}`, so this request captures
-   `update`, `v1` and `version`, as raw strings: resolving them to cases in the factory would put a
-   `from()` there, and a `ValueError` before the signature is checked.
+   positionally to the factory. `AdminPath::Action` is `/admin/{service}/{version}/{action}`, so this
+   request matches the fourth admin route and captures `update`, `v1` and `version`, as raw strings:
+   resolving them to cases in the factory would put a `from()` there, and a `ValueError` before the
+   caller is known.
 2. **The method gate**, asked of the matched route rather than globally. A `ReadOnly` route — the
    default, and every page a site has — answers anything but `GET`/`HEAD` with a 405 whose `Allow`
    comes from `Allow::readOnly()`, derived by filtering the cases, so the header cannot advertise
-   something the gate does not do. `/api` is `Delegated`: the router forms no opinion and its
-   controller answers every method itself, because any opinion the router formed would tell an
-   unsigned caller the address is real. A route that also writes — a form — names a
-   [`MethodSet`](../src/Support/MethodSet.php) instead, and its 405 names that set: nothing about
-   it is hidden, and `GET` brings `HEAD` with it. The API is the one route that must never name its
-   own, which is why it is a policy and not a set.
+   something the gate does not do. The admin's routes are `Delegated`: the router forms no opinion
+   and the controller answers every method itself, because a router that refused a verb at one depth
+   and not at another would tell a caller the admin cannot verify which depths are real. A route that
+   also writes — a form — names a [`MethodSet`](../src/Support/MethodSet.php) instead, and its 405
+   names that set: nothing about it is hidden, and `GET` brings `HEAD` with it. The admin is the one
+   family that must never name its own to a stranger, which is why it is a policy and not a set.
 3. **An `OPTIONS`** to a route that does not take one itself is a 204 with that route's `Allow`
-   and `OPTIONS` after it — an answer about the resource, with no body. The API decides for itself,
-   so an unsigned `OPTIONS` there is still the refusal an address that does not exist gets.
+   and `OPTIONS` after it — an answer about the resource, with no body. The admin decides for
+   itself, so an unverified `OPTIONS` there is the same `303` or `401` as any other verb.
 
 A [`RouteGroup`](../src/Support/RouteGroup.php) writes the layers several routes share once. It has
 no prefix, on purpose: a case's value is its whole address, and every link is built from it.
 
 An unmatched path falls through to
 [`UnroutedController`](../src/Controller/UnroutedController.php), which answers a read verb with the
-app's `notFound()` and a write one with the read-only 405 — and is the same object `ApiController`
-delegates to, so that no address under `/api` and an address that does not exist can answer
-differently. `TestApp`'s `notFound()` is a `text/plain` `404`.
+app's `notFound()` and a write one with the read-only 405. `TestApp`'s `notFound()` is a
+`text/plain` `404`.
 
 **Every address is a `Path` case, and that is one vocabulary rather than two.** A view naming a path
 the router does not have would render a link that looks perfectly fine and answers with the site's
 own 404, so views never concatenate a path: the case's *value* is the pattern, placeholders and all,
 so `Route::matches()` matches with it and `->to(…)` fills it in; the placeholder syntax is one
 constant, `Route::PLACEHOLDER_PATTERN`, both read. `to()` is written once, in the `FillsPlaceholders`
-trait, for the framework's `ApiPath` and every site's own enum alike. It refuses the wrong number of
+trait, for the framework's `AdminPath` and every site's own enum alike. It refuses the wrong number of
 values, and a value a typed placeholder does not take, with a `RouteException` — the check a
 concatenation cannot make —
 `'/posts/' . $slug . '/'` is a perfectly good string and a URL that matches nothing. Two details
@@ -212,12 +212,14 @@ and nothing else, and it constructs the `ApiGate` it asks. An optional construct
 **test seam and nothing else** — `ApiController`'s `?ApiGate $gate = null` is how a test verifies
 against a key of its own.
 
-**It verifies before it resolves.** [`ApiGate::accepts()`](../src/Service/ApiGate.php) answers a
-`VerifiedRequest` or `null`, and every `null` — no `NS1` credential, no `data/update.pub`, a signature
-that fails, an envelope minted for another method or path, a stale serial, a body that is not the one
-signed — goes to `UnroutedController`, so the caller gets exactly the 404 an address that does not
-exist gets. **On `TestApp` as it ships, that is where this request ends**: the fixture holds no key,
-so `/api` is off, and a `GET` gets `TestApp`'s `404`.
+**It negotiates, then verifies, then resolves.** `Accept: application/json` makes this a request for
+data, where a browser's header would make it one for a page and a type it has neither of a `406`.
+[`ApiGate::accepts()`](../src/Service/ApiGate.php) then answers a `VerifiedRequest` or `null`, and
+every `null` — no `NS1` credential, no `data/update.pub`, a signature that fails, an envelope minted
+for another method or path, a stale serial, a body that is not the one signed — is the one answer a
+caller it cannot verify gets: for data, a `401` challenging for `NS1`, the same at every depth
+whether the address exists or not. **On `TestApp` as it ships, that is where this request ends**: the
+fixture holds no key, so no signed call verifies, and the `GET` gets the `401`.
 
 With a key in place and a credential it verifies, the posture inverts and failures are reported in
 full: `ApiService::Update` at `ApiVersion::V1` names `UpdateAction::Version`, whose method is `GET`,
@@ -225,10 +227,10 @@ so the request's method is the action's; its handler is `UpdateVersion`, which i
 **no serial is spent**, and the same credential could be sent again. It answers an
 [`ApiResult`](../src/Http/Api/ApiResult.php): the last serial accepted (a dash where there is none),
 `App::buildId()` — `test` for `TestApp` — and `PHP_VERSION`, as the sections of a report. See
-[security.md](security.md#the-api) for everything the gate proves.
+[security.md](security.md#the-admin) for everything the gate proves.
 
-**A handler says what happened and the controller says how.** Straight after the gate, and before
-any action runs, the controller asks the request's `Accept` which
+**A handler says what happened and the controller says how.** First of all, before the gate and so
+before any action runs, the controller asks the request's `Accept` which
 [`Representation`](../src/Http/Representation.php) it wants: a page by default — a `ViewResponse`
 around an `ApiResultView`, in the app's own shell — data for `application/json`, and a `406` for a
 request that named neither. Either way the answer is kept by no cache and varies on `Accept`, and
@@ -285,8 +287,8 @@ Six ship with the framework, in `Service/Layer/`:
 - `SiteGate`, the pre-launch gate;
 - `AdminGate`, the admin gate for a route;
 - `Maintenance`, a `503` that no cache keeps for every page while a switch file exists — absent means
-  off, like the site gate's — and never for the API, because a push is how maintenance usually ends.
-  It recognises the API by the route's own match, `App::apiRoute()`, never by a prefix;
+  off, like the site gate's — and never for the admin, because a push is how maintenance usually
+  ends. It recognises the admin by its routes' own match, `App::adminRoutes()`, never by a prefix;
 - `TrailingSlash`, one address per page: a read of `/x/` is a 308 to `/x`, the query kept — never a
   write, and never an address that trims into another host;
 - `Cors`, which other [`Origin`](../src/Http/Origin.php)s may read the answers: a listed one is named
@@ -361,7 +363,7 @@ stops a browser guessing the type, and nothing stops it guessing the encoding.
 
 `Collection<T>` and `SearchableCollection<T>` with the `TypedItems` trait they share — see
 [collections.md](collections.md). `File`, `Directory`, `FileLock` and `Diagnostics`. `Route`, the
-`Path` interface, `ApiPath`, the `FillsPlaceholders` trait, `PlaceholderType`, `RouteGroup`, and the
+`Path` interface, `AdminPath`, the `FillsPlaceholders` trait, `PlaceholderType`, `RouteGroup`, and the
 `MethodGate` a route answers through — `MethodPolicy` or a `MethodSet`. `Throttle` and
 `ThrottleVerdict`, the file-backed sliding window a login and the `RateLimit` layer count in. `ErrorLog`.
 `RequirementInitialization`, the framework's floor — see [health.md](health.md). `Charset` and
@@ -390,7 +392,7 @@ adding something.
 
 ### 1. An enum, when the vocabulary is closed
 
-`HttpStatusCode`, `HttpMethod`, `CspDirective`, `HtmlTag`, `ApiPath`, `CredentialFile`, every header
+`HttpStatusCode`, `HttpMethod`, `CspDirective`, `HtmlTag`, `AdminPath`, `CredentialFile`, every header
 and attribute name. A typo becomes a parse error instead of a value the browser silently drops.
 
 Enums here list **what is used, not what exists** — `HtmlTag` has the elements a page built on the

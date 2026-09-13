@@ -112,7 +112,7 @@ final class HealthTest extends TestCase
     public function testEveryActionIsAReadAnsweringOnGet(): void
     {
         foreach (HealthAction::cases() as $action) {
-            $handler = $action->handler(self::verified('/api/health/v1/' . $action->value));
+            $handler = $action->handler(self::verified('/admin/health/v1/' . $action->value));
 
             self::assertSame(HttpMethod::Get, $action->method());
             self::assertInstanceOf(HealthCheck::class, $handler);

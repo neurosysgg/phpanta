@@ -435,6 +435,7 @@ final class SecurityPolicyTest extends TestCase
         yield 'what the body depends on'  => ['X-Requested-With', Vary::on(RequestHeader::RequestedWith)];
         yield 'what the site accepts'     => ['GET, HEAD', Allow::readOnly()];
         yield 'the realm, quoted'         => ['Basic realm="Example"', new BasicChallenge('Example')];
+        yield 'a signature, asked for'    => ['NS1', new \Phpanta\Http\SignedChallenge()];
         yield 'where a download goes'     => ['https://x.example/f?id=1', new Location('https://x.example/f?id=1')];
         yield 'back to a page, after a switch' => ['/posts/x', new Location('/posts/x')];
         yield 'the one cookie this site sets'  => [
@@ -592,6 +593,7 @@ final class SecurityPolicyTest extends TestCase
                 'Phpanta\Http\Security\ReferrerPolicy',
                 'Phpanta\Http\Security\StrictTransportSecurity',
                 'Phpanta\Http\SetCookie',
+                'Phpanta\Http\SignedChallenge',
                 'Phpanta\Http\Vary',
             ],
             $found,

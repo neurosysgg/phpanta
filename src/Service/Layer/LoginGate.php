@@ -27,9 +27,9 @@ use Phpanta\Text\FrameworkText;
  * page, or — for a write — refused.
  *
  * The session-backed counterpart of {@link AdminGate}, listed the same way — on the route, with
- * {@link \Phpanta\Support\Route::through()} — and for the same reasons, plus the one
- * {@link CsrfGuard} gives: as an app layer it would answer an address that does not exist
- * differently from the API.
+ * {@link \Phpanta\Support\Route::through()} — and for the same reasons, plus one of its own: as an
+ * app layer it would stand in front of the admin too, and answer a stranger there with a login page
+ * instead of the admin's one answer.
  *
  * A read without a login is a 303 to the login page, which is what a visitor who followed a link
  * wants; a write without one is a 403, since there is nothing sensible to redirect a `POST` to. Both

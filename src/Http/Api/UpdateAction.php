@@ -13,6 +13,9 @@ use Phpanta\Service\Api\UpdatePatch;
 use Phpanta\Service\Api\UpdateProbe;
 use Phpanta\Service\Api\UpdateRollback;
 use Phpanta\Service\Api\UpdateVersion;
+use Phpanta\Support\Collection;
+use Phpanta\Text\AdminText;
+use Phpanta\Text\Translatable;
 
 /**
  * The UpdateAction enum. What the `update` service can be asked to do.
@@ -71,6 +74,44 @@ enum UpdateAction: string implements ApiAction
             self::Rollback => HttpMethod::Post,
             self::Probe    => HttpMethod::Post,
         };
+    }
+
+    /**
+     * @return Translatable
+     */
+    public function describe(): Translatable
+    {
+        return match ($this) {
+            self::Patch    => AdminText::UpdatePatch,
+            self::Version  => AdminText::UpdateVersion,
+            self::Rollback => AdminText::UpdateRollback,
+            self::Probe    => AdminText::UpdateProbe,
+        };
+    }
+
+    /**
+     * A push takes `apply` and `mirror`, a rollback and a probe take `apply`, and asking what is
+     * deployed takes nothing — the fields {@link UpdateManifest} and {@link ApplyManifest} read.
+     *
+     * @return Collection<ActionField>
+     */
+    public function fields(): Collection
+    {
+        return new Collection(ActionField::class)->with(...match ($this) {
+            self::Patch                 => [ActionField::Apply, ActionField::Mirror],
+            self::Version               => [],
+            self::Rollback, self::Probe => [ActionField::Apply],
+        });
+    }
+
+    /**
+     * Everything but a push, which carries the tree it writes and so is the signing commands' alone.
+     *
+     * @return bool
+     */
+    public function fromBrowser(): bool
+    {
+        return $this !== self::Patch;
     }
 
     /**

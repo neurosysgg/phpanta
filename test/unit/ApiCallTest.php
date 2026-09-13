@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Phpanta\Test\Unit;
 
 use ArrayObject;
+use Phpanta\Http\Api\ApiListing;
 use Phpanta\Http\HttpMethod;
 use Phpanta\Support\Directory;
 use Phpanta\Support\File;
+use Phpanta\Text\Language;
 use Phpanta\Tool\Cli\ExitCode;
 use Phpanta\Tool\Cli\Output;
 use Phpanta\Tool\Cli\Runner;
@@ -22,9 +24,10 @@ use PHPUnit\Framework\TestCase;
  * `php tools/api.php`: what the operator sees, and what a script can branch on.
  *
  * **The exit code is the answer's**, which is what makes a failed `health` check scriptable after a
- * push — and **only a 404 is explained as a refusal**, because only a 404 is one. A 503 from a
- * verified handler carries its own report, and prefacing it with "check your key" would send
- * somebody looking in exactly the wrong place.
+ * push — and **only a 401 is explained as a refusal**, because only a 401 is one; an answer that is
+ * not the admin's at all is explained as a server older than it. A 503 from a verified handler
+ * carries its own report, and prefacing it with "check your key" would send somebody looking in
+ * exactly the wrong place.
  *
  * No `#[CoversClass]`, like every other test of `tools/`: `tools/` is not coverage source, so a
  * class named there would record nothing.
@@ -63,13 +66,13 @@ final class ApiCallTest extends TestCase
     }
 
     /**
-     * A 2xx prints the body and nothing else, and exits 0.
+     * A 2xx prints the answer's text and nothing else, and exits 0.
      *
      * @return void
      */
     public function testAnOkAnswerIsPrintedAndSucceeds(): void
     {
-        [$code, $out, $error] = $this->call(200, "0 fail\n", 'health', 'v1', 'report');
+        [$code, $out, $error] = $this->call(200, self::written(200, null, '0 fail'), 'health', 'v1', 'report');
 
         self::assertSame(ExitCode::Success, $code);
         self::assertSame("0 fail\n", $out);
@@ -84,7 +87,13 @@ final class ApiCallTest extends TestCase
      */
     public function testA503PrintsItsReportAndFailsWithoutBlamingTheKey(): void
     {
-        [$code, $out, $error] = $this->call(503, "deployment\n  DOCUMENT_ROOT  FAIL\n", 'health', 'v1', 'deployment');
+        [$code, $out, $error] = $this->call(
+            503,
+            self::written(503, 'deployment', 'DOCUMENT_ROOT  FAIL'),
+            'health',
+            'v1',
+            'deployment',
+        );
 
         self::assertSame(ExitCode::Failure, $code);
         self::assertSame("deployment\n  DOCUMENT_ROOT  FAIL\n", $out);
@@ -92,17 +101,38 @@ final class ApiCallTest extends TestCase
     }
 
     /**
-     * A 404 is the one refusal, and is explained as one.
+     * A 401 is the one refusal, and is explained as one — for a read and a write alike.
      *
      * @return void
      */
-    public function testA404IsExplainedAsARefusal(): void
+    public function testA401IsExplainedAsARefusal(): void
     {
-        [$code, , $error] = $this->call(404, '<!doctype html>', 'capability', 'v1', 'runtime');
+        $refusal = self::written(401, null, 'this needs a signed request');
+
+        foreach ([['capability', 'v1', 'runtime'], ['update', 'v1', 'rollback']] as [$service, $version, $action]) {
+            [$code, $out, $error] = $this->call(401, $refusal, $service, $version, $action);
+
+            self::assertSame(ExitCode::Failure, $code);
+            self::assertSame("this needs a signed request\n", $out);
+            self::assertStringStartsWith("\nrefused with 401.\n", $error);
+            self::assertStringContainsString('data/update.pub', $error);
+        }
+    }
+
+    /**
+     * An answer that is not the admin's at all — the site's own 404 page — is a server older than
+     * the admin, and says so rather than printing the page.
+     *
+     * @return void
+     */
+    public function testAnAnswerThatIsNotTheAdminsIsAnOlderServer(): void
+    {
+        [$code, $out, $error] = $this->call(404, '<!doctype html>', 'capability', 'v1', 'runtime');
 
         self::assertSame(ExitCode::Failure, $code);
-        self::assertStringStartsWith("\nrefused with 404.\n", $error);
-        self::assertStringContainsString('data/update.pub', $error);
+        self::assertSame('', $out);
+        self::assertStringStartsWith("\nanswered 404, and not the way the admin answers.\n", $error);
+        self::assertStringContainsString('older than this command', $error);
     }
 
     /**
@@ -119,12 +149,12 @@ final class ApiCallTest extends TestCase
 
         self::assertSame(ExitCode::Success, $code);
         self::assertCount(1, $sent);
-        self::assertSame('https://example.test/api/capability/v1/extensions', $sent[0]->url->render());
+        self::assertSame('https://example.test/admin/capability/v1/extensions', $sent[0]->url->render());
     }
 
     /**
-     * An action no service has is refused before anything is sent, since `/api` would answer it
-     * exactly as it answers a bad key.
+     * An action this checkout does not know is refused before anything is sent, since the method a
+     * call is signed for comes from the action's own enum.
      *
      * @return void
      */
@@ -151,13 +181,21 @@ final class ApiCallTest extends TestCase
         /** @var ArrayObject<int, Request> $sent */
         $sent = new ArrayObject();
 
-        [$code] = $this->call(200, "applied\n", 'update', 'v1', 'rollback', $sent);
-        [$dry]  = $this->call(200, "dry run\n", 'update', 'v1', 'rollback', $sent, ['--dry-run']);
+        [$code] = $this->call(200, self::written(200, null, 'applied'), 'update', 'v1', 'rollback', $sent);
+        [$dry]  = $this->call(
+            200,
+            self::written(200, null, 'dry run'),
+            'update',
+            'v1',
+            'rollback',
+            $sent,
+            ['--dry-run'],
+        );
 
         self::assertSame(ExitCode::Success, $code);
         self::assertSame(ExitCode::Success, $dry);
         self::assertCount(2, $sent);
-        self::assertSame('https://example.test/api/update/v1/rollback', $sent[0]->url->render());
+        self::assertSame('https://example.test/admin/update/v1/rollback', $sent[0]->url->render());
         self::assertSame(HttpMethod::Post, $sent[0]->method);
         self::assertSame('', $sent[0]->body());
         self::assertTrue(self::manifestOf($sent[0])['apply'], 'a rollback was signed as a dry run');
@@ -201,20 +239,6 @@ final class ApiCallTest extends TestCase
     }
 
     /**
-     * An unverified write is the 405 an unrouted write gets, and is explained as the refusal it is.
-     *
-     * @return void
-     */
-    public function testA405ToAWriteIsExplainedAsARefusal(): void
-    {
-        [$code, , $error] = $this->call(405, "Method Not Allowed\n", 'update', 'v1', 'rollback');
-
-        self::assertSame(ExitCode::Failure, $code);
-        self::assertStringStartsWith("\nrefused with 405.\n", $error);
-        self::assertStringContainsString('data/update.pub', $error);
-    }
-
-    /**
      * A verified refusal is not a key problem: a rollback with nothing to roll back is a 422 whose
      * body says so, and the command says only what came back.
      *
@@ -222,11 +246,94 @@ final class ApiCallTest extends TestCase
      */
     public function testA422IsNotBlamedOnTheKey(): void
     {
-        [$code, $out, $error] = $this->call(422, "refused: there is no previous release\n", 'update', 'v1', 'rollback');
+        [$code, $out, $error] = $this->call(
+            422,
+            self::written(422, null, 'refused: there is no previous release'),
+            'update',
+            'v1',
+            'rollback',
+        );
 
         self::assertSame(ExitCode::Failure, $code);
         self::assertSame("refused: there is no previous release\n", $out);
         self::assertSame("\nanswered 422.\n", $error);
+    }
+
+    /**
+     * Less than a whole address asks the server what it offers there — the entrance, a service, a
+     * version — with a signed read, and prints what came back a line each.
+     *
+     * @return void
+     */
+    public function testLessThanAnAddressListsWhatTheServerOffers(): void
+    {
+        /** @var ArrayObject<int, Request> $sent */
+        $sent    = new ArrayObject();
+        $listing = (string) json_encode(ApiListing::services(Language::English), JSON_THROW_ON_ERROR);
+
+        [$code, $out, $error] = $this->invoke(200, $listing, [], $sent);
+        $this->invoke(200, $listing, ['update'], $sent);
+        $this->invoke(200, $listing, ['update', 'v1'], $sent);
+
+        self::assertSame(ExitCode::Success, $code);
+        self::assertStringStartsWith("/admin\n", $out);
+        self::assertSame('', $error);
+
+        self::assertSame(
+            ['https://example.test/admin', 'https://example.test/admin/update', 'https://example.test/admin/update/v1'],
+            array_map(static fn(Request $request): string => $request->url->render(), $sent->getArrayCopy()),
+        );
+        self::assertSame(HttpMethod::Get, $sent[0]->method);
+        self::assertSame('/admin', self::manifestOf($sent[0])['path']);
+    }
+
+    /**
+     * A listing of something the server does not have is its refusal, printed as it came.
+     *
+     * @return void
+     */
+    public function testAListingOfNothingPrintsTheRefusal(): void
+    {
+        $refusal = self::written(404, null, 'no such admin address: /admin/nope');
+
+        [$code, $out, $error] = $this->invoke(404, $refusal, ['nope']);
+
+        self::assertSame(ExitCode::Failure, $code);
+        self::assertSame("no such admin address: /admin/nope\n", $out);
+        self::assertSame("\nanswered 404.\n", $error);
+    }
+
+    /**
+     * A listing only reads, so it has no dry run either.
+     *
+     * @return void
+     */
+    public function testAListingHasNoDryRun(): void
+    {
+        /** @var ArrayObject<int, Request> $sent */
+        $sent = new ArrayObject();
+
+        [$code, , $error] = $this->invoke(200, '', ['update'], $sent, ['--dry-run']);
+
+        self::assertSame(ExitCode::Usage, $code);
+        self::assertStringContainsString('has no dry run', $error);
+        self::assertCount(0, $sent);
+    }
+
+    /**
+     * An admin answer as the server writes one: a status and one section of lines.
+     *
+     * @param int $status
+     * @param string|null $caption
+     * @param string ...$lines
+     * @return string
+     */
+    private static function written(int $status, ?string $caption, string ...$lines): string
+    {
+        return (string) json_encode(
+            ['status' => $status, 'sections' => [['caption' => $caption, 'lines' => $lines]]],
+            JSON_THROW_ON_ERROR,
+        );
     }
 
     /**
@@ -250,7 +357,7 @@ final class ApiCallTest extends TestCase
     }
 
     /**
-     * Runs the command against a transport that answers $status with $body.
+     * Runs the command for one whole address against a transport that answers $status with $body.
      *
      * @param int $status
      * @param string $body
@@ -267,6 +374,26 @@ final class ApiCallTest extends TestCase
         string $service,
         string $version,
         string $action,
+        ?ArrayObject $sent = null,
+        array $flags = [],
+    ): array {
+        return $this->invoke($status, $body, [$service, $version, $action], $sent, $flags);
+    }
+
+    /**
+     * Runs the command with $operands against a transport that answers $status with $body.
+     *
+     * @param int $status
+     * @param string $body
+     * @param list<string> $operands
+     * @param ArrayObject<int, Request>|null $sent Where each request sent is recorded.
+     * @param list<string> $flags More words for the command line, after the key.
+     * @return array{ExitCode, string, string}
+     */
+    private function invoke(
+        int $status,
+        string $body,
+        array $operands,
         ?ArrayObject $sent = null,
         array $flags = [],
     ): array {
@@ -295,7 +422,7 @@ final class ApiCallTest extends TestCase
 
         $code = Runner::execute(
             new ApiCall('https://example.test', '.config/example/update.key', $transport),
-            ['--key', $this->keyFile->path, ...$flags, $service, $version, $action],
+            ['--key', $this->keyFile->path, ...$flags, ...$operands],
             new Output($out, $error),
         );
 

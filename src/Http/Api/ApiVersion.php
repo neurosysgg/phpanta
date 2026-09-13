@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Phpanta\Http\Api;
 
+use Phpanta\Text\AdminText;
+use Phpanta\Text\Translatable;
+
 /**
  * The ApiVersion enum. Which revision of a service's vocabulary a request is speaking.
  *
@@ -13,9 +16,9 @@ namespace Phpanta\Http\Api;
  * nothing else recognised, which is the shape of drift every enum here exists to stop.
  *
  * **It is the second segment rather than the first, and that is a decision about what a version
- * versions.** `/api/v1/update/patch` would make one number govern every service at once, so adding
- * a field to one of them would either break the others' URLs or make the number a lie.
- * `/api/update/v1/patch` lets each service move on its own, which is the only arrangement that
+ * versions.** `/admin/v1/update/patch` would make one number govern every service at once, so
+ * adding a field to one of them would either break the others' URLs or make the number a lie.
+ * `/admin/update/v1/patch` lets each service move on its own, which is the only arrangement that
  * survives a second service.
  *
  * **It is deliberately not the credential's version.** {@link \Phpanta\Http\AuthScheme::NS1}
@@ -23,11 +26,23 @@ namespace Phpanta\Http\Api;
  * for changes, that changes when how the asking is signed changes. A single digit doing both jobs
  * would have to be bumped for either, which is how a version stops meaning anything.
  *
- * Server-only, and no TypeScript mirror is wanted: nothing the browser loads may reach `/api`, so a
+ * Server-only, and no TypeScript mirror is wanted: the admin's pages are written on the server, so a
  * case here would be a case in the bundle that no client code could ever have a use for.
  */
 enum ApiVersion: string
 {
     /** The first, and so far only, revision of every service's vocabulary. */
     case V1 = 'v1';
+
+    /**
+     * What this version is, in the caller's language — what a service's listing says of it.
+     *
+     * @return Translatable
+     */
+    public function describe(): Translatable
+    {
+        return match ($this) {
+            self::V1 => AdminText::VersionOne,
+        };
+    }
 }

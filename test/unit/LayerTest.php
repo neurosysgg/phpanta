@@ -305,18 +305,20 @@ final class LayerTest extends TestCase
     }
 
     /**
-     * The API is let through, because a push is how maintenance usually ends.
+     * The admin is let through, at every depth, because a push is how maintenance usually ends.
      *
      * @return void
      */
-    public function testMaintenanceLetsTheApiThrough(): void
+    public function testMaintenanceLetsTheAdminThrough(): void
     {
         $switch = new File("$this->scratch/maintenance");
         $switch->write('');
 
-        $request = TestRequest::to(HttpMethod::Post, '/api/update/v1/patch')->request();
+        foreach (['/admin', '/admin/update', '/admin/update/v1', '/admin/update/v1/patch'] as $path) {
+            $request = TestRequest::to(HttpMethod::Post, $path)->request();
 
-        self::assertSame('page POST', self::maintained($switch)->handle($request)->answer($request)->body());
+            self::assertSame('page POST', self::maintained($switch)->handle($request)->answer($request)->body(), $path);
+        }
     }
 
     // ───────────────────────── one address per page ─────────────────────────

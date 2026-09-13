@@ -9,6 +9,9 @@ use Phpanta\Http\HttpMethod;
 use Phpanta\Model\Api\VerifiedRequest;
 use Phpanta\Model\Health\Area;
 use Phpanta\Service\Api\HealthCheck;
+use Phpanta\Support\Collection;
+use Phpanta\Text\AdminText;
+use Phpanta\Text\Translatable;
 
 /**
  * The HealthAction enum. What the `health` service can be asked to check.
@@ -44,6 +47,40 @@ enum HealthAction: string implements ApiAction
     public function method(): HttpMethod
     {
         return HttpMethod::Get;
+    }
+
+    /**
+     * @return Translatable
+     */
+    public function describe(): Translatable
+    {
+        return match ($this) {
+            self::Report     => AdminText::HealthReport,
+            self::Runtime    => AdminText::HealthRuntime,
+            self::Extensions => AdminText::HealthExtensions,
+            self::Settings   => AdminText::HealthSettings,
+            self::Deployment => AdminText::HealthDeployment,
+        };
+    }
+
+    /**
+     * None: a check has no parameters, which is why one area is an address of its own.
+     *
+     * @return Collection<ActionField>
+     */
+    public function fields(): Collection
+    {
+        return new Collection(ActionField::class);
+    }
+
+    /**
+     * Every check, since each only reads.
+     *
+     * @return bool
+     */
+    public function fromBrowser(): bool
+    {
+        return true;
     }
 
     /**

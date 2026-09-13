@@ -29,7 +29,7 @@ use Uri\WhatWg\Url;
  * worth an answer. `extension_loaded()` answers the first only, and answers it about a name rather
  * than about a capability.
  *
- * Server-only, like every other enum under `Http\Api`: nothing the browser loads may reach `/api`,
+ * Server-only, like every other enum under `Http\Api`: nothing the browser loads may reach the admin,
  * so there is no TypeScript mirror and none is wanted.
  */
 enum PhpExtension: string
@@ -72,7 +72,7 @@ enum PhpExtension: string
      * What {@link \Phpanta\Support\PublicKey} verifies a signature with.
      *
      * Not bundled the way {@link self::Uri} is, and it fails the quiet way: a fatal on a push, on
-     * the one route built to answer as though it is not there. The probe is
+     * the one route built to give a stranger one answer however it is asked. The probe is
      * {@link OpenSSLAsymmetricKey}, which is the type `PublicKey` names in its own signature —
      * asking for the class the framework holds is asking for the extension that defines it, and it
      * keeps the function names where the verify script pins them, which is one file.
@@ -83,8 +83,8 @@ enum PhpExtension: string
      * What unpacks a pushed payload, in one call in {@link \Phpanta\Service\UpdateApplier}.
      *
      * Same failure as {@link self::OpenSsl} and the same silence: a push against a deployment
-     * without it is a fatal, and every other reason `/api` refuses is indistinguishable from an
-     * address that is not there.
+     * without it is a fatal, and every other reason the admin refuses a stranger is one answer that
+     * does not say which.
      */
     case Zlib = 'zlib';
 

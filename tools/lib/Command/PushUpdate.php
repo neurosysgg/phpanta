@@ -191,28 +191,32 @@ final readonly class PushUpdate implements Command
             return ExitCode::Failure;
         }
 
-        // The report's own text where the answer is a result; the body as it came where it is not.
-        $output->out(ResultReader::read($response->body)?->text() ?? $response->body);
+        // The report's own text where the answer is a result. An answer that is not the admin's at
+        // all — a site's own page — says nothing worth printing, and the lines below say what it
+        // means instead.
+        $text = ResultReader::read($response->body)?->text();
+
+        if ($text !== null || $response->isOk()) {
+            $output->out($text ?? $response->body);
+        }
 
         if (!$response->isOk()) {
-            // 404 and 405 are the same answer wearing two faces: /api replies exactly as the site
-            // replies for an address that does not exist, which is a 404 for a read method and a
-            // 405 for a write one — and a push is a POST. Either means the request was not
-            // verified, and the endpoint deliberately will not say which check failed.
-            $unverified = $response->status === 404 || $response->status === 405;
-
             $output->error(sprintf(
                 "\nrefused with %d.%s\n",
                 $response->status,
-                $unverified
-                    ? "\n  That is what /api answers to anything it will not verify — it does not"
-                    . " say which check failed, by design. In order of likelihood:\n"
-                    . "    1. data/update.pub on the server does not match this private key\n"
-                    . "    2. this machine's clock is more than five minutes from the server's\n"
-                    . "    3. another call was signed in the same second — a serial is the time, so wait"
-                    . " one and push again\n"
-                    . "    4. the server is older than /api (a full deploy is the way to update it)"
-                    : '',
+                match (true) {
+                    // A request the gate will not verify is one answer, which deliberately does not
+                    // say which check failed.
+                    $response->status === 401 => "\n  That is what the admin answers a request it cannot"
+                        . " verify — it does not say which check failed, by design. In order of likelihood:\n"
+                        . "    1. data/update.pub on the server does not match this private key\n"
+                        . "    2. this machine's clock is more than five minutes from the server's\n"
+                        . "    3. another call was signed in the same second — a serial is the time, so wait"
+                        . " one and push again",
+                    $text === null => "\n  That is not the way the admin answers, so the server has no /admin:"
+                        . " it is older than this command, and a full deploy (./deploy.sh) updates it",
+                    default => '',
+                },
             ));
 
             return ExitCode::Failure;
