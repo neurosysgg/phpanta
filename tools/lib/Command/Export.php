@@ -36,7 +36,10 @@ use ReflectionClass;
  * - `index.html` for `/`, `x.html` for `/x` and `a/b.html` for `/a/b` — the name a static host
  *   finds for an address with no extension, under the path **decoded**, since that is what a host
  *   looks for — and `404.html`, the app's own not-found page, which is the name GitHub Pages serves
- *   for any address it does not have. In the app's default language.
+ *   for any address it does not have. In the app's default language — and, for an app whose
+ *   languages have addresses of their own ({@link App::languageAddresses()}), once more at each
+ *   language's: `x.en.html`, `x.de.html`, `index.de.html`, each in its language and with its links
+ *   in that language, while `x.html` stays the default language's way in.
  * - The webroot's files, less what only a PHP host reads (`*.php`, `.htaccess`, `.user.ini`).
  * - **The stamped asset directories, as directories.** A page names `/assets/js/v-a1b2c3d4/main.js`,
  *   and on the site a rewrite strips the stamp; a static host has no rewrite, so the tree is
@@ -179,8 +182,9 @@ final readonly class Export implements Command
 
         // ── the pages ──
 
-        $language = $this->app->languages()->default();
-        $pages    = [];
+        $languages = $this->app->languages();
+        $language  = $languages->default();
+        $pages     = [];
 
         foreach ($this->app->routeTable() as $route) {
             foreach ($route->exportedPaths() as $path) {
@@ -194,37 +198,43 @@ final readonly class Export implements Command
                     );
                 }
 
-                $request  = Request::synthetic($path, $language);
-                $response = $route->createController($params)->handle($request);
+                // The page once at its own address, and once more at each language's where the app
+                // gives languages addresses of their own. $path becomes each address in turn, which
+                // is the address every sentence below names.
+                foreach ($this->app->languageAddresses()->exported($path, $languages) as $address) {
+                    $path     = $address->address;
+                    $request  = Request::synthetic($path, $address->language);
+                    $response = $route->createController($params)->handle($request);
 
-                // A route behind a password lands here too: the export's request carries no
-                // credential, so its answer is the 401, and a refusal written to a file would be
-                // served to everyone as the page.
-                if (!$response instanceof ViewResponse || $response->status() !== HttpStatusCode::Ok) {
-                    return sprintf(
-                        '%s is exported, and answers with a %d (%s) rather than a page with a 200 — a'
-                        . ' static host would serve whatever it wrote as one.',
-                        $path,
-                        $response->answer($request)->status()->value,
-                        new ReflectionClass($response)->getShortName(),
-                    );
+                    // A route behind a password lands here too: the export's request carries no
+                    // credential, so its answer is the 401, and a refusal written to a file would be
+                    // served to everyone as the page.
+                    if (!$response instanceof ViewResponse || $response->status() !== HttpStatusCode::Ok) {
+                        return sprintf(
+                            '%s is exported, and answers with a %d (%s) rather than a page with a 200 — a'
+                            . ' static host would serve whatever it wrote as one.',
+                            $path,
+                            $response->answer($request)->status()->value,
+                            new ReflectionClass($response)->getShortName(),
+                        );
+                    }
+
+                    $file = self::pageFile($path);
+
+                    if ($file === null) {
+                        return sprintf(
+                            '%s has a segment that decodes to nothing, to a dot segment, or to a slash, so no'
+                            . ' static host could serve it from a file.',
+                            $path,
+                        );
+                    }
+
+                    if (isset($pages[$file])) {
+                        return sprintf('%s and %s would both be written to %s.', $pages[$file][0], $path, $file);
+                    }
+
+                    $pages[$file] = [$path, $response->render($request)];
                 }
-
-                $file = self::pageFile($path);
-
-                if ($file === null) {
-                    return sprintf(
-                        '%s has a segment that decodes to nothing, to a dot segment, or to a slash, so no'
-                        . ' static host could serve it from a file.',
-                        $path,
-                    );
-                }
-
-                if (isset($pages[$file])) {
-                    return sprintf('%s and %s would both be written to %s.', $pages[$file][0], $path, $file);
-                }
-
-                $pages[$file] = [$path, $response->render($request)];
             }
         }
 
@@ -478,7 +488,11 @@ final readonly class Export implements Command
             $names[] = $name;
         }
 
-        return implode('/', $names) . '.html';
+        $file = implode('/', $names);
+
+        // A language's own address already ends in the extension — `rules.de.html` — and is written
+        // under its own name, which is the name a static host looks for.
+        return str_ends_with($file, '.html') ? $file : $file . '.html';
     }
 
     /**

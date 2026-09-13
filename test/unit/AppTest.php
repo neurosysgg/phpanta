@@ -423,6 +423,18 @@ final class AppTest extends TestCase
     }
 
     /**
+     * An app that does not say otherwise keeps every language at the page's one address, so a site
+     * served only by PHP never meets `/x.de.html` — negotiation by cookie and browser is the default,
+     * and addresses of their own are what an app exported to a static host opts into.
+     *
+     * @return void
+     */
+    public function testEveryLanguageSharesOneAddressUnlessTheAppSaysOtherwise(): void
+    {
+        self::assertSame(\Phpanta\Text\LanguageAddresses::Shared, self::other()->languageAddresses());
+    }
+
+    /**
      * An app that is not the booted one, for the refusals above. Constructing one is allowed — it is
      * booting it that is not.
      *

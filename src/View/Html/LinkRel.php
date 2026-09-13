@@ -51,6 +51,9 @@ enum LinkRel: string
     /** Says out loud that the link leaves this site. */
     case External = 'external';
 
+    /** The same page in another language, named by the link's `hreflang`. */
+    case Alternate = 'alternate';
+
     /**
      * Several relationships as one attribute value: `noopener noreferrer external`.
      *

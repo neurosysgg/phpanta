@@ -19,6 +19,7 @@ enum HtmlAttribute: string implements AttributeName
     case Title     = 'title';
 
     case Href   = 'href';
+    case HrefLang = 'hreflang';
     case Src    = 'src';
     case Rel    = 'rel';
     case Target = 'target';

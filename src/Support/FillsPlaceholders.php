@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Phpanta\Support;
 
+use Phpanta\App;
 use Phpanta\Exception\RouteException;
+use Phpanta\Text\Language;
+use Phpanta\Text\LocalisedAddress;
 
 /**
  * The FillsPlaceholders trait. {@link Path::to()}, written once for every vocabulary of paths.
@@ -84,5 +87,35 @@ trait FillsPlaceholders
             },
             $this->value,
         );
+    }
+
+    /**
+     * This path, as a link that leads to the page in the language it is rendered in.
+     *
+     * An `href` value, resolved like translated text in the nearest `lang`: `/rules.de.html` on the
+     * German page of an app whose languages have addresses of their own, and `/rules` wherever they
+     * share one. See {@link \Phpanta\Text\LanguageAddresses}.
+     *
+     * @param string|int ...$values One per placeholder, as {@link self::to()} takes them.
+     * @return LocalisedAddress
+     * @throws RouteException as {@link self::to()} does.
+     */
+    public function inEachLanguage(string|int ...$values): LocalisedAddress
+    {
+        return new LocalisedAddress($this->to(...$values));
+    }
+
+    /**
+     * This path in $language — for the one link that names a language rather than following the
+     * page it is on. A language switch is one, and so is an alternate link with an `hreflang`.
+     *
+     * @param Language $language
+     * @param string|int ...$values One per placeholder, as {@link self::to()} takes them.
+     * @return string
+     * @throws RouteException as {@link self::to()} does.
+     */
+    public function inLanguage(Language $language, string|int ...$values): string
+    {
+        return App::current()->languageAddresses()->address($this->to(...$values), $language);
     }
 }

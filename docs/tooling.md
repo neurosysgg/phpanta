@@ -118,6 +118,10 @@ point for, because the booted app is all it needs.
     for a file: `/pages/caf%C3%A9` becomes `pages/café.html`.
   - **Some paths are refused**: a segment that decodes to nothing, to `.` or `..`, or to something
     holding a slash, and a routed `/404`, which would fight the not-found page for its file.
+  - **An app whose languages have addresses of their own gets each page once more per language**:
+    `rules.en.html` and `rules.de.html` beside `rules.html`, and `index.de.html` for the root, each
+    rendered for the address it is written at, so it is in that language and its links are too.
+    `rules.html` stays the default language's way in. See [language.md](language.md#addresses-in-each-language).
 - **It exports the prod tree by default.** It exports `build/dist/public/`, and loads `build/dist/`'s
   manifest before anything can autoload the working tree's, so every page names the bundled assets
   it ships with. `--debug` exports `public/` as it stands.

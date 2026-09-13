@@ -823,4 +823,38 @@ final class RequestTest extends TestCase
         self::assertSame($from, $this->request(['REQUEST_URI' => '/', 'HTTP_REFERER' => $from])->referer());
         self::assertSame('', $this->request(['REQUEST_URI' => '/'])->referer());
     }
+
+    /**
+     * In an app whose languages have addresses of their own — the booted TestApp's — an address that
+     * names its language is its page in that language, outranking the cookie and the browser, while
+     * the target a redirect is built from keeps the address as it was asked.
+     *
+     * @return void
+     */
+    public function testAnAddressThatNamesItsLanguageIsItsPageInThatLanguage(): void
+    {
+        $german = $this->request([
+            'REQUEST_URI'          => '/rules.de.html?x=1',
+            'HTTP_COOKIE'          => 'lang=en',
+            'HTTP_ACCEPT_LANGUAGE' => 'en',
+        ]);
+
+        self::assertSame('/rules', $german->path());
+        self::assertSame(Language::German, $german->language());
+        self::assertSame('/rules.de.html?x=1', $german->canonicalTarget());
+
+        self::assertSame('/', $this->request(['REQUEST_URI' => '/index.de.html'])->path());
+
+        // A language the app does not offer names no page: the path stays what it was, the 404 it was.
+        $french = $this->request(['REQUEST_URI' => '/rules.fr.html', 'HTTP_ACCEPT_LANGUAGE' => 'de']);
+
+        self::assertSame('/rules.fr.html', $french->path());
+        self::assertSame(Language::German, $french->language());
+
+        // The export's own request: the address it is written at decides, not what it asks for.
+        $exported = Request::synthetic('/rules.en.html', Language::German);
+
+        self::assertSame('/rules', $exported->path());
+        self::assertSame(Language::English, $exported->language());
+    }
 }

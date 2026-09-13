@@ -37,6 +37,7 @@ use Phpanta\Support\File;
 use Phpanta\Support\MethodPolicy;
 use Phpanta\Support\RequirementInitialization;
 use Phpanta\Support\Route;
+use Phpanta\Text\LanguageAddresses;
 use Phpanta\Text\Languages;
 use Phpanta\View\FaultPage;
 use Phpanta\View\Html\Vocabulary;
@@ -259,6 +260,22 @@ abstract class App
     public function permissionsPolicy(): PermissionsPolicy
     {
         return PermissionsPolicy::denyAll();
+    }
+
+    /**
+     * Whether each language has an address of its own — {@link LanguageAddresses::Shared}, by
+     * default, where every language is at the page's one address and the request chooses.
+     *
+     * A site exported to a static host, which cannot choose, says
+     * {@link LanguageAddresses::Suffixed}: `/rules.de.html` is then `/rules` in German, the export
+     * writes each page at each language's address, and a link built with `inEachLanguage()` leads to
+     * the page in the language it was rendered in. See docs/language.md.
+     *
+     * @return LanguageAddresses
+     */
+    public function languageAddresses(): LanguageAddresses
+    {
+        return LanguageAddresses::Shared;
     }
 
     /**

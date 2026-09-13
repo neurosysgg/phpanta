@@ -18,6 +18,7 @@ use Phpanta\Support\Directory;
 use Phpanta\Support\Route;
 use Phpanta\Test\TestApp;
 use Phpanta\Text\Language;
+use Phpanta\Text\LanguageAddresses;
 use Phpanta\Text\Languages;
 use Phpanta\Text\Translatable;
 use Phpanta\Text\Verbatim;
@@ -82,6 +83,49 @@ final class ExportTest extends TestCase
         );
         self::assertFileExists("$this->scratch/out/404.html");
         self::assertFileExists("$this->scratch/out/.phpanta-export");
+    }
+
+    /**
+     * An app whose languages have addresses of their own is written once more at each: the plain
+     * file is the default language's, byte for byte, every other file names its language, and a link
+     * written once leads to the file in the language of the page it is on — which the export's own
+     * check resolves, or it would fail.
+     *
+     * @return void
+     */
+    public function testEachLanguageIsWrittenAtItsOwnAddress(): void
+    {
+        $link  = new Element(HtmlTag::A)
+            ->attr(HtmlAttribute::Href, ExportFixturePath::Guide->inEachLanguage())
+            ->containing('guide');
+        $home  = new Route(
+            ExportFixturePath::Home,
+            static fn(): Controller => self::controller(self::view('Home', $link)),
+        );
+        $guide = new Route(ExportFixturePath::Guide, static fn(): Controller => self::controller(self::view('Guide')));
+
+        [$code, $error] = $this->export(
+            [$home, $guide],
+            languages: new Languages(Language::English, Language::German),
+            addresses: LanguageAddresses::Suffixed,
+        );
+
+        self::assertSame(ExitCode::Success, $code, $error);
+
+        foreach (['index', 'index.en', 'index.de', 'guide', 'guide.en', 'guide.de', '404'] as $name) {
+            self::assertFileExists("$this->scratch/out/$name.html");
+        }
+
+        self::assertFileEquals("$this->scratch/out/index.en.html", "$this->scratch/out/index.html");
+
+        $german = (string) file_get_contents("$this->scratch/out/index.de.html");
+
+        self::assertStringContainsString('<html lang="de">', $german);
+        self::assertStringContainsString('href="/guide.de.html"', $german);
+        self::assertStringContainsString(
+            'href="/guide.en.html"',
+            (string) file_get_contents("$this->scratch/out/index.html"),
+        );
     }
 
     /**
@@ -314,14 +358,21 @@ final class ExportTest extends TestCase
      * @param list<Route>       $routes
      * @param list<string>|null $arguments The command line; by default the debug tree into `out/`.
      * @param string|null       $script
+     * @param Languages|null    $languages The app's, English alone where none are given.
+     * @param LanguageAddresses $addresses
      * @return array{ExitCode, string} The status, and what it wrote to standard error.
      */
-    private function export(array $routes, ?array $arguments = null, ?string $script = null): array
-    {
+    private function export(
+        array $routes,
+        ?array $arguments = null,
+        ?string $script = null,
+        ?Languages $languages = null,
+        LanguageAddresses $addresses = LanguageAddresses::Shared,
+    ): array {
         $error = fopen('php://memory', 'r+');
 
         $code = Runner::execute(
-            new Export(self::appAt($this->scratch, $routes)),
+            new Export(self::appAt($this->scratch, $routes, $languages, $addresses)),
             $arguments ?? ['--out', "$this->scratch/out", '--debug'],
             new Output(fopen('php://memory', 'r+'), $error),
             $script,
@@ -335,18 +386,30 @@ final class ExportTest extends TestCase
     /**
      * An app deployed at $root whose routes are $routes, with a not-found page an export can write.
      *
-     * @param string      $root
-     * @param list<Route> $routes
+     * @param string            $root
+     * @param list<Route>       $routes
+     * @param Languages|null    $languages English alone, where none are given.
+     * @param LanguageAddresses $addresses
      * @return App
      */
-    public static function appAt(string $root, array $routes): App
-    {
+    public static function appAt(
+        string $root,
+        array $routes,
+        ?Languages $languages = null,
+        LanguageAddresses $addresses = LanguageAddresses::Shared,
+    ): App {
         $app = new class () extends App {
             /** Where the deployment is. */
             public string $root = '';
 
             /** @var list<Route> */
             public array $table = [];
+
+            /** The languages it offers, or null for English alone. */
+            public ?Languages $offered = null;
+
+            /** Whether each language has an address of its own. */
+            public LanguageAddresses $addresses = LanguageAddresses::Shared;
 
             /** @return string */
             public function name(): string
@@ -378,7 +441,13 @@ final class ExportTest extends TestCase
             /** @return Languages */
             public function languages(): Languages
             {
-                return new Languages(Language::English);
+                return $this->offered ?? new Languages(Language::English);
+            }
+
+            /** @return LanguageAddresses */
+            public function languageAddresses(): LanguageAddresses
+            {
+                return $this->addresses;
             }
 
             /** @return Shell */
@@ -406,8 +475,10 @@ final class ExportTest extends TestCase
             }
         };
 
-        $app->root  = $root;
-        $app->table = $routes;
+        $app->root      = $root;
+        $app->table     = $routes;
+        $app->offered   = $languages;
+        $app->addresses = $addresses;
 
         return $app;
     }

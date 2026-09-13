@@ -21,11 +21,14 @@ default. `TestApp` offers `new Languages(Language::English, Language::German)`. 
 offered once, and offering one twice is refused. `Request::language()` answers, and it is asked once
 per request:
 
-1. the **`lang` cookie** (`CookieName::Language`), where it names a language the app offers. That
-   is a choice made on this site;
-2. else **`Accept-Language`**, through `AcceptedLanguages`, among the languages offered. That is a
+1. the **address**, in an app whose languages have addresses of their own: `/rules.de.html` is
+   `/rules` in German, and a link to the German page is the most specific thing anybody can ask for
+   — see [below](#addresses-in-each-language);
+2. else the **`lang` cookie** (`CookieName::Language`), where it names a language the app offers.
+   That is a choice made on this site;
+3. else **`Accept-Language`**, through `AcceptedLanguages`, among the languages offered. That is a
    setting made once for every site;
-3. else the app's **default**, on a tie or when the header names none of them.
+4. else the app's **default**, on a tie or when the header names none of them.
 
 A cookie naming anything else is no choice at all, and falls through. That covers `lang=xx`, and
 equally `lang=fr` on an app that does not write French, even though the framework knows the language
@@ -40,6 +43,35 @@ exists. `Languages::tryFrom()` answers only for what is offered.
 Every page is written in the language those two headers decide, so a cache that was not told could
 hand one visitor another visitor's page. The ETag is the second guard, because two languages are two
 bodies.
+
+## Addresses in each language
+
+A server can answer one address in whichever language each visitor asks for, and say so with
+`Vary`. A static host cannot: it serves files, and a file is in one language. An app that is also
+exported gives each language an address of its own:
+
+```php
+public function languageAddresses(): LanguageAddresses
+{
+    return LanguageAddresses::Suffixed;   // Shared, every language at one address, is the default
+}
+```
+
+- **Each language gets an address that names it** — `/rules.de.html`, and `/index.de.html` for the
+  root — as `LanguageAddress` spells it. `Request::path()` is the page without the suffix, so no
+  route and no controller knows the difference, and the language the address names outranks the
+  cookie and the browser. A tag the app does not offer names no language: `/rules.fr.html` is the
+  404 it would have been. `canonicalTarget()` keeps the address as it was asked.
+- **A link written once follows the page's language.** `DocsPath::Rules->inEachLanguage()` is an
+  `href` value resolved the way translated text is, in the nearest `lang`: `/rules.de.html` on the
+  German page. In a `Shared` app it is plainly `/rules`, which is right there too.
+  `->inLanguage(Language::German)` names one language, for the links that must: a language switch,
+  a `<link rel="alternate" hreflang>`.
+- **The export writes each page once more at each language's address**: `rules.html`, the default
+  language's plain way in, then `rules.en.html` and `rules.de.html`. `404.html` stays in the default
+  language.
+- **The plain address still negotiates** on a server, exactly as in a `Shared` app. Only a static host
+  needs the page itself to choose, which the client does — see [frontend.md](frontend.md).
 
 ## How a word finds its language
 

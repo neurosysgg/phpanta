@@ -11,6 +11,7 @@ export enum HtmlAttribute {
   Lang      = 'lang',
   Title     = 'title',
   Href      = 'href',
+  HrefLang  = 'hreflang',
   Src       = 'src',
   Rel       = 'rel',
   Target    = 'target',

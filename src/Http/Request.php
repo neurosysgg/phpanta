@@ -10,6 +10,7 @@ use Phpanta\Exception\TooLargeException;
 use Phpanta\Support\Diagnostics;
 use Phpanta\Support\File;
 use Phpanta\Text\Language;
+use Phpanta\Text\LanguageAddress;
 use Uri\Rfc3986\Uri;
 
 /**
@@ -322,11 +323,12 @@ readonly class Request
      */
     public function isReadOnly(): bool     { return $this->method?->isReadOnly() ?? false; }
     /**
-     * Returns the normalized request path without trailing slash.
+     * Returns the normalized request path without trailing slash — and, in an app whose languages
+     * have addresses of their own, without the language: `/rules.de.html` is the page `/rules`.
      *
      * @return string
      */
-    public function path(): string         { return $this->path; }
+    public function path(): string         { return $this->addressed()?->page ?? $this->path; }
     /**
      * Returns true if the request was made via XMLHttpRequest.
      *
@@ -724,8 +726,10 @@ readonly class Request
     /**
      * The language this request is answered in.
      *
-     * **The visitor's own choice first, then their browser's, then the app's.** A `lang` cookie
-     * naming a language the app offers is a choice somebody made on this site, so it outranks
+     * **An address that names its language first, then the visitor's own choice, then their
+     * browser's, then the app's.** `/rules.de.html`, in an app whose languages have addresses of
+     * their own, is the most specific thing anybody can ask for: a link to the German page. A `lang`
+     * cookie naming a language the app offers is a choice somebody made on this site, so it outranks
      * `Accept-Language`, which is a setting they made once for every site. With neither, the answer
      * is the app's default — the first of {@link \Phpanta\App::languages()}. A cookie naming
      * anything else — `lang=xx`, or a language the framework knows and the app does not offer —
@@ -740,7 +744,22 @@ readonly class Request
     {
         $languages = App::current()->languages();
 
-        return $languages->tryFrom($this->cookies()->value(CookieName::Language) ?? '')
+        return $this->addressed()?->language
+            ?? $languages->tryFrom($this->cookies()->value(CookieName::Language) ?? '')
             ?? $languages->preferredBy($this->acceptedLanguages());
+    }
+
+    /**
+     * The page and language this request's own path names, where the app gives languages addresses
+     * of their own and the path is one — see {@link \Phpanta\Text\LanguageAddresses}.
+     *
+     * Read from the raw path, so {@link self::canonicalTarget()}, which keeps it, still redirects
+     * `/rules.de.html/` to `/rules.de.html` rather than to the page without its language.
+     *
+     * @return LanguageAddress|null
+     */
+    private function addressed(): ?LanguageAddress
+    {
+        return App::current()->languageAddresses()->read($this->path, App::current()->languages());
     }
 }

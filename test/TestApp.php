@@ -14,6 +14,7 @@ use Phpanta\Support\Collection;
 use Phpanta\Support\Directory;
 use Phpanta\Support\Route;
 use Phpanta\Text\Language;
+use Phpanta\Text\LanguageAddresses;
 use Phpanta\Text\Languages;
 use Phpanta\View\Html\Document;
 use Phpanta\View\Html\Element;
@@ -75,6 +76,18 @@ final class TestApp extends App implements Shell
     public function languages(): Languages
     {
         return new Languages(Language::English, Language::German);
+    }
+
+    /**
+     * Each language at an address of its own, so the suite runs the one mode whose every line is
+     * something to assert: `/x.de.html` is `/x` in German. No test here asks for such a path unless
+     * it means to.
+     *
+     * @return LanguageAddresses
+     */
+    public function languageAddresses(): LanguageAddresses
+    {
+        return LanguageAddresses::Suffixed;
     }
 
     /**
