@@ -83,7 +83,9 @@ final readonly class UpdateReport
      * running out of, makes the NFS client silly-rename the open inode aside as `.nfsXXXXXXXX`
      * rather than unlinking it. That stray then reads as surplus to the mirror in the same request
      * and cannot be deleted, because the handle keeping it alive is ours. One push, one undeletable
-     * file in the webroot, one spurious failure. Measured, not reasoned about.
+     * file in the webroot, one spurious failure. Measured, not reasoned about. The mirror now reports
+     * a stray as a note rather than a failure ({@link \Phpanta\Service\UpdateApplier::NFS_STRAY}),
+     * but leaving an unchanged file alone is still what keeps one from appearing at all.
      *
      * @param string $path
      * @return self

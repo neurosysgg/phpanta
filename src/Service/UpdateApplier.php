@@ -31,10 +31,12 @@ use Phpanta\Support\TarEntry;
  * checked in memory first, so a payload with one bad name writes nothing at all rather than the
  * files that happened to come before it. That is affordable because the payload is small — a few
  * hundred kilobytes compressed, under a megabyte expanded, against {@link self::MAX_EXPANDED} — and
- * it is why there is no staging directory: staging exists to make a half-run recoverable, and a run
- * that cannot start half-way needs no recovery. It would also have cost something real, since
- * {@link Directory::temporary()} lives under `sys_get_temp_dir()` and a `rename()` across
- * filesystems fails outright.
+ * it is why there is no staging directory yet: staging exists to make a half-run recoverable, and a
+ * run that cannot *start* half-way needs no recovery. One can still *end* half-way — a write that
+ * fails after others landed — and a tree staged beside the live one and swapped in would close that
+ * too. What a swap needs of the host's filesystem (a directory renamed with a file open inside it,
+ * the moment two renames leave a name empty, whether `sys_get_temp_dir()` is even the same device)
+ * is what {@link FilesystemProbe} measures, so the question is open rather than settled.
  *
  * **Each file lands through {@link File::write()}**, which already writes beside the target and
  * renames over it. Every file therefore appears atomically and always within one filesystem, and
@@ -84,6 +86,20 @@ final readonly class UpdateApplier
      * why nothing downstream needs one.
      */
     private const string SAFE_NAME = '#\A[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*\z#';
+
+    /**
+     * The name the Linux NFS client gives a file it renamed aside: `.nfs`, then 24 hexadecimal
+     * digits — the inode's file id and a counter.
+     *
+     * **That name is the client's, not the site's.** It appears when a file some process still holds
+     * open is renamed over or unlinked, lives exactly as long as the handle does, and is removed by
+     * the client itself when the handle closes. So a push neither writes nor deletes one as its own:
+     * {@link self::rooted()} refuses the name in a payload, the mirror leaves it out of what is
+     * surplus, and {@link self::mirror()} tries it once on the way past and says in a note what came
+     * of that — never a failure, since what holds it is a worker the push cannot reach. Public for
+     * {@link FilesystemProbe}, which counts them.
+     */
+    public const string NFS_STRAY = '#\A\.nfs[0-9a-f]{24}\z#';
 
     /** ustar's own limit, and a bound on how deep any of this can go. */
     private const int MAX_NAME = 255;
@@ -437,6 +453,16 @@ final readonly class UpdateApplier
             if ($segment === '.' || $segment === '..') {
                 throw new UpdateException(sprintf("%s holds '%s', which walks the tree", $holder, $name));
             }
+
+            // The mirror's rule turned round: a name the mirror will not delete as surplus is one no
+            // payload may write, or a push could plant a file the next one could never take away.
+            if (preg_match(self::NFS_STRAY, $segment) === 1) {
+                throw new UpdateException(sprintf(
+                    "%s holds '%s', whose name is the one the NFS client gives a file it renamed aside",
+                    $holder,
+                    $name,
+                ));
+            }
         }
 
         $root = UpdateRoot::of($name);
@@ -746,6 +772,9 @@ final readonly class UpdateApplier
      * same bytes, not touched, not chmodded. Permissions are not reconciled, deliberately: matching
      * content means a previous push wrote it, and `rsync` without `-p` makes exactly this trade.
      *
+     * A file that *did* change is still rewritten under whoever holds it, so a stray can still
+     * appear; what the mirror does with one is {@link self::NFS_STRAY}'s to say.
+     *
      * @param UpdateFile $file
      * @param Deployment $deployment
      * @return bool
@@ -781,11 +810,44 @@ final readonly class UpdateApplier
                     ? $report->removed($name)
                     : $report->failed($name, 'could not be removed');
             }
+
+            foreach ($this->straysIn($root, $deployment) as $stray) {
+                $name   = $deployment->nameOf($root, $stray->path);
+                $report = $report->noted($stray->delete()
+                    ? sprintf('%s, a file the NFS client had renamed aside, was let go and is removed', $name)
+                    : sprintf(
+                        '%s is a file the NFS client renamed aside, still held open by a running worker; '
+                        . 'it goes when the worker lets go, or over the mount, and is never served meanwhile',
+                        $name,
+                    ));
+            }
         }
 
         $this->sweep($files, $deployment);
 
         return $report;
+    }
+
+    /**
+     * The files under $root the NFS client renamed aside — see {@link self::NFS_STRAY}.
+     *
+     * @param UpdateRoot $root
+     * @param Deployment $deployment
+     * @return Collection<File>
+     */
+    private function straysIn(UpdateRoot $root, Deployment $deployment): Collection
+    {
+        $directory = $deployment->directory($root);
+        $strays    = new Collection(File::class);
+
+        // The single-file root has no directory to hold a stray, and a tree not deployed yet has none.
+        foreach ($directory?->exists() === true ? $this->walk($directory) : [] as $path) {
+            if (preg_match(self::NFS_STRAY, basename($path)) === 1) {
+                $strays = $strays->with(new File($path));
+            }
+        }
+
+        return $strays;
     }
 
     /**
@@ -857,7 +919,14 @@ final readonly class UpdateApplier
             // this name here — it could not, these are files already on disk — but because a name
             // this class would refuse to *write* is one it must refuse to *delete*. That symmetry
             // is what keeps the mirror from being a second, weaker path to unlink().
-            if (!isset($packed[$name]) && preg_match(self::SAFE_NAME, $name) === 1) {
+            //
+            // A stray the NFS client left is not surplus either: it is not the site's to record or
+            // count, and mirror() deals with it apart — see NFS_STRAY.
+            if (
+                !isset($packed[$name])
+                && preg_match(self::SAFE_NAME, $name) === 1
+                && preg_match(self::NFS_STRAY, basename($path)) !== 1
+            ) {
                 $surplus[] = $name;
             }
         }

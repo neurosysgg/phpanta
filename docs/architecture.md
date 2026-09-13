@@ -437,7 +437,7 @@ Twenty-two classes — one of them abstract — and one interface, read from `sr
 | `SiteException` | `Throwable` — the marker, an interface | — | — |
 | `AppException` | `LogicException` | no app is booted, the booted one is not the class asked for, or a second is booted; a sitemap is asked of an app with no origin | `App`, `Sitemap` |
 | `ApiException` | `RuntimeException` | a signed request cannot be read or trusted | `ApiCredential`, `ApiEnvelope` |
-| ` └ UpdateException` | `ApiException` | a payload cannot be read or applied; a webroot cannot be resolved; a previous release cannot be recorded or put back | `App::webroot()`, `PublicKey`, `TarArchive`, `UpdateApplier`, `UpdateManifest`, `ReleaseRecord`, `PreviousRelease`, `RecordEntry`, `RollbackManifest` |
+| ` └ UpdateException` | `ApiException` | a payload cannot be read or applied; a webroot cannot be resolved; a previous release cannot be recorded or put back | `App::webroot()`, `PublicKey`, `TarArchive`, `UpdateApplier`, `UpdateManifest`, `ReleaseRecord`, `PreviousRelease`, `RecordEntry`, `ApplyManifest` |
 | `CollectionException` | `TypeError` | a collection is asked to hold or produce the wrong type | `TypedItems` |
 | `DatabaseException` | `RuntimeException` | a database cannot be opened, or a file opened as one is not one | `Database` |
 | `FormException` | `LogicException` | a form is declared with what it cannot be, or asked for another form's field | `Form`, `Submission`, `MaxLength`, `MaxBytes`, `OneOf` |

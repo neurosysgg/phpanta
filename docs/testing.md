@@ -26,13 +26,13 @@ an app:
   paths the framework derives from an app then have somewhere real to land, and never land in a
   repository.
 
-`test/unit/` holds fifty-two test classes, grouped by area:
+`test/unit/` holds fifty-three test classes, grouped by area:
 
 | Area | Tests |
 |---|---|
 | the app | `AppTest` (booting, what it derives, every `webroot()` refusal), `FaultTest` (who is told how a request broke) |
 | the API | `ApiTest` (the endpoint, its gate and its three services), `ApiClientTest` (signing against the real gate), `ApiCallTest`, `ApiTargetTest` |
-| the push | `PushUpdateTest`, `FrameworkCheckoutTest`, `TarWriterTest`, `UpdateTest`, `RollbackTest` (what a push records of the release it replaces, and putting it back — or refusing to, once the deployment has moved on) |
+| the push | `PushUpdateTest`, `FrameworkCheckoutTest`, `TarWriterTest`, `UpdateTest`, `RollbackTest` (what a push records of the release it replaces, and putting it back — or refusing to, once the deployment has moved on), `ProbeTest` (what the deployment's filesystem lets a push do, measured and taken away again) |
 | health and capability | `HealthTest`, `RequirementTest`, `CapabilityTest` |
 | HTTP | `AnswerTest` (every answer, end to end, through `TestRequest`), `ResponseTest`, `RevalidationTest`, `FileResponseTest` (ranges and their headers), `JsonResponseTest` (the encoding's flags, a value that cannot encode), `StreamResponseTest` (chunks made at send time, never for a HEAD), `MimeTypeTest`, `RequestTest`, `InputTest` (the query and the form, by parameter and by type — and the API reading neither), `UploadTest` (a file kept, refused by whose fault it was, a 413, and kept into place or left where it was), `SecurityHeadersTest`, `SecurityPolicyTest`, `SyntheticPageTest`, `SitemapTest` (every exported page, absolute, and no sitemap without an origin) |
 | forms | `FormTest` (fields, rules, files, a submission read and refused, the form re-rendered with what was entered and its errors) |
@@ -126,8 +126,8 @@ Two rules, the same as in any suite built on this one:
 - **Uncovered lines are a decision, not a budget.** A change that adds a guard covers it in the same
   commit. A guard no test can reach is deleted rather than covered by reflection.
 
-**The framework's suite alone covers nearly all of `src/`'s lines.** The figure was 99.26%
-(3515 of 3541) when last derived on 2026-09-13, with `pdo_sqlite` loaded; without it the database
+**The framework's suite alone covers nearly all of `src/`'s lines.** The figure was 99.30%
+(3697 of 3723) when last derived on 2026-09-13, with `pdo_sqlite` loaded; without it the database
 tests skip and `Data/` reads as untested. Re-derive it
 with `XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-text` rather than trusting this.
 

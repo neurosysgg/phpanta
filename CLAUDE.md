@@ -141,8 +141,11 @@ These fail silently — no error, no log, a page that looks fine.
 - A push packs `phpanta/` out of the working tree, so `push-update` refuses a framework that is not
   checked out, has changes that are not committed, or is not the commit the site's `HEAD` records.
   `--any-framework` is the deliberate way past; a copied-in `phpanta/` has nothing to compare and passes.
-- Rewriting a file the request is executing makes NFS silly-rename it into an undeletable
-  `.nfsXXXXXXXX`; a push leaves byte-identical files untouched for that reason.
+- Rewriting a file the request is executing makes NFS silly-rename it into an `.nfsXXXXXXXX` that
+  lives as long as the handle; a push leaves byte-identical files untouched for that reason. The name
+  is the client's: no payload may carry it, and the mirror notes a stray rather than failing on it.
+- `update v1 probe` measures what the deployment's filesystem lets a push do, in a scratch directory
+  beside the roots it removes again. It is a write — the lock and a serial — and answers facts only.
 - A health check **returns** its 503, and `Requirement::check()` never throws.
 - **`data/session.key` is per deployment and never ships.** Nothing asks for it until something keeps
   a session; then its absence is a loud refusal, never a session sealed under something made up. A

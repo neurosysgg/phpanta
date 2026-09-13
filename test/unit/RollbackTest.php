@@ -13,11 +13,11 @@ use Phpanta\Http\PlainTextResponse;
 use Phpanta\Http\TextBody;
 use Phpanta\Model\Api\ApiEnvelope;
 use Phpanta\Model\Api\VerifiedRequest;
+use Phpanta\Model\Update\ApplyManifest;
 use Phpanta\Model\Update\Deployment;
 use Phpanta\Model\Update\PreviousRelease;
 use Phpanta\Model\Update\RecordEntry;
 use Phpanta\Model\Update\RecordKind;
-use Phpanta\Model\Update\RollbackManifest;
 use Phpanta\Model\Update\RollbackStep;
 use Phpanta\Model\Update\UpdateFile;
 use Phpanta\Model\Update\UpdateManifest;
@@ -65,7 +65,7 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(RecordEntry::class)]
 #[CoversClass(RecordKind::class)]
 #[CoversClass(RollbackStep::class)]
-#[CoversClass(RollbackManifest::class)]
+#[CoversClass(ApplyManifest::class)]
 #[CoversClass(UpdateRollback::class)]
 #[CoversClass(UpdatePatch::class)]
 #[CoversClass(UpdateAction::class)]
@@ -144,6 +144,33 @@ final class RollbackTest extends TestCase
 
         clearstatcache();
         self::assertSame($stamp, filemtime($this->web()->file('same.txt')->path), 'an unchanged file was rewritten');
+    }
+
+    /**
+     * A stray the NFS client left is never recorded, so no rollback can bring one back.
+     *
+     * @return void
+     */
+    public function testAnNfsStrayIsNeverRecorded(): void
+    {
+        $this->plantTheFirstRelease();
+        self::assertTrue($this->web()->file('.nfs00000000bd2dac2512228f60')->write('an old inode'));
+
+        $report = $this->pushTheSecondRelease();
+
+        self::assertTrue($report->isComplete(), $report->render());
+        self::assertSame(
+            ['changed public/other.bin', 'added public/assets/fresh.js', 'deleted public/old/gone.js'],
+            self::kinds($this->record()->read()),
+        );
+
+        (void) $this->applier()->rollback(true);
+
+        self::assertFalse(
+            $this->web()->file('.nfs00000000bd2dac2512228f60')->exists(),
+            'a rollback brought a stray back',
+        );
+        $this->assertTheFirstReleaseIsLive();
     }
 
     /**
@@ -475,7 +502,7 @@ final class RollbackTest extends TestCase
         // Something in the way of the directory the mirror swept.
         self::assertTrue($this->web()->file('old')->write('in the way'));
 
-        $response = new UpdateRollback(RollbackManifest::parse('{"apply":true}'), $this->applier())->handle();
+        $response = new UpdateRollback(ApplyManifest::parse('{"apply":true}', 'rollback'), $this->applier())->handle();
         $body     = UpdateFixture::bodyOf($response);
 
         self::assertSame(HttpStatusCode::InternalServerError, UpdateFixture::statusOf($response));
@@ -1123,7 +1150,7 @@ final class RollbackTest extends TestCase
     {
         $this->expectException(UpdateException::class);
 
-        RollbackManifest::parse($json);
+        ApplyManifest::parse($json, 'rollback');
     }
 
     /**
@@ -1147,11 +1174,14 @@ final class RollbackTest extends TestCase
         $this->plantTheFirstRelease();
         (void) $this->pushTheSecondRelease();
 
-        $dry = new UpdateRollback(RollbackManifest::parse('{"apply":false,"mirror":true}'), $this->applier())->handle();
+        $dry = new UpdateRollback(
+            ApplyManifest::parse('{"apply":false,"mirror":true}', 'rollback'),
+            $this->applier(),
+        )->handle();
         self::assertSame(HttpStatusCode::Ok, UpdateFixture::statusOf($dry));
         self::assertStringContainsString('dry run', UpdateFixture::bodyOf($dry));
 
-        $real = new UpdateRollback(RollbackManifest::parse('{"apply":true}'), $this->applier())->handle();
+        $real = new UpdateRollback(ApplyManifest::parse('{"apply":true}', 'rollback'), $this->applier())->handle();
         self::assertSame(HttpStatusCode::Ok, UpdateFixture::statusOf($real));
         self::assertStringContainsString('- public/assets/fresh.js', UpdateFixture::bodyOf($real));
         $this->assertTheFirstReleaseIsLive();

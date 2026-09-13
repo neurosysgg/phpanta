@@ -34,7 +34,7 @@ final readonly class UpdateManifest
     /**
      * The key of the field every write action carries: false for a dry run.
      *
-     * Public because {@link RollbackManifest} reads the same field, and one spelling of it in two
+     * Public because {@link ApplyManifest} reads the same field, and one spelling of it in two
      * classes is the drift the two-files clause of `GuidelineTest` exists to catch.
      */
     public const string APPLY = 'apply';

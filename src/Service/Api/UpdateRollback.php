@@ -9,7 +9,7 @@ use Phpanta\Http\Api\ApiHandler;
 use Phpanta\Http\HttpStatusCode;
 use Phpanta\Http\PlainTextResponse;
 use Phpanta\Http\Response;
-use Phpanta\Model\Update\RollbackManifest;
+use Phpanta\Model\Update\ApplyManifest;
 use Phpanta\Service\UpdateApplier;
 
 /**
@@ -27,13 +27,13 @@ final readonly class UpdateRollback implements ApiHandler
     /**
      * Constructs an instance of {@link self}.
      *
-     * @param RollbackManifest $manifest What this rollback asks for, read out of the signed bytes.
+     * @param ApplyManifest $manifest What this rollback asks for, read out of the signed bytes.
      * @param UpdateApplier|null $applier A test seam, the way {@link UpdatePatch}'s is. Production
      *                                    passes nothing, which resolves the live deployment.
      */
     public function __construct(
-        private RollbackManifest $manifest,
-        private ?UpdateApplier   $applier = null,
+        private ApplyManifest  $manifest,
+        private ?UpdateApplier $applier = null,
     ) {}
 
     /**

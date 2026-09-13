@@ -7,18 +7,19 @@ namespace Phpanta\Http\Api;
 use Phpanta\Exception\UpdateException;
 use Phpanta\Http\HttpMethod;
 use Phpanta\Model\Api\VerifiedRequest;
-use Phpanta\Model\Update\RollbackManifest;
+use Phpanta\Model\Update\ApplyManifest;
 use Phpanta\Model\Update\UpdateManifest;
 use Phpanta\Service\Api\UpdatePatch;
+use Phpanta\Service\Api\UpdateProbe;
 use Phpanta\Service\Api\UpdateRollback;
 use Phpanta\Service\Api\UpdateVersion;
 
 /**
  * The UpdateAction enum. What the `update` service can be asked to do.
  *
- * Three cases: send the tree, ask what is running — so that what is deployed is a question the
- * endpoint answers rather than something read off the asset URLs in the home page's markup — and
- * take the last push back.
+ * Four cases: send the tree, ask what is running — so that what is deployed is a question the
+ * endpoint answers rather than something read off the asset URLs in the home page's markup — take
+ * the last push back, and measure what the deployment's filesystem lets a push do.
  */
 enum UpdateAction: string implements ApiAction
 {
@@ -45,10 +46,19 @@ enum UpdateAction: string implements ApiAction
      * Put back the release the last push replaced, from the record that push took.
      *
      * A write with no body: everything it restores is already on the server, so what the signature
-     * covers is the request and its one field, `apply` — {@link RollbackManifest}'s. One step back
+     * covers is the request and its one field, `apply` — {@link ApplyManifest}'s. One step back
      * and no further; see {@link \Phpanta\Service\UpdateApplier::rollback()}.
      */
     case Rollback = 'rollback';
+
+    /**
+     * Measure what the deployment's filesystem lets a push do, in a scratch directory beside the
+     * roots, and take it away again.
+     *
+     * A write with no body, like a rollback: it creates and removes, so it takes the lock and spends
+     * a serial, and a dry run does neither. See {@link \Phpanta\Service\FilesystemProbe}.
+     */
+    case Probe = 'probe';
 
     /**
      * @return HttpMethod
@@ -59,6 +69,7 @@ enum UpdateAction: string implements ApiAction
             self::Patch    => HttpMethod::Post,
             self::Version  => HttpMethod::Get,
             self::Rollback => HttpMethod::Post,
+            self::Probe    => HttpMethod::Post,
         };
     }
 
@@ -67,7 +78,7 @@ enum UpdateAction: string implements ApiAction
      * @return ApiHandler
      *
      * @throws UpdateException if a patch's manifest is missing `apply` or `mirror`, or a rollback's
-     *                         is missing `apply`, or any of them is not a bool.
+     *                         or a probe's is missing `apply`, or any of them is not a bool.
      */
     public function handler(VerifiedRequest $verified): ApiHandler
     {
@@ -82,7 +93,8 @@ enum UpdateAction: string implements ApiAction
                 serial: $verified->envelope->serial,
             ),
             self::Version  => new UpdateVersion(),
-            self::Rollback => new UpdateRollback(RollbackManifest::parse($verified->manifest)),
+            self::Rollback => new UpdateRollback(ApplyManifest::parse($verified->manifest, $this->value)),
+            self::Probe    => new UpdateProbe(ApplyManifest::parse($verified->manifest, $this->value)),
         };
     }
 }

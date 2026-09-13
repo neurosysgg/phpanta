@@ -27,8 +27,8 @@ use Phpanta\Model\Api\ApiCredential;
 use Phpanta\Model\Api\ApiEnvelope;
 use Phpanta\Model\Api\SerialRefusal;
 use Phpanta\Model\Api\VerifiedRequest;
+use Phpanta\Model\Update\ApplyManifest;
 use Phpanta\Model\Update\Deployment;
-use Phpanta\Model\Update\RollbackManifest;
 use Phpanta\Router;
 use Phpanta\Service\Api\HealthCheck;
 use Phpanta\Service\Api\UpdatePatch;
@@ -91,7 +91,7 @@ use stdClass;
 #[CoversClass(UpdatePatch::class)]
 #[CoversClass(UpdateVersion::class)]
 #[CoversClass(UpdateRollback::class)]
-#[CoversClass(RollbackManifest::class)]
+#[CoversClass(ApplyManifest::class)]
 #[CoversClass(UpdateApplier::class)]
 #[CoversClass(ReleaseRecord::class)]
 #[CoversClass(Deployment::class)]
@@ -107,6 +107,7 @@ final class ApiTest extends TestCase
     private const string PATCH      = '/api/update/v1/patch';
     private const string VERSION    = '/api/update/v1/version';
     private const string ROLLBACK   = '/api/update/v1/rollback';
+    private const string PROBE      = '/api/update/v1/probe';
     private const string HEALTH     = '/api/health/v1/report';
     private const string CAPABILITY = '/api/capability/v1/extensions';
 
@@ -854,6 +855,52 @@ final class ApiTest extends TestCase
                 Deployment::current()->previousRelease()->exists(),
                 'a refused rollback created a record',
             );
+        } finally {
+            if ($previous === null) {
+                unset($_SERVER['DOCUMENT_ROOT']);
+            } else {
+                $_SERVER['DOCUMENT_ROOT'] = $previous;
+            }
+        }
+    }
+
+    /**
+     * A signed probe reaches its handler through the controller: POST only, a serial spent by a real
+     * one and not by a dry run, and the deployment exactly as it was afterwards.
+     *
+     * The deployment is `TestApp`'s fixture, for the rollback test's reason. The probe really runs
+     * there, in a directory it makes beside the fixture's roots and takes away again — which is the
+     * property worth asserting through the controller: that nothing is left behind in a deployment
+     * the probe was pointed at by nothing but the booted app.
+     *
+     * @return void
+     */
+    public function testAProbeIsASignedWriteThatLeavesNothingBehind(): void
+    {
+        $previous = $_SERVER['DOCUMENT_ROOT'] ?? null;
+        $above    = App::current()->above();
+        $_SERVER['DOCUMENT_ROOT'] = $above->path . '/public';
+        $before   = scandir($above->path);
+
+        try {
+            $wrongVerb = $this->respond(self::PROBE, HttpMethod::Get, '');
+            self::assertSame(HttpStatusCode::MethodNotAllowed, $wrongVerb->status());
+
+            $dryRun = $this->respond(self::PROBE, HttpMethod::Post, '', apply: false);
+            self::assertSame(HttpStatusCode::Ok, $dryRun->status());
+            self::assertStringContainsString('dry run', $dryRun->body());
+            self::assertNull($this->serialFile->read(), 'a probe dry run spent a serial');
+
+            $serial = time();
+            $real   = $this->respond(self::PROBE, HttpMethod::Post, '', serial: $serial);
+            self::assertSame(HttpStatusCode::Ok, $real->status(), $real->body());
+            self::assertMatchesRegularExpression('/^  left behind +nothing$/m', $real->body());
+            self::assertSame(
+                $serial,
+                (int) trim((string) $this->serialFile->read()),
+                'a probe did not spend its serial',
+            );
+            self::assertSame($before, scandir($above->path), 'the probe left something in the deployment');
         } finally {
             if ($previous === null) {
                 unset($_SERVER['DOCUMENT_ROOT']);

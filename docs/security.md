@@ -536,7 +536,11 @@ name writes nothing at all:
 Each file then lands through `File::write()`, which writes beside the target and renames over it, so
 every file appears atomically and within one filesystem. A file whose bytes are already there is
 left alone, because rewriting a file the request is executing makes NFS silly-rename it into an
-undeletable `.nfsXXXXXXXX`. The mirror that removes what a payload omits is an **enumerated
+`.nfsXXXXXXXX` that lives exactly as long as the handle holding it. **That name is the NFS client's,
+not the site's**: no payload may carry it, the mirror never counts one as surplus or records it,
+and on the way past it tries each stray once and says in a `note:` what came of that — removed, or
+still held by a worker — never a failure, since what holds it is a process the push cannot reach.
+The mirror that removes what a payload omits is an **enumerated
 delete**: the tree is walked, diffed, and each surplus path is checked by the same rules an added
 path passes before `File::delete()` is called on it, one named file at a time. `Directory::remove()`
 is never used for it — that method deletes the files a directory holds, which is right for tearing
@@ -587,6 +591,37 @@ restore landed — by `File::delete()`, one named path at a time, with `rmdir()`
 directories those removals emptied. A rollback that completes clears the record, so a second is a
 `422` saying there is nothing to roll back; one that fails partway keeps it, answers `500`, and can
 be run again. It is one step back and never two, because the record holds one release.
+
+### Measuring the host
+
+`update v1 probe` is the third action that writes, though all it leaves behind is nothing. Like a
+rollback it carries no body and one manifest field, `apply`. A real one takes the push's lock and
+spends a serial, so it never runs beside a push and a captured one cannot be replayed into a stream
+of directories on the server; a dry run only names the directory it would use.
+
+It works in `.update-probe-<pid>-<random>/` beside the roots in `App::above()` — the filesystem a
+push moves files on, which `sys_get_temp_dir()` may not be, and outside every root, so the mirror
+never walks it. What it measures is what a push that stages its tree and swaps it in would rest on,
+and none of it can be read off a shared host's manual:
+
+| Line | What it measures |
+|---|---|
+| `devices` | whether the webroot and `sys_get_temp_dir()` are on the deployment's device |
+| `free space` | what the filesystem says is free, and in all — perhaps the export's, not the account's quota |
+| `file rename` | a file renamed within a directory — what every push already does |
+| `directory rename` | a directory holding a file renamed, and how long it took |
+| `with a file open` | the same while a file inside is held open: whether the handle still reads, and how many `.nfs` strays appeared |
+| `over an open file` | a file renamed over one held open — a push rewriting `index.php` — counting strays while it is open and after it closes |
+| `onto an empty dir` · `onto a full dir` | a directory renamed onto an existing one, which POSIX allows only when that one is empty |
+| `swap window` | two directory renames, the live tree aside and the staged one in, and how long nothing was at the name |
+| `hard link` · `symbolic link` | whether either can be made there |
+| `left behind` | `nothing`, or the directory the host would not let go |
+
+**Every step answers and none throws**: a refusal is that step's answer, in PHP's own words, so a
+host that refuses half of it still reports the other half. Each step takes away what it made before
+the next begins — named paths, `unlink()` and `rmdir()`, never a walk — and a probe that could not
+make its directory, or could not remove it, answers `500`. Its lines are facts, not verdicts, in
+`capability`'s format: whether a swap window is short enough is for whoever designs the swap.
 
 ### Where the roots resolve
 

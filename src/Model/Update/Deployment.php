@@ -97,6 +97,23 @@ final readonly class Deployment
     }
 
     /**
+     * Where `update v1 probe` works — see {@link \Phpanta\Service\FilesystemProbe}.
+     *
+     * Beside the roots rather than in `sys_get_temp_dir()`, because what the probe measures is the
+     * filesystem a push moves trees on, and the temporary directory may not be that one. Outside
+     * every root for {@link self::previousRelease()}'s reason: the mirror never walks it. And a new
+     * name per call, the process and random bytes together, as {@link File::temporarySibling()}
+     * names its file: a probe that died half-way leaves a directory that says what it was, and the
+     * next probe does not trip over it.
+     *
+     * @return Directory
+     */
+    public function probeDirectory(): Directory
+    {
+        return $this->above->directory('.update-probe-' . getmypid() . '-' . bin2hex(random_bytes(4)));
+    }
+
+    /**
      * The payload name a file inside a root's tree would have been packed under.
      *
      * The inverse of {@link self::destination()}, and it exists for the mirror: the applier walks

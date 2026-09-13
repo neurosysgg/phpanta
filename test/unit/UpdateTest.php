@@ -54,6 +54,9 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(TarMemberType::class)]
 final class UpdateTest extends TestCase
 {
+    /** A name the Linux NFS client gives a file it renamed aside — the one measured on the live host. */
+    private const string STRAY = '.nfs00000000bd2dac2512228f60';
+
     private string $sandbox = '';
 
     /**
@@ -138,6 +141,10 @@ final class UpdateTest extends TestCase
         // And a regular file whose name is written as a directory, which is what keeps the name
         // check() validates and the name UpdateFile carries the same string.
         yield 'a file named as a dir' => ['public/x/', $file, 'written as a directory'];
+
+        // A name the mirror will never delete as surplus is one no payload may plant.
+        yield 'an NFS stray'          => ['public/.nfs00000000bd2dac2512228f60', $file, 'the NFS client gives'];
+        yield 'under an NFS stray'    => ['src/.nfs00000000bd2dac2512228f60/x.php', $file, 'the NFS client gives'];
     }
 
     /**
@@ -779,6 +786,71 @@ final class UpdateTest extends TestCase
             self::assertStringContainsString('could not be removed', $report->render());
         } finally {
             chmod($webroot->directory('locked')->path, 0o755);
+        }
+    }
+
+    /**
+     * A stray the NFS client left behind, and has since let go, is removed on the way past — and
+     * said in a note, never counted as the site's own delete.
+     *
+     * @return void
+     */
+    public function testAnNfsStrayThatWasLetGoIsRemovedWithANote(): void
+    {
+        $webroot = new Directory($this->sandbox . '/public');
+        self::assertTrue($webroot->create());
+        self::assertTrue($webroot->file(self::STRAY)->write('the old index.php'));
+
+        $planned = $this->applier()->apply(
+            UpdateFixture::archive(['public/keep.txt' => 'new']),
+            self::manifest(apply: false, mirror: true),
+        );
+        self::assertStringNotContainsString(self::STRAY, $planned->render(), 'a dry run counted a stray');
+
+        $report = $this->applier()->apply(
+            UpdateFixture::archive(['public/keep.txt' => 'new']),
+            self::manifest(mirror: true),
+        );
+
+        self::assertTrue($report->isComplete(), $report->render());
+        self::assertFalse($webroot->file(self::STRAY)->exists(), 'a released stray was left');
+        self::assertStringContainsString('deleted 0', $report->render());
+        self::assertStringContainsString(
+            'note: public/' . self::STRAY . ', a file the NFS client had renamed aside, was let go and is removed',
+            $report->render(),
+        );
+    }
+
+    /**
+     * A stray still held by a worker is a note and a 200, not the `failed 1` it once was on every
+     * push until somebody removed it over the mount.
+     *
+     * @return void
+     */
+    public function testAnNfsStrayStillHeldIsANoteRatherThanAFailure(): void
+    {
+        $webroot = new Directory($this->sandbox . '/public');
+        self::assertTrue($webroot->directory('held')->create());
+        self::assertTrue($webroot->file('held/' . self::STRAY)->write('the old index.php'));
+
+        // A stray cannot be unlinked while a worker holds it; a directory that refuses the unlink is
+        // the nearest a local disk comes.
+        self::assertTrue(chmod($webroot->directory('held')->path, 0o555));
+
+        if (is_writable($webroot->directory('held')->path)) {
+            chmod($webroot->directory('held')->path, 0o755);
+            self::markTestSkipped('this process can write to a read-only directory');
+        }
+
+        try {
+            $response = $this->respond(UpdateFixture::archive(['public/keep.txt' => 'new']), mirror: true);
+
+            self::assertSame(HttpStatusCode::Ok, UpdateFixture::statusOf($response), UpdateFixture::bodyOf($response));
+            self::assertStringContainsString('failed 0', UpdateFixture::bodyOf($response));
+            self::assertStringContainsString('still held open by a running worker', UpdateFixture::bodyOf($response));
+            self::assertTrue($webroot->file('held/' . self::STRAY)->exists());
+        } finally {
+            chmod($webroot->directory('held')->path, 0o755);
         }
     }
 
