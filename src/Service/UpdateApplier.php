@@ -31,17 +31,21 @@ use Phpanta\Support\TarEntry;
  * checked in memory first, so a payload with one bad name writes nothing at all rather than the
  * files that happened to come before it. That is affordable because the payload is small — a few
  * hundred kilobytes compressed, under a megabyte expanded, against {@link self::MAX_EXPANDED} — and
- * it is why there is no staging directory yet: staging exists to make a half-run recoverable, and a
- * run that cannot *start* half-way needs no recovery. One can still *end* half-way — a write that
- * fails after others landed — and a tree staged beside the live one and swapped in would close that
- * too. What a swap needs of the host's filesystem (a directory renamed with a file open inside it,
- * the moment two renames leave a name empty, whether `sys_get_temp_dir()` is even the same device)
- * is what {@link FilesystemProbe} measures, so the question is open rather than settled.
+ * it is what makes the rest of this worth doing.
  *
- * **Each file lands through {@link File::write()}**, which already writes beside the target and
- * renames over it. Every file therefore appears atomically and always within one filesystem, and
- * the only window left is between files — which a site's caching design has to tolerate: assets
- * content-addressed, documents `no-cache`.
+ * **Then everything that changes is staged, and only then does anything live change.** Each file
+ * whose bytes differ is written into {@link Deployment::stage()}, beside the roots — never under
+ * `sys_get_temp_dir()`, which `update v1 probe` measured on another device, where a rename is a
+ * copy. Staging also asks the live tree whether each destination can take a file at all, so a
+ * directory in the way, or a file where a directory must be, refuses the whole push before a live
+ * byte moves; before this, it failed at write time with the files ahead of it already landed. Only
+ * once every file is staged is the release recorded and each file renamed onto its live path
+ * ({@link File::moveOnto()}), in pack order. Each rename is atomic, so no name is ever missing or
+ * half-written, and the window left between the first and the last is a burst of renames rather
+ * than a run of writes. What can still fail there is what staging cannot ask — a live directory
+ * this process may not write into, a disk that filled in between — and that is reported per path,
+ * as before. The whole trees are not swapped: two directory renames leave a name with nothing at it
+ * for a measured 626 µs on the live host, and a push has four roots.
  *
  * **The mirror is an enumerated delete, never a recursive one.** What is on disk is walked, diffed
  * against the payload, and each surplus path is checked by the same rules an added path passes
@@ -51,8 +55,8 @@ use Phpanta\Support\TarEntry;
  * checked out would take the framework off the server. And it runs **only after every write
  * succeeded**, because deleting the old half of a change whose new half did not land leaves neither.
  *
- * **Before a push writes anything, it records what it is about to replace** — not a staging area,
- * which the argument above still rules out, but a copy of the other direction: the bytes of every
+ * **Before a push lands anything, it records what it is about to replace** — not the stage, but a
+ * copy of the other direction: the bytes of every
  * file it will overwrite or the mirror will delete, and the name of every file it will add. See
  * {@link ReleaseRecord}. A record that cannot be taken completely refuses the push with nothing live
  * written, since a push that cannot be taken back is one the operator did not ask for. And
@@ -110,6 +114,12 @@ final readonly class UpdateApplier
     /** The one sentence every refusal to record the previous release opens with. */
     private const string UNRECORDED = 'the previous release could not be recorded, so nothing was written: %s';
 
+    /** The sentence a push that could not stage what it writes is refused with. */
+    private const string UNSTAGED = 'the push could not be staged, so nothing was written: %s';
+
+    /** The sentence a rollback that could not stage what it restores is refused with. */
+    private const string UNSTAGED_ROLLBACK = 'the rollback could not be staged, so nothing was restored or removed: %s';
+
     /**
      * Constructs an instance of {@link self}.
      *
@@ -158,8 +168,43 @@ final readonly class UpdateApplier
             return $this->planned($files, $manifest, $deployment)->dryRun();
         }
 
-        // Before the first write, and the only thing that may refuse between validation and it.
-        $report = $this->write($files, $deployment, $this->record($files, $manifest, $deployment, $serial));
+        $changed   = new Collection(UpdateFile::class);
+        $unchanged = new Collection(UpdateFile::class);
+
+        foreach ($files as $file) {
+            if ($this->isCurrent($file, $deployment)) {
+                $unchanged = $unchanged->with($file);
+            } else {
+                $changed = $changed->with($file);
+            }
+        }
+
+        // Staged before the record is taken and before a live byte moves, so a push that cannot
+        // stage refuses having changed nothing — not the tree, and not the record of the last push
+        // that did land. Then the record, the last thing that may refuse; then the landing.
+        $left = $this->staged($changed, $deployment, self::UNSTAGED);
+
+        try {
+            $report = $this->record($files, $manifest, $deployment, $serial);
+        } catch (UpdateException $refused) {
+            // A push the record refuses lands nothing, so what it staged is no use to anybody.
+            $this->cleared($deployment->stage());
+
+            throw $refused;
+        }
+
+        foreach ($unchanged as $file) {
+            $report = $report->kept($file->name);
+        }
+
+        $report = $this->landed($changed, $deployment, $left === null ? $report : $report->noted($left));
+
+        if (!$changed->isEmpty()) {
+            $report = $report->noted(sprintf(
+                'staged %d files beside the roots, then renamed them into place',
+                $changed->count(),
+            ));
+        }
 
         if (!$manifest->mirror) {
             return $report;
@@ -299,7 +344,11 @@ final readonly class UpdateApplier
             return $report->dryRun();
         }
 
-        return $this->undo($copies, $remove, $record, $deployment, $report);
+        // Staged before anything is restored, for apply()'s reason: a restore that cannot be placed
+        // refuses the rollback with the tree and the record exactly as they were.
+        $left = $this->staged($copies, $deployment, self::UNSTAGED_ROLLBACK);
+
+        return $this->undo($copies, $remove, $record, $deployment, $left === null ? $report : $report->noted($left));
     }
 
     /**
@@ -643,36 +692,184 @@ final readonly class UpdateApplier
     }
 
     /**
-     * Writes every file, reporting each.
+     * Renames every staged file onto its live path, in the order given, reporting each — then clears
+     * the stage.
      *
-     * @param Collection<UpdateFile> $files
+     * Each rename is atomic, so no live name is ever missing or half-written; the only window left is
+     * between the first rename and the last, which is a burst of renames rather than a run of
+     * writes. What can still fail is what staging could not ask: a live directory this process may
+     * not write into, or a disk that filled in between.
+     *
+     * @param Collection<UpdateFile> $files Every one already staged by {@link self::staged()}.
      * @param Deployment $deployment
-     * @param UpdateReport $report What the run has to say before its first write.
+     * @param UpdateReport $report What the run has to say before its first rename.
      * @return UpdateReport
      */
-    private function write(Collection $files, Deployment $deployment, UpdateReport $report): UpdateReport
+    private function landed(Collection $files, Deployment $deployment, UpdateReport $report): UpdateReport
     {
+        $stage = $deployment->stage();
+
         foreach ($files as $file) {
-            if ($this->isCurrent($file, $deployment)) {
-                $report = $report->kept($file->name);
-                continue;
-            }
+            $live = $deployment->destination($file->root, $file->name);
 
-            $destination = $deployment->destination($file->root, $file->name);
-
-            // File::write() fails on a path whose directory is missing, and fails deliberately, so
-            // the caller asks. That is the arrangement Support\File states in the negative.
-            if (!$destination->directory()->create()) {
+            // File::moveOnto() fails on a path whose directory is missing, and fails deliberately,
+            // so the caller asks. That is the arrangement Support\File states in the negative.
+            if (!$live->directory()->create()) {
                 $report = $report->failed($file->name, 'its directory could not be created');
                 continue;
             }
 
-            $report = $destination->write($file->contents)
+            $report = $stage->file($file->name)->moveOnto($live)
                 ? $report->wrote($file->name)
-                : $report->failed($file->name, 'could not be written');
+                : $report->failed($file->name, 'could not be renamed into place');
         }
 
+        // Empty unless something failed to land, and then what did not land is no use to anybody:
+        // the report names it, and the next push stages it again.
+        $this->cleared($stage);
+
         return $report;
+    }
+
+    /**
+     * Writes each of $files beside the roots, where nothing serves it, so that the live tree changes
+     * only once every one of them is there — answering a note if a stage an earlier run left had to
+     * be cleared first, or null.
+     *
+     * **It asks the live tree the one question staging can: whether each destination can take a
+     * file at all.** A directory where the file goes, or a file where one of its directories must
+     * be, would fail at the rename — after other files had landed. Asked here, either refuses the
+     * whole run with nothing live changed. What it cannot ask, a live directory this process may not
+     * write into, still fails at the landing, and is reported there.
+     *
+     * Each staged file is written at the mode of the file it replaces, so the rename keeps what
+     * {@link File::write()} would have kept.
+     *
+     * @param Collection<UpdateFile> $files
+     * @param Deployment $deployment
+     * @param string $refusal The sentence a refusal opens with, taking what went wrong.
+     * @return string|null
+     *
+     * @throws UpdateException if the stage is not a directory this class made, cannot be cleared, or
+     *                         cannot take every file. The stage is cleared, and nothing live has been
+     *                         written.
+     */
+    private function staged(Collection $files, Deployment $deployment, string $refusal): ?string
+    {
+        $stage = $deployment->stage();
+
+        // Never through a link, for ReleaseRecord's reason: every write and delete below would go
+        // wherever it points.
+        if (is_link($stage->path) || (file_exists($stage->path) && !$stage->exists())) {
+            throw new UpdateException(sprintf($refusal, $stage->path . ' is there, and is not a directory'));
+        }
+
+        $left = $stage->exists();
+
+        if ($left && !$this->cleared($stage)) {
+            throw new UpdateException(sprintf(
+                $refusal,
+                'what an earlier run left in ' . $stage->path . ' could not be cleared',
+            ));
+        }
+
+        $failures = [];
+
+        foreach ($files as $file) {
+            $live   = $deployment->destination($file->root, $file->name);
+            $staged = $stage->file($file->name);
+            $why    = self::obstacle($file->root, $live, $deployment)
+                ?? (self::stagedAs($staged, $file->contents, $live->permissions())
+                    ? null
+                    : 'it could not be written beside the roots');
+
+            if ($why !== null) {
+                $failures[] = $file->name . ' — ' . $why;
+            }
+        }
+
+        if ($failures !== []) {
+            $this->cleared($stage);
+
+            throw new UpdateException(sprintf($refusal, implode('; ', $failures)));
+        }
+
+        return $left ? $stage->path . ' held what an earlier run left behind, and was cleared first' : null;
+    }
+
+    /**
+     * $staged written with $contents and then given $mode — the mode of the file it will replace.
+     *
+     * **The mode goes on after the bytes, not before them as {@link File::write()} puts it**, and
+     * the difference is deliberate. `write()` narrows first so a secret is never readable at a wider
+     * mode; here every directory the stage makes is 0700, so nobody else can read the bytes at any
+     * mode, and a file the live tree keeps at a mode that forbids even its owner to write — 0400 — can
+     * still be staged. Narrowing first would refuse exactly that file.
+     *
+     * @param File $staged
+     * @param string $contents
+     * @param int|null $mode Null for a file with nothing to replace, which keeps the umask's mode.
+     * @return bool
+     */
+    private static function stagedAs(File $staged, string $contents, ?int $mode): bool
+    {
+        return $staged->directory()->create(0o700)
+            && $staged->write($contents)
+            && ($mode === null || Diagnostics::muted(static fn(): bool => chmod($staged->path, $mode)));
+    }
+
+    /**
+     * What in the live tree would stop $live from being replaced by a rename, or null.
+     *
+     * @param UpdateRoot $root
+     * @param File $live
+     * @param Deployment $deployment
+     * @return string|null
+     */
+    private static function obstacle(UpdateRoot $root, File $live, Deployment $deployment): ?string
+    {
+        if (is_dir($live->path) && !is_link($live->path)) {
+            return 'a directory is where it goes';
+        }
+
+        // The single-file root has no directories of its own to be in the way.
+        $top = $deployment->directory($root)?->path ?? $live->directory()->path;
+
+        for ($path = $live->directory()->path; strlen($path) > strlen($top); $path = dirname($path)) {
+            if (file_exists($path) && !is_dir($path)) {
+                return sprintf("'%s' is a file where it needs a directory", $deployment->nameOf($root, $path));
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Empties the stage and removes it, answering whether it is gone.
+     *
+     * The walk is {@link self::walk()}, so it never follows a link; every file is unlinked and every
+     * directory `rmdir()`ed, deepest first. A walk-and-delete is refused everywhere else in this
+     * class, and allowed here for one reason: the stage is this class's own directory, outside every
+     * root, written only by a run holding the push lock — there is nothing in it anybody else put
+     * there.
+     *
+     * @param Directory $stage
+     * @return bool
+     */
+    private function cleared(Directory $stage): bool
+    {
+        foreach ($this->walk($stage) as $path) {
+            Diagnostics::muted(static fn(): bool => unlink($path));
+        }
+
+        $directories = $this->directories($stage);
+        usort($directories, static fn(string $a, string $b): int => substr_count($b, '/') <=> substr_count($a, '/'));
+
+        foreach ($directories as $path) {
+            Diagnostics::muted(static fn(): bool => rmdir($path));
+        }
+
+        return Diagnostics::muted(static fn(): bool => rmdir($stage->path)) || !$stage->exists();
     }
 
     /**
@@ -694,20 +891,8 @@ final readonly class UpdateApplier
         Deployment $deployment,
         UpdateReport $report,
     ): UpdateReport {
-        $kept = 'the record was kept, so the rollback can be run again once what failed is fixed';
-
-        foreach ($restore as $file) {
-            $live = $deployment->destination($file->root, $file->name);
-
-            if (!$live->directory()->create()) {
-                $report = $report->failed($file->name, 'its directory could not be created');
-                continue;
-            }
-
-            $report = $live->write($file->contents)
-                ? $report->wrote($file->name)
-                : $report->failed($file->name, 'could not be written');
-        }
+        $kept   = 'the record was kept, so the rollback can be run again once what failed is fixed';
+        $report = $this->landed($restore, $deployment, $report);
 
         if (!$report->isComplete()) {
             return $report

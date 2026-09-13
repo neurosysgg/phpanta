@@ -182,7 +182,7 @@ final readonly class File
     public function write(string $contents, ?int $mode = null): bool
     {
         $temporary = $this->temporarySibling()->path;
-        $mode    ??= $this->mode();
+        $mode    ??= $this->permissions();
 
         // Created empty, then narrowed, then filled — and the order is the whole point rather than
         // a style. `file_put_contents()` creates at `0666 & ~umask`, so writing first and chmod-ing
@@ -235,13 +235,33 @@ final readonly class File
     /**
      * The permission bits of the file here, or null where there is none to keep.
      *
+     * Public for a file written somewhere else before it is moved here — a push stages a file beside
+     * the deployment and renames it into place, and the staged file has to be written at the mode of
+     * the one it replaces, as {@link self::write()} would have kept it.
+     *
      * @return int|null
      */
-    private function mode(): ?int
+    public function permissions(): ?int
     {
         $permissions = $this->exists() ? Diagnostics::muted(fn(): int|false => fileperms($this->path)) : false;
 
         return $permissions === false ? null : $permissions & 0o7777;
+    }
+
+    /**
+     * Renames this file onto $target, replacing whatever file is there, in one step.
+     *
+     * Atomic within a filesystem, which is what {@link self::write()} relies on for its temporary
+     * file and what a staged push relies on for a whole tree: a reader sees the old file or the new
+     * one. Across filesystems PHP falls back to a copy, which is neither atomic nor what a caller
+     * staging beside the target meant — so stage on the same one.
+     *
+     * @param File $target
+     * @return bool
+     */
+    public function moveOnto(File $target): bool
+    {
+        return Diagnostics::muted(fn(): bool => rename($this->path, $target->path));
     }
 
     /**

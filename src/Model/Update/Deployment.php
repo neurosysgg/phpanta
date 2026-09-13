@@ -97,6 +97,22 @@ final readonly class Deployment
     }
 
     /**
+     * Where a push stages what it will write before renaming it into place — see
+     * {@link \Phpanta\Service\UpdateApplier}.
+     *
+     * Beside the roots, because a rename into place is atomic only within one filesystem and
+     * `update v1 probe` measured the temporary directory on another device. Outside every root for
+     * {@link self::previousRelease()}'s reason. One fixed name, because the push lock lets one write
+     * run at a time, and a stage a dead push left is the next push's to clear.
+     *
+     * @return Directory
+     */
+    public function stage(): Directory
+    {
+        return $this->above->directory('.update-stage');
+    }
+
+    /**
      * Where `update v1 probe` works — see {@link \Phpanta\Service\FilesystemProbe}.
      *
      * Beside the roots rather than in `sys_get_temp_dir()`, because what the probe measures is the

@@ -466,35 +466,40 @@ final class RollbackTest extends TestCase
     }
 
     /**
-     * After a push that failed partway, a rollback restores what landed and leaves the rest alone.
+     * After a push that landed partway, a rollback restores what landed and leaves the rest alone.
+     *
+     * A staged push lands whole or refuses, except where a rename itself fails — a live directory
+     * the process may not write into. The state that leaves is built here by hand: `other.txt` holds
+     * its old bytes, as though its rename had never happened.
      *
      * @return void
      */
     public function testARollbackAfterAPartialPushRestoresOnlyWhatLanded(): void
     {
         self::assertTrue($this->web()->file('fine.txt')->write('old'));
-        self::assertTrue($this->web()->file('blocked')->write('in the way'));
+        self::assertTrue($this->web()->file('other.txt')->write('old'));
         self::assertTrue($this->web()->file('stale.txt')->write('stale'));
 
-        $pushed = $this->push(['public/fine.txt' => 'new', 'public/blocked/deep.txt' => 'cannot be']);
-        self::assertFalse($pushed->isComplete());
+        $pushed = $this->push(['public/fine.txt' => 'new', 'public/other.txt' => 'new'], mirror: false);
+        self::assertTrue($pushed->isComplete(), $pushed->render());
+        self::assertTrue($this->web()->file('other.txt')->write('old'));
 
         $report = $this->applier()->rollback(true);
 
         self::assertTrue($report->isComplete(), $report->render());
-        self::assertStringContainsString('written 1  unchanged 3  deleted 0  failed 0', $report->render());
+        self::assertStringContainsString('written 1  unchanged 1  deleted 0  failed 0', $report->render());
         self::assertSame('old', $this->web()->file('fine.txt')->read());
-        self::assertSame('in the way', $this->web()->file('blocked')->read());
+        self::assertSame('old', $this->web()->file('other.txt')->read());
         self::assertSame('stale', $this->web()->file('stale.txt')->read());
     }
 
     /**
-     * A restore that fails removes nothing, keeps the record, and answers 500; run again once the
-     * obstacle is gone, the same rollback finishes and leaves what it already did alone.
+     * A restore with something in its way refuses the rollback before anything is restored or
+     * removed, and keeps the record; run again once the obstacle is gone, the same rollback finishes.
      *
      * @return void
      */
-    public function testARestoreThatFailsRemovesNothingAndKeepsTheRecord(): void
+    public function testARestoreThatCannotBePlacedRefusesTheRollback(): void
     {
         $this->plantTheFirstRelease();
         (void) $this->pushTheSecondRelease();
@@ -502,23 +507,32 @@ final class RollbackTest extends TestCase
         // Something in the way of the directory the mirror swept.
         self::assertTrue($this->web()->file('old')->write('in the way'));
 
-        $response = new UpdateRollback(ApplyManifest::parse('{"apply":true}', 'rollback'), $this->applier())->handle();
-        $body     = UpdateFixture::bodyOf($response);
+        try {
+            (void) $this->applier()->rollback(true);
+            self::fail('a rollback that could not be staged ran');
+        } catch (UpdateException $refused) {
+            self::assertSame(
+                'the rollback could not be staged, so nothing was restored or removed: public/old/gone.js —'
+                . " 'public/old' is a file where it needs a directory",
+                $refused->getMessage(),
+            );
+        }
 
-        self::assertSame(HttpStatusCode::InternalServerError, UpdateFixture::statusOf($response));
-        self::assertStringContainsString('! public/old/gone.js — its directory could not be created', $body);
-        self::assertStringContainsString('nothing the push added was removed', $body);
-        self::assertStringContainsString('the record was kept', $body);
-        self::assertSame('fresh', $this->web()->file('assets/fresh.js')->read(), 'a failed restore removed a file');
+        self::assertSame('new', $this->web()->file('other.bin')->read(), 'a refused rollback restored a file');
+        self::assertSame('fresh', $this->web()->file('assets/fresh.js')->read(), 'a refused rollback removed a file');
         self::assertTrue($this->record()->read()?->complete);
+        self::assertFalse(
+            new Directory($this->sandbox . '/.update-stage')->exists(),
+            'a refused rollback left its stage',
+        );
 
         self::assertTrue($this->web()->file('old')->delete());
 
         $again = $this->applier()->rollback(true);
 
         self::assertTrue($again->isComplete(), $again->render());
-        // other.bin was restored by the first run, so the second finds it already back and keeps it.
-        self::assertStringContainsString('written 1  unchanged 1  deleted 1', $again->render());
+        // Nothing was restored the first time, so both restores land now; same.txt was never recorded.
+        self::assertStringContainsString('written 2  unchanged 0  deleted 1', $again->render());
         $this->assertTheFirstReleaseIsLive();
     }
 
@@ -903,28 +917,46 @@ final class RollbackTest extends TestCase
     }
 
     /**
-     * A restore that cannot be written — something in the way of the path — is named, and the
-     * rollback removes nothing and keeps the record.
+     * A restore that cannot be renamed into place — a live directory the process may not write
+     * into, which staging cannot see coming — is named, and the rollback removes nothing, answers
+     * 500 and keeps the record, so it can be run again.
      *
      * @return void
      */
-    public function testARestoreThatCannotBeWrittenIsNamed(): void
+    public function testARestoreThatCannotLandIsNamedAndKeepsTheRecord(): void
     {
         $this->plantTheFirstRelease();
         (void) $this->pushTheSecondRelease();
 
-        // A directory where the deleted file is to be recreated: File::write() renames onto it,
-        // and a rename over a non-empty directory cannot succeed.
-        self::assertTrue($this->web()->directory('old/gone.js')->create());
-        self::assertTrue($this->web()->file('old/gone.js/inside')->write('x'));
+        $web = $this->web();
+        self::assertTrue(chmod($web->path, 0o555));
 
-        $report = $this->applier()->rollback(true);
+        if (is_writable($web->path)) {
+            chmod($web->path, 0o755);
+            self::markTestSkipped('this process can write to a read-only directory');
+        }
 
-        self::assertFalse($report->isComplete());
-        self::assertStringContainsString('! public/old/gone.js — could not be written', $report->render());
-        self::assertStringContainsString('the record was kept', $report->render());
-        self::assertSame('fresh', $this->web()->file('assets/fresh.js')->read(), 'a failed restore removed a file');
+        try {
+            $response = new UpdateRollback(
+                ApplyManifest::parse('{"apply":true}', 'rollback'),
+                $this->applier(),
+            )->handle();
+        } finally {
+            chmod($web->path, 0o755);
+        }
+
+        $body = UpdateFixture::bodyOf($response);
+
+        self::assertSame(HttpStatusCode::InternalServerError, UpdateFixture::statusOf($response));
+        self::assertStringContainsString('! public/other.bin — could not be renamed into place', $body);
+        self::assertStringContainsString('! public/old/gone.js — its directory could not be created', $body);
+        self::assertStringContainsString('nothing the push added was removed', $body);
+        self::assertStringContainsString('the record was kept', $body);
+        self::assertSame('fresh', $web->file('assets/fresh.js')->read(), 'a failed restore removed a file');
         self::assertTrue($this->record()->read()?->complete);
+
+        self::assertTrue($this->applier()->rollback(true)->isComplete());
+        $this->assertTheFirstReleaseIsLive();
     }
 
     /**

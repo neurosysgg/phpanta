@@ -533,8 +533,15 @@ name writes nothing at all:
 - the gzip layer is decoded under `UpdateApplier::MAX_EXPANDED` — twice `ApiGate::MAX_BODY` — and
   the length is asked as well, because `gzdecode()`'s cap is only as fine as zlib's output buffer.
 
-Each file then lands through `File::write()`, which writes beside the target and renames over it, so
-every file appears atomically and within one filesystem. A file whose bytes are already there is
+**Every file that changes is staged before any lands.** Each is written into `.update-stage/` in
+`App::above()` — the roots' own filesystem, since the temporary directory may be another device,
+where a rename is a copy — and staging asks the live tree whether each destination can take a file
+at all: a directory where the file goes, or a file where one of its directories must be, refuses the
+whole push with nothing live written and the record of the last push untouched. Only then is the
+release recorded and each staged file renamed onto its live path, in pack order, so every file
+appears atomically and within one filesystem, and a failure while writing can no longer leave half a
+release live. A stage an earlier run left is cleared first; one that is a file or a link is refused.
+A rollback restores through the same stage. A file whose bytes are already there is
 left alone, because rewriting a file the request is executing makes NFS silly-rename it into an
 `.nfsXXXXXXXX` that lives exactly as long as the handle holding it. **That name is the NFS client's,
 not the site's**: no payload may carry it, the mirror never counts one as surplus or records it,

@@ -407,28 +407,61 @@ final class UpdateTest extends TestCase
     }
 
     /**
-     * A run that could not write everything deletes nothing.
+     * A run that could not land everything deletes nothing, names what did not land, and leaves
+     * nothing staged.
      *
      * The mirror removes the old half of a change on the understanding that the new half is there,
-     * and a failed write is the case where it is not.
+     * and a failed landing is the case where it is not. A staged push refuses what it can see coming;
+     * what it cannot — a live directory this process may not write into — still fails here, at the
+     * rename, and both ways a landing fails are asked.
      *
      * @return void
      */
-    public function testTheMirrorDoesNotRunAfterAWriteFailed(): void
+    public function testTheMirrorDoesNotRunAfterALandingFailed(): void
     {
         $webroot = new Directory($this->sandbox . '/public');
-        self::assertTrue($webroot->create());
-        self::assertTrue($webroot->file('blocked')->write('in the way'));
+        $locked  = $webroot->directory('locked');
+        self::assertTrue($locked->create());
+        self::assertTrue($locked->file('page.txt')->write('old'));
         self::assertTrue($webroot->file('stale.txt')->write('still needed'));
 
-        $report = $this->applier()->apply(
-            UpdateFixture::archive(['public/fine.txt' => 'x', 'public/blocked/deep.txt' => 'y']),
-            self::manifest(mirror: true),
-        );
+        // A rename, like an unlink, needs write permission on the directory, not on the file.
+        self::assertTrue(chmod($locked->path, 0o555));
+
+        if (is_writable($locked->path)) {
+            chmod($locked->path, 0o755);
+            self::markTestSkipped('this process can write to a read-only directory');
+        }
+
+        try {
+            $report = $this->applier()->apply(
+                UpdateFixture::archive([
+                    'public/fine.txt'            => 'x',
+                    'public/locked/page.txt'     => 'new',
+                    'public/locked/new/deep.txt' => 'y',
+                ]),
+                self::manifest(mirror: true),
+            );
+        } finally {
+            chmod($locked->path, 0o755);
+        }
 
         self::assertFalse($report->isComplete());
-        self::assertTrue($webroot->file('stale.txt')->exists(), 'the mirror ran after a write failed');
+        self::assertStringContainsString(
+            '! public/locked/page.txt — could not be renamed into place',
+            $report->render(),
+        );
+        self::assertStringContainsString(
+            '! public/locked/new/deep.txt — its directory could not be created',
+            $report->render(),
+        );
+        self::assertSame('x', $webroot->file('fine.txt')->read(), 'what could land did not');
+        self::assertTrue($webroot->file('stale.txt')->exists(), 'the mirror ran after a landing failed');
         self::assertStringContainsString('the mirror did not run, because a write failed', $report->render());
+        self::assertFalse(
+            new Directory($this->sandbox . '/.update-stage')->exists(),
+            'what did not land stayed staged',
+        );
     }
 
     /**
@@ -970,55 +1003,227 @@ final class UpdateTest extends TestCase
     }
 
     /**
-     * A push that could not write everything is a 500, and names what it could not write.
+     * A file in the way of a directory a member needs refuses the whole push, and **nothing lands**.
      *
-     * The failure is manufactured the way it would actually happen — something is already in the
-     * way — rather than by mocking a write. `public/blocked` is a regular file here, so the member
-     * `public/blocked/deep.txt` needs a directory that cannot be made.
+     * Before pushes were staged this was a 500 with `fine.txt` already written — a partial tree the
+     * operator had to roll back. Staging asks the live tree first, so the refusal comes before a
+     * live byte moves, and the stage is taken away again.
      *
      * @return void
      */
-    public function testAPushThatCouldNotWriteEverythingIsAnswered500(): void
+    public function testAFileInTheWayOfADirectoryRefusesThePushWithNothingWritten(): void
     {
         $webroot = new Directory($this->sandbox . '/public');
         self::assertTrue($webroot->create());
         self::assertTrue($webroot->file('blocked')->write('in the way'));
 
-        $response = $this->respond(UpdateFixture::archive([
-            'public/fine.txt'         => 'written',
-            'public/blocked/deep.txt' => 'cannot be',
-        ]));
+        try {
+            (void) $this->respond(UpdateFixture::archive([
+                'public/fine.txt'         => 'written',
+                'public/blocked/deep.txt' => 'cannot be',
+            ]));
+            self::fail('a push that could not be staged was applied');
+        } catch (UpdateException $refused) {
+            self::assertSame(
+                "the push could not be staged, so nothing was written: public/blocked/deep.txt — 'public/blocked' is a"
+                . ' file where it needs a directory',
+                $refused->getMessage(),
+            );
+        }
 
-        self::assertSame(HttpStatusCode::InternalServerError, UpdateFixture::statusOf($response));
-        self::assertStringContainsString('! public/blocked/deep.txt', UpdateFixture::bodyOf($response));
-        self::assertStringContainsString('directory could not be created', UpdateFixture::bodyOf($response));
-
-        // The rest still landed. A partial push is reported as one rather than undone of its own
-        // accord: the report names exactly what is missing, and taking the push back is
-        // `update v1 rollback`, which is the operator's to ask for — see RollbackTest.
-        self::assertSame('written', $webroot->file('fine.txt')->read());
+        self::assertFalse($webroot->file('fine.txt')->exists(), 'a refused push wrote a file');
+        self::assertFalse(new Directory($this->sandbox . '/.update-stage')->exists(), 'a refused push left its stage');
+        self::assertFalse(
+            new Directory($this->sandbox . '/.update-previous')->exists(),
+            'a refused push took a record',
+        );
     }
 
     /**
-     * A member that cannot be written over is named, and the push is a 500.
+     * A directory where the payload wants a file refuses the push, and nothing lands.
+     *
+     * A rename over a non-empty directory cannot succeed, so the landing would fail after other
+     * files had — which is why staging asks first.
      *
      * @return void
      */
-    public function testAMemberThatCannotBeWrittenIsNamed(): void
+    public function testADirectoryWhereAFileGoesRefusesThePush(): void
     {
         $webroot = new Directory($this->sandbox . '/public');
-        self::assertTrue($webroot->create());
-
-        // A directory where the payload wants a file: File::write() renames its temp file onto the
-        // target, and a rename over a non-empty directory cannot succeed.
         self::assertTrue($webroot->directory('occupied.txt')->create());
         self::assertTrue($webroot->file('occupied.txt/inside')->write('x'));
 
-        $response = $this->respond(UpdateFixture::archive(['public/occupied.txt' => 'nope']));
+        try {
+            (void) $this->respond(UpdateFixture::archive(['public/fine.txt' => 'x', 'public/occupied.txt' => 'nope']));
+            self::fail('a push with a directory in its way was applied');
+        } catch (UpdateException $refused) {
+            self::assertStringContainsString(
+                'public/occupied.txt — a directory is where it goes',
+                $refused->getMessage(),
+            );
+        }
 
-        self::assertSame(HttpStatusCode::InternalServerError, UpdateFixture::statusOf($response));
-        self::assertStringContainsString('! public/occupied.txt', UpdateFixture::bodyOf($response));
-        self::assertStringContainsString('could not be written', UpdateFixture::bodyOf($response));
+        self::assertFalse($webroot->file('fine.txt')->exists(), 'a refused push wrote a file');
+    }
+
+    // ───────────────────────────── the stage ─────────────────────────────
+
+    /**
+     * A replaced file keeps the mode it had — even one its owner may not write — a new one takes the
+     * umask's, every one is staged and renamed in, and the stage is gone afterwards.
+     *
+     * @return void
+     */
+    public function testAReplacedFileKeepsItsModeAndTheStageIsTakenAway(): void
+    {
+        $webroot = new Directory($this->sandbox . '/public');
+        self::assertTrue($webroot->create());
+        self::assertTrue($webroot->file('secret.txt')->write('old', 0o600));
+        self::assertNotFalse(file_put_contents($webroot->file('frozen.txt')->path, 'old'));
+        self::assertTrue(chmod($webroot->file('frozen.txt')->path, 0o400));
+
+        $report = $this->applier()->apply(
+            UpdateFixture::archive([
+                'public/secret.txt' => 'new',
+                'public/frozen.txt' => 'new',
+                'public/fresh.txt'  => 'new',
+            ]),
+            self::manifest(),
+        );
+
+        self::assertTrue($report->isComplete(), $report->render());
+        self::assertStringContainsString(
+            'staged 3 files beside the roots, then renamed them into place',
+            $report->render(),
+        );
+        self::assertSame('new', $webroot->file('frozen.txt')->read());
+
+        clearstatcache();
+        self::assertSame(0o600, $webroot->file('secret.txt')->permissions());
+        self::assertSame(0o400, $webroot->file('frozen.txt')->permissions());
+        self::assertFalse(new Directory($this->sandbox . '/.update-stage')->exists(), 'the stage outlived the push');
+    }
+
+    /**
+     * A stage an earlier run left behind — a push that died between staging and landing — is
+     * cleared first, and said so; nothing in it lands.
+     *
+     * @return void
+     */
+    public function testAStageAnEarlierRunLeftIsClearedFirst(): void
+    {
+        $stage = new Directory($this->sandbox . '/.update-stage');
+        self::assertTrue($stage->directory('public/deep')->create());
+        self::assertTrue($stage->file('public/deep/half.js')->write('half'));
+
+        $report = $this->applier()->apply(UpdateFixture::archive(['public/keep.txt' => 'new']), self::manifest());
+
+        self::assertTrue($report->isComplete(), $report->render());
+        self::assertStringContainsString(
+            '.update-stage held what an earlier run left behind, and was cleared first',
+            $report->render(),
+        );
+        self::assertSame('new', new File($this->sandbox . '/public/keep.txt')->read());
+        self::assertFalse(new File($this->sandbox . '/public/deep/half.js')->exists(), 'a leftover landed');
+        self::assertFalse($stage->exists());
+    }
+
+    /**
+     * A stage that is not a directory this class made — a file, or a link that would carry every
+     * write and delete somewhere else — refuses the push with nothing written.
+     *
+     * @param string $kind
+     * @return void
+     */
+    #[DataProvider('notAStageProvider')]
+    public function testAStageThatIsNotADirectoryRefusesThePush(string $kind): void
+    {
+        $stage     = $this->sandbox . '/.update-stage';
+        $elsewhere = new Directory($this->sandbox . '/elsewhere');
+        self::assertTrue($elsewhere->create());
+
+        match ($kind) {
+            'a file' => self::assertTrue(new File($stage)->write('in the way')),
+            'a link' => self::assertTrue(symlink($elsewhere->path, $stage)),
+        };
+
+        try {
+            (void) $this->applier()->apply(UpdateFixture::archive(['public/keep.txt' => 'new']), self::manifest());
+            self::fail('a push staged into something that is not a stage');
+        } catch (UpdateException $refused) {
+            self::assertStringContainsString('.update-stage is there, and is not a directory', $refused->getMessage());
+        }
+
+        self::assertFalse(new File($this->sandbox . '/public/keep.txt')->exists());
+        self::assertSame(['.', '..'], scandir($elsewhere->path), 'a push wrote through the link');
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function notAStageProvider(): iterable
+    {
+        yield 'a file' => ['a file'];
+        yield 'a link' => ['a link'];
+    }
+
+    /**
+     * A stage whose leftovers cannot be cleared refuses the push, rather than landing beside them.
+     *
+     * @return void
+     */
+    public function testAStageThatCannotBeClearedRefusesThePush(): void
+    {
+        $stuck = new Directory($this->sandbox . '/.update-stage/public');
+        self::assertTrue($stuck->create());
+        self::assertTrue($stuck->file('left.js')->write('left'));
+        self::assertTrue(chmod($stuck->path, 0o555));
+
+        if (is_writable($stuck->path)) {
+            chmod($stuck->path, 0o755);
+            self::markTestSkipped('this process can write to a read-only directory');
+        }
+
+        try {
+            (void) $this->applier()->apply(UpdateFixture::archive(['public/keep.txt' => 'new']), self::manifest());
+            self::fail('a push landed beside leftovers it could not clear');
+        } catch (UpdateException $refused) {
+            self::assertStringContainsString('could not be cleared', $refused->getMessage());
+        } finally {
+            chmod($stuck->path, 0o755);
+        }
+
+        self::assertFalse(new File($this->sandbox . '/public/keep.txt')->exists());
+    }
+
+    /**
+     * A deployment the stage cannot be written beside refuses the push with nothing written.
+     *
+     * @return void
+     */
+    public function testAStageThatCannotBeWrittenRefusesThePush(): void
+    {
+        self::assertTrue(new Directory($this->sandbox . '/public')->create());
+        self::assertTrue(chmod($this->sandbox, 0o555));
+
+        if (is_writable($this->sandbox)) {
+            chmod($this->sandbox, 0o755);
+            self::markTestSkipped('this process can write to a read-only directory');
+        }
+
+        try {
+            (void) $this->applier()->apply(UpdateFixture::archive(['public/keep.txt' => 'new']), self::manifest());
+            self::fail('a push that could not be staged was applied');
+        } catch (UpdateException $refused) {
+            self::assertStringContainsString(
+                'public/keep.txt — it could not be written beside the roots',
+                $refused->getMessage(),
+            );
+        } finally {
+            chmod($this->sandbox, 0o755);
+        }
+
+        self::assertFalse(new File($this->sandbox . '/public/keep.txt')->exists());
     }
 
     /**

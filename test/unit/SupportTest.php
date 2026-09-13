@@ -1545,6 +1545,39 @@ final class SupportTest extends TestCase
     }
 
     /**
+     * A file moved onto another replaces it whole and keeps its own mode; one that cannot be moved
+     * — onto a directory — says so and leaves both where they were.
+     *
+     * @return void
+     */
+    public function testAMovedFileReplacesItsTargetOrSaysItCouldNot(): void
+    {
+        $directory = Directory::temporary('phpanta-support-');
+        $staged    = $directory->file('staged.txt');
+        $live      = $directory->file('live.txt');
+        $occupied  = $directory->directory('taken');
+
+        try {
+            self::assertTrue($staged->write('new', 0o600));
+            self::assertTrue($live->write('old', 0o644));
+
+            self::assertTrue($staged->moveOnto($live));
+            self::assertSame('new', $live->read());
+            self::assertFalse($staged->exists());
+            clearstatcache();
+            self::assertSame(0o600, $live->permissions());
+
+            self::assertTrue($occupied->create());
+            self::assertTrue($occupied->file('inside.txt')->write(''));
+            self::assertFalse($live->moveOnto(new File($occupied->path)));
+            self::assertSame('new', $live->read(), 'a failed move lost the file');
+        } finally {
+            $occupied->remove();
+            $directory->remove();
+        }
+    }
+
+    /**
      * Removing what is not there is a success: the postcondition is what is being asked for.
      *
      * @return void
