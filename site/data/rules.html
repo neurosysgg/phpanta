@@ -38,8 +38,8 @@
 
 <p>Builders and queries carry <code>#[\NoDiscard]</code> with a message, so a copy-returning call whose copy is thrown away raises a warning — and the test suites fail on warnings.</p>
 
-<h2 id="a-twin-decides"><a href="#a-twin-decides">Whatever ends a request has a twin that decides it</a></h2>
+<h2 id="every-decision-returns"><a href="#every-decision-returns">Nothing ends a request but the app, and every decision returns</a></h2>
 
-<p><code>Auth::accepts()</code> beside the gate that sends the 401, <code>SecurityHeaders::headers()</code> beside <code>send()</code>, <code>ViewResponse::render()</code> beside <code>send()</code>. A decision that exits cannot be asserted; its twin can.</p>
+<p>A response's <code>answer()</code> is an <code>Answer</code>, and <code>App::handle()</code> answers a whole request without sending it. Only <code>App::run()</code> sends. A gate's refusal is a value it returns, marked <code>#[\NoDiscard]</code> so a dropped one fails the suite, and the caller returns it in turn. Nothing calls <code>exit</code>. So every answer, a 401, a 303 or a 405 included, is a status, headers and a body a test can read in-process, through <code>Phpanta\Test\TestRequest</code>.</p>
 
 <p>The full argument for each is in <a href="https://github.com/neurosysgg/phpanta/blob/master/docs/guidelines.md">docs/guidelines.md</a> and <a href="https://github.com/neurosysgg/phpanta/blob/master/CLAUDE.md">CLAUDE.md</a>.</p>

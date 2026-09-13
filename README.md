@@ -27,12 +27,16 @@ phpanta/
 ├── autoload.php     ← Phpanta\ → src/. The only part that ships, with src/
 ├── src/             ← the runtime
 │   ├── App.php      ← what a site tells the framework about itself
-│   ├── Http/        ← Request, the Response types, every header typed; Api/, Security/
+│   ├── Http/        ← Request, Input, Session, Answer, the Response types, every header typed;
+│   │                  Api/, Security/
 │   ├── View/        ← View, Shell; Html/ — the markup tree, MarkupParser, the vocabularies
+│   ├── Form/        ← a form as an enum of fields, its rules, a submission read and re-rendered
+│   ├── Data/        ← SQLite through PDO: statements, typed rows, transactions, migrations
 │   ├── Text/        ← Translatable, Translation, Language, Languages
-│   ├── Support/     ← Collection, File, Directory, Path + Route, TarArchive, PublicKey, …
-│   ├── Model/       ← Health/ (requirements), Update/ (a push), Api/ (a signed call)
-│   ├── Service/     ← Auth, ApiGate, UpdateApplier; Api/ and Health/ handlers
+│   ├── Support/     ← Collection, File, Directory, Path + Route, Throttle, TarArchive, PublicKey, …
+│   ├── Model/       ← Health/ (requirements), Update/ (a push, the release it replaced), Api/
+│   ├── Service/     ← Auth, Login, ApiGate, UpdateApplier, ReleaseRecord; Layer/ (what stands
+│   │                  around a controller), Api/ and Health/ handlers
 │   └── Exception/   ← SiteException and every condition under it
 ├── assets/ts/       ← Navigation (SPA), NestedElement, the mirrors of the framework's enums
 ├── tools/           ← build-{css,assets,prod}.mjs, dev-router.php, coverage-prepend.php, lib/
@@ -168,6 +172,7 @@ npm run site:prod && npm run site:export  # the export GitHub Pages serves, into
 | [docs/frontend.md](docs/frontend.md) | the build, the element model, SPA navigation |
 | [docs/security.md](docs/security.md) | headers, the method gate, the markup tree's guards, the API |
 | [docs/health.md](docs/health.md) | the `health` and `capability` services, or a requirement to declare |
+| [docs/data.md](docs/data.md) | `Phpanta\Data` — a database, a statement, a row, a migration |
 | [docs/testing.md](docs/testing.md) | the framework's suite and `TestApp` |
 | [docs/tooling.md](docs/tooling.md) | the CLI layer, the signed commands, the build tools |
 | [docs/history/](docs/history/README.md) | nothing — it is how things got this way |

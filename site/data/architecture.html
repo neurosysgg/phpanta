@@ -8,11 +8,11 @@
   ├─ set_exception_handler(…)       the last resort, depending on nothing
   └─ Site::current()-&gt;run()
        ├─ ErrorLog::install(…)        every diagnostic into data/logs/
-       ├─ SecurityHeaders::send()     CSP, HSTS, Permissions-Policy — before anything can fail
+       ├─ SecurityHeaders::send()     CSP, HSTS, Permissions-Policy, COOP, CORP — before anything can fail
        ├─ Request::fromGlobals()      $_SERVER → a typed, readonly Request
        ├─ App::handle()               the request → an Answer, sending nothing
-       │    ├─ Auth::siteGate()         an optional pre-launch gate, answering 401 or standing aside
-       │    ├─ Router::dispatch()       the path → a route → the method gate → a controller
+       │    ├─ SiteGate, App::layers()  what stands around every route: a layer answers, or hands on
+       │    ├─ Router::dispatch()       the path → a route → its method gate → its layers → a controller
        │    └─ Response::answer()       status, headers and body — the security headers first
        └─ Answer::send()              the one place anything is sent</pre>
 
@@ -24,12 +24,14 @@
 ├── App.php         what a site tells the framework about itself
 ├── Router.php      URL → controller, and nothing else
 ├── Controller/     the Controller interface, and the API's
-├── Http/           Request, the responses, every header typed; Api/, Security/
+├── Http/           Request, Input, Session, Answer, the responses, every header typed; Api/, Security/
 ├── View/           View, Shell; Html/ — the markup tree, MarkupParser, Vocabulary
+├── Form/           a form as an enum of fields, its rules, a submission read and re-rendered
+├── Data/           SQLite through PDO: statements, typed rows, transactions, migrations
 ├── Text/           Translatable, Translation, Language, Languages
-├── Support/        Collection, File, Directory, Path and Route, PublicKey, TarArchive
-├── Model/          Api/ (a signed call), Update/ (a push), Health/ (requirements)
-├── Service/        Auth, ApiGate, UpdateApplier, and the API's handlers
+├── Support/        Collection, File, Directory, Path and Route, Throttle, PublicKey, TarArchive
+├── Model/          Api/ (a signed call), Update/ (a push, the release it replaced), Health/ (requirements)
+├── Service/        Auth, Login, ApiGate, UpdateApplier, ReleaseRecord; Layer/, and the API's handlers
 └── Exception/      SiteException and every condition under it</pre>
 
 <p>The dependencies point one way. Controllers use services and views, views and models build elements out of <code>View\Html</code>, and <code>View\Html</code> depends on nothing above it.</p>
