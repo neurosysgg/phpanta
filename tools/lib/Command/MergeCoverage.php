@@ -53,7 +53,7 @@ final readonly class MergeCoverage implements Command
      */
     public function usage(): string
     {
-        return '<unit.cov> <e2e-dir> [--clover <file>] [--html <dir>]';
+        return '<unit.cov>... <e2e-dir> [--clover <file>] [--html <dir>]';
     }
 
     /**
@@ -79,10 +79,9 @@ final readonly class MergeCoverage implements Command
      */
     public function run(Input $input, Output $output): ExitCode
     {
-        $unit  = $input->operand(0);
-        $dumps = $input->operand(1);
+        $count = $input->operandCount();
 
-        if ($unit === null || $dumps === null) {
+        if ($count < 2) {
             $output->error(Runner::usage($this));
 
             return ExitCode::Usage;
@@ -101,14 +100,34 @@ final readonly class MergeCoverage implements Command
 
         $coverage = new CodeCoverage($driver, $filter);
 
-        // PHPUnit's half, already processed: line hits attributed to the tests that produced them.
-        // Serialization strips the common prefix off every path, so put it back before merging in
-        // the dev server's dumps, which carry absolute ones.
-        $serialized = new Unserializer()->unserialize($unit);
-        $unitData   = $serialized['codeCoverage'];
+        // Every operand but the last is a suite's coverage — the site's, and the framework's own —
+        // and the last is the directory of the dev server's dumps.
+        $suites = [];
 
-        foreach (array_keys($unitData->lineCoverage()) as $relative) {
-            $unitData->renameFile($relative, $serialized['basePath'] . DIRECTORY_SEPARATOR . $relative);
+        for ($i = 0; $i < $count - 1; $i++) {
+            $suites[] = (string) $input->operand($i);
+        }
+
+        $dumps = (string) $input->operand($count - 1);
+
+        // PHPUnit's halves, already processed: line hits attributed to the tests that produced them.
+        // Serialization strips each suite's common prefix off every path, so put it back before the
+        // suites are merged with one another and with the dev server's dumps, which carry absolute ones.
+        $unitData = null;
+
+        foreach ($suites as $suite) {
+            $serialized = new Unserializer()->unserialize($suite);
+            $data       = $serialized['codeCoverage'];
+
+            foreach (array_keys($data->lineCoverage()) as $relative) {
+                $data->renameFile($relative, $serialized['basePath'] . DIRECTORY_SEPARATOR . $relative);
+            }
+
+            if ($unitData === null) {
+                $unitData = $data;
+            } else {
+                $unitData->merge($data);
+            }
         }
 
         $coverage->setData($unitData);
@@ -124,7 +143,8 @@ final readonly class MergeCoverage implements Command
         }
 
         $output->out(sprintf(
-            "Merged test/unit/ with %d request(s) from the verify script.\n",
+            "Merged %d suite(s) with %d request(s) from the verify script.\n",
+            count($suites),
             count($requests),
         ));
 
