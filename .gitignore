@@ -1,0 +1,5 @@
+# A checkout of Phpanta on its own: composer and npm install here, and the suites write caches.
+/vendor/
+/node_modules/
+/build/
+.phpunit.cache/
