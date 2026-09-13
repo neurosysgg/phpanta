@@ -517,6 +517,7 @@ heredoc or a `'<tag'` literal appears anywhere else under `src/`.
 | `Element` | a `TagName`, a keyed collection of `Attribute`s, child nodes |
 | `Text` | a run of text, escaped on the way out |
 | `TranslatedText` | a `Translatable`, put into the nearest `lang` when it renders — see [language.md](language.md) |
+| `Sentence` | a `Translatable` with named nodes in it — a link, a piece of code — placed where each language's word order puts them; see [language.md](language.md#sentences-words-with-nodes-in-them) |
 | `Fragment` | several nodes with no element around them |
 | `Document` | a `Doctype` and the `<html>` under it |
 | `MarkupParser` | the reader — hand-authored markup, back into the nodes above |

@@ -11,9 +11,9 @@ use Phpanta\Text\Language;
  *
  * The point of the interface is that {@link Element} takes children of this type and nothing else,
  * so a document is a tree of objects rather than a string built by concatenation. Everything that
- * reaches the page is one of four things: an {@link Element}, escaped {@link Text}, a
- * {@link TranslatedText} — text put into a language when it is rendered — or a {@link Fragment} of
- * those.
+ * reaches the page is one of five things: an {@link Element}, escaped {@link Text}, a
+ * {@link TranslatedText} — text put into a language when it is rendered — a {@link Sentence}, which
+ * is that text with nodes placed in it, or a {@link Fragment} of those.
  *
  * **The language travels down the tree the way the depth does.** A view never says which language
  * its text is in; an element that carries a `lang` names it for everything under it, and passes it

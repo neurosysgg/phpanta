@@ -64,6 +64,7 @@ final readonly class Fragment implements Node
     {
         return $node instanceof Text
             || $node instanceof TranslatedText
+            || $node instanceof Sentence
             || ($node instanceof self && $node->isInline());
     }
 

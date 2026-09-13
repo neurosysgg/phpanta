@@ -27,6 +27,15 @@ enum TextFixture: string implements Translatable
     #[Translation(en: 'only in English')]
     case EnglishOnly = 'english-only';
 
+    #[Translation(
+        en: 'Read {guide} first, then {code} & the rest.',
+        de: 'Lies {code}, bevor du {guide} & den Rest liest.',
+    )]
+    case Placed = 'placed';
+
+    #[Translation(en: 'a {brace} and a { stray one', de: 'eine {brace} und eine } lose')]
+    case Stray = 'stray';
+
     #[Translation(en: '<b>bold</b> & "quoted"', de: '<b>fett</b> & „zitiert“')]
     case Markup = 'markup';
 

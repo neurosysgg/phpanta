@@ -512,7 +512,8 @@ final readonly class Element implements Node
      * Any {@link Text} among them forces one line: a newline before or after inline content is a
      * space the browser renders, so breaking `<p>E-Mail: <a>…</a></p>` across lines would change
      * the page rather than just its source. A {@link TranslatedText} is text too, and so is a
-     * {@link Fragment} holding either — see {@link Fragment::writesText()}. And a fragment among
+     * {@link Sentence}, and a {@link Fragment} holding any of them — see
+     * {@link Fragment::writesText()}. And a fragment among
      * children on one line is rendered on it, rather than breaking its own nodes onto lines of their
      * own.
      *

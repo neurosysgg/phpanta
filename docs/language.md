@@ -129,6 +129,35 @@ An enum whose backing value is a name the tooling matches on can be translated o
 `use`s `Translated` and carries a `#[Translation]` on each case, while the backing value stays the
 key. A proper name that reads the same everywhere stays a plain value, or becomes a `Verbatim`.
 
+## Sentences: words with nodes in them
+
+A sentence that holds a link or a piece of code cannot be one catalog case split around the node,
+because German puts the link where German word order wants it, not where English did. `Sentence` is
+the text and its nodes together, handed over by name:
+
+```php
+#[Translation(
+    en: 'A group crossing a public boundary is a {code}.',
+    de: 'Eine Gruppe, die eine öffentliche Grenze überquert, ist eine {code}.',
+)]
+case Collections = 'collections';
+
+new Element(HtmlTag::P)->containing(new Sentence(
+    RulesText::Collections,
+    code: new Element(ProseTag::Code)->containing('Collection'),
+));
+```
+
+- **A placeholder is `{name}`** — a lower-case letter, then letters and digits — and everything else
+  is literal, apostrophes included. It is not ICU, and not for `with()`'s `Phrase`, which would have
+  consumed the braces first.
+- **A brace that is no placeholder is refused.** One the prose needs goes inside a part, where it is
+  somebody's code and escaped as such.
+- **Every placeholder needs a part, and every part a placeholder**, in each language the sentence
+  renders in; a part given by position has no name to be placed by, and is refused too.
+- **The text is escaped like any `Text`, and each part renders as the node it is**, in the same
+  language. A sentence counts as text, so the element around it stays on one line.
+
 ## The switch
 
 The framework reads the cookie, and setting it is a site's job. A switch is a link per offered

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\Test\Unit;
 
 use BackedEnum;
+use Phpanta\Exception\ElementException;
 use Phpanta\Exception\MarkupException;
 use Phpanta\Exception\TranslationException;
 use Phpanta\Http\FormEncoding;
@@ -34,6 +35,7 @@ use Phpanta\View\Html\MediaPreload;
 use Phpanta\View\Html\MetaName;
 use Phpanta\View\Html\Node;
 use Phpanta\View\Html\ScriptType;
+use Phpanta\View\Html\Sentence;
 use Phpanta\View\Html\TagName;
 use Phpanta\View\Html\Text;
 use Phpanta\View\Html\TranslatedText;
@@ -60,6 +62,7 @@ use TypeError;
 #[CoversClass(UrlScheme::class)]
 #[CoversClass(Text::class)]
 #[CoversClass(TranslatedText::class)]
+#[CoversClass(Sentence::class)]
 #[CoversClass(MarkupParser::class)]
 #[CoversClass(Vocabulary::class)]
 #[CoversClass(Fragment::class)]
@@ -194,6 +197,147 @@ final class MarkupTest extends TestCase
         $this->expectExceptionMessage('Phrase was rendered with no language in scope');
 
         new Element(HtmlTag::Img)->attr(HtmlAttribute::Alt, TextFixture::Counted->with(count: 1))->render();
+    }
+
+    // ───────────────────────────── sentences ─────────────────────────────
+
+    /**
+     * A sentence places its parts where each language's text puts them — German puts the code first
+     * — escapes the text between them, and keeps its paragraph on one line.
+     *
+     * @return void
+     */
+    public function testASentencePlacesItsPartsWhereEachLanguagePutsThem(): void
+    {
+        $paragraph = new Element(HtmlTag::P)->containing(self::placed());
+
+        self::assertSame(
+            '<p>Read <a href="/guide">the &lt;guide&gt;</a> first, then <strong>Collection</strong>'
+            . ' &amp; the rest.</p>',
+            $paragraph->render(0, Language::English),
+        );
+        self::assertSame(
+            '<p>Lies <strong>Collection</strong>, bevor du <a href="/guide">the &lt;guide&gt;</a>'
+            . ' &amp; den Rest liest.</p>',
+            $paragraph->render(0, Language::German),
+        );
+    }
+
+    /**
+     * A part that is a fragment is written inline, where a fragment on its own would break its nodes
+     * onto lines of their own.
+     *
+     * @return void
+     */
+    public function testAFragmentPartIsWrittenInline(): void
+    {
+        $sentence = new Sentence(
+            TextFixture::Placed,
+            guide: new Fragment(new Text('a '), new Element(HtmlTag::Em)->containing('guide')),
+            code: new Element(HtmlTag::Strong)->containing('x'),
+        );
+
+        self::assertSame(
+            '<div>Read a <em>guide</em> first, then <strong>x</strong> &amp; the rest.</div>',
+            new Element(HtmlTag::Div)->containing($sentence)->render(0, Language::English),
+        );
+    }
+
+    /**
+     * A part handed over by position has no name to be placed by.
+     *
+     * @return void
+     */
+    public function testASentencePartGivenByPositionIsRefused(): void
+    {
+        $this->expectException(ElementException::class);
+        $this->expectExceptionMessage('TextFixture::Placed was given one by position');
+
+        (void) new Sentence(TextFixture::Placed, new Text('x'));
+    }
+
+    /**
+     * A placeholder with no part would render as nothing, and a part no placeholder names would be
+     * dropped; both are refused in the language being rendered.
+     *
+     * @return void
+     */
+    public function testAPlaceholderWithoutAPartAndAPartWithoutAPlaceholderAreRefused(): void
+    {
+        $missing = new Sentence(TextFixture::Placed, guide: new Text('the guide'));
+
+        try {
+            $missing->render(0, Language::German);
+            self::fail('a placeholder with no part rendered');
+        } catch (TranslationException $refused) {
+            self::assertStringContainsString('names {code} in German', $refused->getMessage());
+        }
+
+        $unused = new Sentence(
+            TextFixture::Placed,
+            guide: new Text('the guide'),
+            code: new Text('x'),
+            other: new Text('never named'),
+        );
+
+        $this->expectException(TranslationException::class);
+        $this->expectExceptionMessage('was given the part other, which it never names in English');
+
+        $unused->render(0, Language::English);
+    }
+
+    /**
+     * A brace that is no placeholder is refused, in either direction and in either language.
+     *
+     * @param Language $language
+     * @param string $stray
+     * @return void
+     */
+    #[DataProvider('strayBraceProvider')]
+    public function testABraceThatIsNoPlaceholderIsRefused(Language $language, string $stray): void
+    {
+        $this->expectException(TranslationException::class);
+        $this->expectExceptionMessage(
+            sprintf("holds a brace that is no placeholder in %s: '%s'", $language->name, $stray),
+        );
+
+        new Sentence(TextFixture::Stray, brace: new Text('x'))->render(0, $language);
+    }
+
+    /**
+     * @return iterable<string, array{Language, string}>
+     */
+    public static function strayBraceProvider(): iterable
+    {
+        yield 'an opening one' => [Language::English, ' and a { stray one'];
+        yield 'a closing one'  => [Language::German, ' und eine } lose'];
+    }
+
+    /**
+     * A sentence with no language in scope refuses, as the text in it would.
+     *
+     * @return void
+     */
+    public function testASentenceWithNoLanguageInScopeIsLoud(): void
+    {
+        $this->expectException(TranslationException::class);
+        $this->expectExceptionMessage('TextFixture::Placed was rendered with no language in scope');
+
+        new Element(HtmlTag::P)->containing(self::placed())->render();
+    }
+
+    /**
+     * The sentence the tests above render: a link whose text needs escaping, and a piece of code.
+     *
+     * @return Sentence
+     */
+    private static function placed(): Sentence
+    {
+        return new Sentence(
+            TextFixture::Placed,
+            guide: new Element(HtmlTag::A)->attr(HtmlAttribute::Href, '/guide')->containing('the <guide>'),
+            code: new Element(HtmlTag::Strong)->containing('Collection'),
+        );
     }
 
     // ───────────────────────────── attributes ─────────────────────────────

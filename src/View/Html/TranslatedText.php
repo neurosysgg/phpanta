@@ -58,10 +58,24 @@ final readonly class TranslatedText implements Node
             throw new TranslationException(sprintf(
                 '%s was rendered with no language in scope. Render it inside an element that '
                 . 'carries a lang attribute, or pass the language to render().',
-                $text instanceof UnitEnum ? $text::class . '::' . $text->name : get_debug_type($text),
+                self::named($text),
             ));
         }
 
         return $text->in($language);
+    }
+
+    /**
+     * How a refusal names $text: its catalog case, where it is one, or its type.
+     *
+     * Public for {@link Sentence}, whose refusals name the text the same way, so the two cannot come
+     * to spell one text two ways.
+     *
+     * @param Translatable $text
+     * @return string
+     */
+    public static function named(Translatable $text): string
+    {
+        return $text instanceof UnitEnum ? $text::class . '::' . $text->name : get_debug_type($text);
     }
 }
