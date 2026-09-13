@@ -174,6 +174,12 @@ These fail silently — no error, no log, a page that looks fine.
 - `Navigation` owns the scroll: it sets `history.scrollRestoration = 'manual'` and scrolls after the
   swap, so a `phpanta:navigate` subscriber that scrolls is overridden. Every fallback is
   `location.replace()` — `assign()` would leave the failed entry behind for back to land on.
+- A part of the shell written in the page's language needs `data-language-bound`, or a navigation
+  into another language leaves it in the old one. A language switch belongs inside `#content`: in
+  the shell, a swap within one language would leave it naming the previous page.
+- A `Sentence` is not ICU: a brace outside a `{name}` placeholder is refused, and one the prose needs
+  goes inside a part. In a `Suffixed` app `Request::path()` has no language suffix, while
+  `canonicalTarget()` keeps it.
 
 ## Commands
 

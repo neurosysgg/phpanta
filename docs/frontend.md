@@ -269,12 +269,16 @@ click on a[href^="/"]
   → not already cancelled, not modified/middle-click, no data-no-spa, no download, no other target
   → resolved origin === location.origin, and not a #fragment of the page already showing
   → note the scroll on the entry being left, preventDefault, pushState a new keyed entry
-  → fetch with X-Requested-With: XMLHttpRequest
+  → fetch with X-Requested-With: XMLHttpRequest — or without it, for a link whose hreflang names
+    another language than <html lang>, which needs the whole document
   → not ok, or not text/html → location.replace(url)
   → a server running the framework: ViewResponse sends <title> + the fragment
       → read and decode the title, strip it, assign the rest to #content.innerHTML
   → a static host (an export): the whole page, since there is no header to read
       → parse it, take its title and its #content — or, with no #content, location.replace(url)
+  → a page in another language (a document's <html lang>, a fragment's Content-Language)
+      → replace each [data-language-bound] part of the shell with the page's, in order, and set
+        <html lang> — or, with none to take or not as many, location.replace(url)
   → dispatch phpanta:navigate
   → focus #content, announce the title, then scroll: to where the entry was left, else to the
     element the fragment names, else to the top
@@ -284,7 +288,7 @@ click on a[href^="/"]
 host is not a fallback path. It is how the framework's own site, in `site/`, is served on GitHub
 Pages, where every navigation takes the second branch.
 
-### The six things to understand before touching it
+### The seven things to understand before touching it
 
 **1. The selector matches the href *attribute*, but the code uses the resolved `link.href`.**
 `//evil.example/x` starts with a slash exactly as `/posts` does: a protocol-relative URL is a
@@ -337,6 +341,31 @@ reader announces the new page. A swap does neither on its own, so the script mak
 
 A site's stylesheet will usually want `#content:focus { outline: none; }`. `#content` is not a
 control, and a ring around the whole page would say it was one.
+
+**7. A navigation into another language replaces more than `#content`.** Inside one language only
+`#content` changes, so the shell — a header naming the pages, a footer — stays as it was. Into
+another, the shell is in the wrong language, so every part of it written in the page's language
+carries `data-language-bound` (`RegionAttribute::LanguageBound`), and a page arriving in another
+language replaces those parts pairwise and sets `<html lang>`. A page's language is its document's
+`<html lang>`, or a fragment's `Content-Language`, which `ViewResponse` sends. A fragment carries no
+shell, so a link whose `hreflang` names another language asks for the whole document; a fragment
+that arrives in another language anyway — back across languages on a server — is handed to the
+browser, and so is a document whose parts do not pair with this page's. The parts come out of the
+same same-origin document the tree rendered as `#content`, so point 2 covers them and nothing more.
+A language switch belongs inside `#content`, in each page's view: in the shell, a swap within one
+language would leave it pointing at the previous page's other language.
+
+**On a static host the page chooses the language itself.** A host that cannot read a cookie or
+`Accept-Language` serves the file it was asked for, so a site whose languages have addresses of
+their own (see [language.md](language.md#addresses-in-each-language)) states each of a page's in its
+head — `<link rel="alternate" hreflang="de" href="…">` — and starts
+[`LanguageChoice`](../assets/ts/LanguageChoice.ts) before `Navigation`. On a plain address it goes,
+by `location.replace()`, to the language the visitor last chose with a switch, else — once, ever —
+to the first language their browser asks for that the page offers. An address that names its
+language is never redirected, so a shared German link stays German and nothing can loop. Addresses
+come from the page's own links, so a base path needs nothing. The choice is kept in `localStorage`,
+and a storage that refuses costs only the memory of it. A page with fewer than two alternates has no
+choice at all, which is every page of a site that negotiates on its server.
 
 ### Failure is always "hand it back to the browser"
 

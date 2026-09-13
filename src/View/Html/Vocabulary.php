@@ -41,8 +41,8 @@ final readonly class Vocabulary
     private function __construct(private Collection $tags, private Collection $attributes) {}
 
     /**
-     * What every site can parse: HTML's own tags and attributes, and `data-no-spa`, which the
-     * framework's navigation reads.
+     * What every site can parse: HTML's own tags and attributes, and the two the framework's
+     * navigation reads — `data-no-spa`, and `data-language-bound`.
      *
      * @return self
      */
@@ -50,7 +50,7 @@ final readonly class Vocabulary
     {
         return new self(
             new Collection('string')->with(HtmlTag::class),
-            new Collection('string')->with(HtmlAttribute::class, LinkAttribute::class),
+            new Collection('string')->with(HtmlAttribute::class, LinkAttribute::class, RegionAttribute::class),
         );
     }
 

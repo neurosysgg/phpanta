@@ -3,14 +3,21 @@ import { HtmlAttribute } from './model/HtmlAttribute.js';
 import { HtmlTag } from './model/HtmlTag.js';
 import { LinkAttribute } from './model/LinkAttribute.js';
 import { MediaType } from './model/MediaType.js';
+import { RegionAttribute } from './model/RegionAttribute.js';
 import { RequestHeader } from './model/RequestHeader.js';
 import { RequestedWith } from './model/RequestedWith.js';
 import { ResponseHeader } from './model/ResponseHeader.js';
 
-/** What a response puts on the page. A null title is one the response did not carry. */
+/**
+ * What a response puts on the page. A null title is one the response did not carry, and a null
+ * language one it did not state. The regions are the whole document's language-bound parts of the
+ * shell, and null for a fragment, which carries none.
+ */
 interface Page {
   readonly title: string | null;
   readonly content: string;
+  readonly language: string | null;
+  readonly regions: readonly Element[] | null;
 }
 
 /**
@@ -72,6 +79,9 @@ export class Navigation {
    * what it is, so they go before the type is compared.
    */
   private static readonly PARAMETERS = /;[\s\S]*/;
+
+  /** A part of the shell written in the page's language, which a move into another replaces. */
+  private static readonly REGION = `[${RegionAttribute.LanguageBound}]`;
 
   /**
    * Which navigation is the current one.
@@ -195,11 +205,15 @@ export class Navigation {
       return;
     }
 
+    // A link into another language brings that language's shell with it — a header, a footer —
+    // which a fragment does not carry, so it asks for the whole document.
+    const across = link.hreflang !== '' && link.hreflang !== document.documentElement.lang;
+
     e.preventDefault();
     this.remember(true);
     this.key = Navigation.freshKey();
     history.pushState({ key: this.key } satisfies Entry, '', url.href);
-    void this.go(url.href, undefined);
+    void this.go(url.href, undefined, across);
   }
 
   /**
@@ -238,8 +252,16 @@ export class Navigation {
    * and this line is where it is spent. Anything that ever puts markup into #content from another
    * source — a different endpoint, a third party, a value not rendered through the tree — reopens
    * DOM XSS here, and nothing in this file would notice.
+   *
+   * A page in another language also gives up the parts of its shell written in that language, and
+   * they come out of the same same-origin document the same tree rendered, so they spend the same
+   * guarantee and no other. They are imported as nodes, not parsed from a string; the language is
+   * only compared, and set as an attribute.
+   *
+   * `whole` asks for the whole document rather than a fragment — for a link into another language,
+   * whose shell a fragment does not carry.
    */
-  private async go(url: string, position: number | undefined): Promise<void> {
+  private async go(url: string, position: number | undefined, whole = false): Promise<void> {
     this.inFlight?.abort();
 
     const controller = new AbortController();
@@ -251,7 +273,7 @@ export class Navigation {
     try {
       const response = await fetch(url, {
         credentials: 'same-origin',
-        headers: { [RequestHeader.RequestedWith]: RequestedWith.XmlHttpRequest },
+        headers: whole ? {} : { [RequestHeader.RequestedWith]: RequestedWith.XmlHttpRequest },
         signal: controller.signal
       });
 
@@ -271,10 +293,18 @@ export class Navigation {
       // started, and by then this response is for a page the visitor has moved on from.
       if (navigation !== this.navigation) return;
 
-      const page = Navigation.page(html);
+      const page = Navigation.page(html, response.headers.get(ResponseHeader.ContentLanguage));
 
-      // A whole page with no #content has nothing to swap in; the browser can still show it.
-      if (page === null) {
+      // A whole page with no #content has nothing to swap in; the browser can still show it. Nor
+      // can a page in another language whose shell cannot be put right here — a fragment, which
+      // has none, or a document whose language-bound parts do not pair with this one's — or the
+      // page would end up in two languages.
+      if (
+        page === null
+        || (page.language !== null
+          && page.language !== document.documentElement.lang
+          && !Navigation.crossInto(page.language, page.regions))
+      ) {
         location.replace(url);
         return;
       }
@@ -448,20 +478,41 @@ export class Navigation {
   }
 
   /**
-   * What a response puts on the page — its title, and what goes into #content — or null for a whole
-   * document with no #content to take.
-   *
-   * A fragment is led by its <title>, which is read and then stripped. A whole document — what a
-   * static host serves, since it cannot answer X-Requested-With — is parsed, and the two are taken
-   * out of it; its title arrives decoded, because the parser has already read the entities.
+   * Puts the shell into `language`: each of the page's language-bound parts replaced by the
+   * arriving document's, in order, and <html lang> said again — or false, having changed nothing,
+   * where the page brought none or not as many, and only a page load can put the whole shell right.
    */
-  private static page(html: string): Page | null {
+  private static crossInto(language: string, regions: readonly Element[] | null): boolean {
+    const current = document.querySelectorAll(Navigation.REGION);
+
+    if (regions === null || regions.length !== current.length) return false;
+
+    current.forEach((region, at) => {
+      region.replaceWith(document.importNode(regions[at] as Element, true));
+    });
+    document.documentElement.lang = language;
+
+    return true;
+  }
+
+  /**
+   * What a response puts on the page — its title, what goes into #content, its language and the
+   * parts of its shell written in it — or null for a whole document with no #content to take.
+   *
+   * A fragment is led by its <title>, which is read and then stripped, and its language is what
+   * the response said in `Content-Language`. A whole document — what a static host serves, since it
+   * cannot answer X-Requested-With — is parsed, and all four are taken out of it; its title arrives
+   * decoded, because the parser has already read the entities.
+   */
+  private static page(html: string, stated: string | null): Page | null {
     if (!Navigation.DOCUMENT.test(html)) {
       const title = html.match(Navigation.TITLE)?.[1];
 
       return {
         title: title === undefined ? null : Navigation.decodeEntities(title),
         content: html.replace(Navigation.TITLE, ''),
+        language: stated,
+        regions: null,
       };
     }
 
@@ -470,7 +521,12 @@ export class Navigation {
 
     if (content === null) return null;
 
-    return { title: parsed.title === '' ? null : parsed.title, content: content.innerHTML };
+    return {
+      title: parsed.title === '' ? null : parsed.title,
+      content: content.innerHTML,
+      language: parsed.documentElement.lang === '' ? null : parsed.documentElement.lang,
+      regions: [...parsed.querySelectorAll(Navigation.REGION)],
+    };
   }
 
   /**

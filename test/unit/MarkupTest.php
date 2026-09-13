@@ -34,6 +34,7 @@ use Phpanta\View\Html\MarkupParser;
 use Phpanta\View\Html\MediaPreload;
 use Phpanta\View\Html\MetaName;
 use Phpanta\View\Html\Node;
+use Phpanta\View\Html\RegionAttribute;
 use Phpanta\View\Html\ScriptType;
 use Phpanta\View\Html\Sentence;
 use Phpanta\View\Html\TagName;
@@ -71,6 +72,7 @@ use TypeError;
 #[CoversClass(HtmlTag::class)]
 #[CoversClass(HtmlAttribute::class)]
 #[CoversClass(LinkAttribute::class)]
+#[CoversClass(RegionAttribute::class)]
 #[CoversClass(LinkRel::class)]
 #[CoversClass(MetaName::class)]
 #[CoversClass(MediaPreload::class)]
@@ -515,7 +517,7 @@ final class MarkupTest extends TestCase
      */
     public static function attributeNameProvider(): iterable
     {
-        foreach ([LinkAttribute::class, HtmlAttribute::class] as $enum) {
+        foreach ([LinkAttribute::class, HtmlAttribute::class, RegionAttribute::class] as $enum) {
             foreach ($enum::cases() as $case) {
                 yield $enum . '::' . $case->name => [$case];
             }
