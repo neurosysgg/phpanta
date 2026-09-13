@@ -38,6 +38,18 @@ enum SecurityHeader: string implements HeaderName
     case PermissionsPolicy = 'Permissions-Policy';
 
     /**
+     * Whether a window this site opens, or that opens it, may keep a handle on the other across
+     * origins — see {@link Security\CrossOriginOpenerPolicy}.
+     */
+    case CrossOriginOpenerPolicy = 'Cross-Origin-Opener-Policy';
+
+    /**
+     * Which other origins may load this response as a resource — see
+     * {@link Security\CrossOriginResourcePolicy}.
+     */
+    case CrossOriginResourcePolicy = 'Cross-Origin-Resource-Policy';
+
+    /**
      * @return string
      */
     public function headerName(): string

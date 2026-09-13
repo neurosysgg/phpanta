@@ -916,8 +916,9 @@ final class UpdateTest extends TestCase
         self::assertStringContainsString('! public/blocked/deep.txt', UpdateFixture::bodyOf($response));
         self::assertStringContainsString('directory could not be created', UpdateFixture::bodyOf($response));
 
-        // The rest still landed. A partial push is reported as one rather than rolled back: there
-        // is nothing to roll back to, and the report names exactly what is missing.
+        // The rest still landed. A partial push is reported as one rather than undone of its own
+        // accord: the report names exactly what is missing, and taking the push back is
+        // `update v1 rollback`, which is the operator's to ask for — see RollbackTest.
         self::assertSame('written', $webroot->file('fine.txt')->read());
     }
 

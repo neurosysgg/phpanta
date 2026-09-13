@@ -7,6 +7,9 @@ namespace Phpanta\Service;
 use NoDiscard;
 use Phpanta\Exception\UpdateException;
 use Phpanta\Model\Update\Deployment;
+use Phpanta\Model\Update\RecordEntry;
+use Phpanta\Model\Update\RecordKind;
+use Phpanta\Model\Update\RollbackStep;
 use Phpanta\Model\Update\UpdateFile;
 use Phpanta\Model\Update\UpdateManifest;
 use Phpanta\Model\Update\UpdateReport;
@@ -46,6 +49,13 @@ use Phpanta\Support\TarEntry;
  * checked out would take the framework off the server. And it runs **only after every write
  * succeeded**, because deleting the old half of a change whose new half did not land leaves neither.
  *
+ * **Before a push writes anything, it records what it is about to replace** — not a staging area,
+ * which the argument above still rules out, but a copy of the other direction: the bytes of every
+ * file it will overwrite or the mirror will delete, and the name of every file it will add. See
+ * {@link ReleaseRecord}. A record that cannot be taken completely refuses the push with nothing live
+ * written, since a push that cannot be taken back is one the operator did not ask for. And
+ * {@link self::rollback()} puts that release back, one step and no further.
+ *
  * **This class is generous with detail, unlike everything in {@link ApiGate}.** Every refusal
  * below says exactly what was wrong, because nothing reaches here without having produced a valid
  * signature first. It is also the only account of the run there will be: on a host with
@@ -78,6 +88,12 @@ final readonly class UpdateApplier
     /** ustar's own limit, and a bound on how deep any of this can go. */
     private const int MAX_NAME = 255;
 
+    /** Who holds a member name, in the sentence a refused one is reported in. */
+    private const string ARCHIVE = 'the archive';
+
+    /** The one sentence every refusal to record the previous release opens with. */
+    private const string UNRECORDED = 'the previous release could not be recorded, so nothing was written: %s';
+
     /**
      * Constructs an instance of {@link self}.
      *
@@ -94,13 +110,15 @@ final readonly class UpdateApplier
      *
      * @param string $archive The gzipped tar, already verified against a signed digest.
      * @param UpdateManifest $manifest
+     * @param int|null $serial The serial of the push, kept in the record of the release it replaces.
      * @return UpdateReport
      *
-     * @throws UpdateException if the archive cannot be expanded, or holds a member this class will
-     *                         not write. Nothing has been written when this throws.
+     * @throws UpdateException if the archive cannot be expanded, holds a member this class will not
+     *                         write, or the release it replaces cannot be recorded. Nothing live
+     *                         has been written when this throws.
      */
     #[NoDiscard('the report is the endpoint\'s entire response; dropping it sends an empty 200')]
-    public function apply(string $archive, UpdateManifest $manifest): UpdateReport
+    public function apply(string $archive, UpdateManifest $manifest, ?int $serial = null): UpdateReport
     {
         // Decoded under a cap rather than whole. The cap is only as fine as zlib's output buffer —
         // gzdecode() hands back a result a chunk past it rather than refusing — so the length is
@@ -124,7 +142,8 @@ final readonly class UpdateApplier
             return $this->planned($files, $manifest, $deployment)->dryRun();
         }
 
-        $report = $this->write($files, $deployment);
+        // Before the first write, and the only thing that may refuse between validation and it.
+        $report = $this->write($files, $deployment, $this->record($files, $manifest, $deployment, $serial));
 
         if (!$manifest->mirror) {
             return $report;
@@ -140,6 +159,155 @@ final readonly class UpdateApplier
         }
 
         return $this->mirror($files, $report, $deployment);
+    }
+
+    /**
+     * Puts back the release the last push replaced, from the record it took, reporting what it did.
+     *
+     * **It moves a path from the state the push left to the state before it, and only from there.**
+     * Each recorded path is weighed against both states first — see {@link RecordEntry::step()} —
+     * and a single path in neither refuses the whole rollback before anything is written: a full
+     * deploy or a hand edit since the push has made the tree something the record does not describe,
+     * and restoring half of it over the other half would leave a deployment that is neither release.
+     * A path already back in its earlier state — a write the push never landed — is left alone, by
+     * the rule {@link self::isCurrent()} states for a push.
+     *
+     * Then, in dependency order: what the mirror deleted is recreated first, since nothing live
+     * names it yet; what the push changed is restored in the order the push wrote it; and what it
+     * added is removed last, only if every restore landed — the mirror's rule, for the mirror's
+     * reason. Every restore is a {@link File::write()} of the very bytes that were proved against
+     * their digest before the first one was written — read once, held, and written, so there is no
+     * second read for a copy to change under.
+     *
+     * **A rollback that completed clears the record**, so the same rollback cannot run twice and a
+     * second asks for a record that is not there. One that did not complete keeps it, and can be run
+     * again once what failed is fixed; the paths it did restore are then in their earlier state and
+     * are left alone.
+     *
+     * The request runs the code it is rolling back *from*, exactly as a push runs the code it
+     * replaces, and for the same reason that is survivable: each file lands whole.
+     *
+     * @param bool $apply False for a dry run, which reports the same plan and writes nothing.
+     * @return UpdateReport
+     *
+     * @throws UpdateException if there is no record, it is incomplete or unreadable, a saved copy is
+     *                         missing or damaged, or the deployment has moved on since it was taken.
+     *                         Nothing has been written when this throws.
+     */
+    #[NoDiscard('the report is the endpoint\'s entire response; dropping it sends an empty 200')]
+    public function rollback(bool $apply): UpdateReport
+    {
+        $deployment = $this->deployment ?? Deployment::current();
+        $record     = new ReleaseRecord($deployment->previousRelease());
+        $release    = $record->read();
+
+        if ($release === null) {
+            throw new UpdateException(
+                'there is no previous release to roll back to: no push has recorded one here, or the '
+                . 'last rollback already put it back',
+            );
+        }
+
+        if (!$release->complete) {
+            throw new UpdateException(
+                'the record of the previous release is incomplete — the push that began it was refused '
+                . 'before it wrote anything, so there is nothing to roll back',
+            );
+        }
+
+        $report    = new UpdateReport()->noted(sprintf('rolling back the push of serial %s', $release->serial ?? '-'));
+        $recreate  = new Collection(RecordEntry::class);
+        $restore   = new Collection(RecordEntry::class);
+        $remove    = new Collection(RecordEntry::class);
+        $conflicts = new Collection(RecordEntry::class);
+
+        foreach ($release->entries as $entry) {
+            $step = $entry->step(self::digestOf($deployment->destination($entry->root, $entry->name)));
+
+            if ($step === RollbackStep::Restore && $entry->kind === RecordKind::Deleted) {
+                $recreate = $recreate->with($entry);
+            } elseif ($step === RollbackStep::Restore) {
+                $restore = $restore->with($entry);
+            } elseif ($step === RollbackStep::Remove) {
+                $remove = $remove->with($entry);
+            } elseif ($step === RollbackStep::Keep) {
+                $report = $report->kept($entry->name);
+            } else {
+                $conflicts = $conflicts->with($entry);
+            }
+        }
+
+        if (!$conflicts->isEmpty()) {
+            throw new UpdateException(sprintf(
+                'the deployment has changed since the push this record was taken for, so rolling it back '
+                . 'would mix two releases, and nothing was restored or removed. Changed since: %s. A full '
+                . 'deploy is the way back from here',
+                $conflicts->map(static fn(RecordEntry $entry): string => $entry->name)->join(', '),
+            ));
+        }
+
+        // Every copy is read and proved before the first one is written, and what is written is the
+        // bytes that were proved — so a damaged record refuses rather than restoring the half that
+        // happened to come first. They are held as UpdateFiles, a root, a name and the bytes to put
+        // there, which is exactly what one is; the memory is at most what the push replaced, the
+        // same order as the payload a push holds whole.
+        $copies  = new Collection(UpdateFile::class);
+        $damaged = new Collection(RecordEntry::class);
+
+        foreach ($recreate->with(...$restore->toValues()) as $entry) {
+            $bytes = $record->saved($entry);
+
+            if ($bytes === null) {
+                $damaged = $damaged->with($entry);
+            } else {
+                $copies = $copies->with(new UpdateFile($entry->root, $entry->name, $bytes));
+            }
+        }
+
+        if (!$damaged->isEmpty()) {
+            throw new UpdateException(sprintf(
+                'the saved copy of %s is missing or no longer what was recorded, so nothing was restored or removed',
+                $damaged->map(static fn(RecordEntry $entry): string => $entry->name)->join(', '),
+            ));
+        }
+
+        if (!$apply) {
+            foreach ($copies as $copy) {
+                $report = $report->wrote($copy->name);
+            }
+
+            foreach ($remove as $entry) {
+                $report = $report->removed($entry->name);
+            }
+
+            return $report->dryRun();
+        }
+
+        return $this->undo($copies, $remove, $record, $deployment, $report);
+    }
+
+    /**
+     * The root a file of this name falls under, by every rule a pushed member passes.
+     *
+     * It exists for the record of the previous release, whose index names paths a rollback then
+     * writes and deletes: those names are held to exactly the rules the archive's are, in one
+     * place, so the record can never be a second, weaker path to the tree.
+     *
+     * @param string $name
+     * @param string $holder Who holds the name, for the sentence a refusal is reported in.
+     * @return UpdateRoot
+     *
+     * @throws UpdateException if the name is one this class would not write.
+     */
+    public static function claim(string $name, string $holder): UpdateRoot
+    {
+        if ($name === '' || strlen($name) > self::MAX_NAME) {
+            throw new UpdateException(
+                sprintf('%s holds a name that is empty or over %d bytes', $holder, self::MAX_NAME),
+            );
+        }
+
+        return self::rooted($name, false, $holder);
     }
 
     /**
@@ -200,10 +368,11 @@ final readonly class UpdateApplier
      *
      * **It takes the entry rather than the name, because two of the rules are about the pair.** A
      * name is only half of what a member is, and a regular file may not be named as a directory or
-     * in place of one — see the two refusals below that ask `isDirectory`. Both are shapes no `tar`
-     * produces and neither could be reached without the private key; they are refused here because
-     * the alternative is a destination computed from them, and the one thing this class promises is
-     * that a member either passes every rule or writes nothing.
+     * in place of one — see the two refusals that ask `isDirectory`, here and in
+     * {@link self::rooted()}. Both are shapes no `tar` produces and neither could be reached without
+     * the private key; they are refused because the alternative is a destination computed from
+     * them, and the one thing this class promises is that a member either passes every rule or
+     * writes nothing.
      *
      * @param TarEntry $entry
      * @return UpdateRoot The root it falls under. Returned rather than discarded so that no later
@@ -237,9 +406,26 @@ final readonly class UpdateApplier
             ));
         }
 
+        return self::rooted($name, $entry->isDirectory, self::ARCHIVE);
+    }
+
+    /**
+     * The rules a name must pass whoever holds it — the archive, or the record of the previous
+     * release — and the root it falls under.
+     *
+     * @param string $name Already bounded in length, and without a trailing slash.
+     * @param bool $isDirectory
+     * @param string $holder
+     * @return UpdateRoot
+     *
+     * @throws UpdateException
+     */
+    private static function rooted(string $name, bool $isDirectory, string $holder): UpdateRoot
+    {
         if (preg_match(self::SAFE_NAME, $name) !== 1) {
             throw new UpdateException(sprintf(
-                "the archive holds '%s', which is not a plain relative path this site will write",
+                "%s holds '%s', which is not a plain relative path this site will write",
+                $holder,
                 $name,
             ));
         }
@@ -249,7 +435,7 @@ final readonly class UpdateApplier
         // widened, which is exactly why it is separate from it rather than folded in.
         foreach (explode('/', $name) as $segment) {
             if ($segment === '.' || $segment === '..') {
-                throw new UpdateException(sprintf("the archive holds '%s', which walks the tree", $name));
+                throw new UpdateException(sprintf("%s holds '%s', which walks the tree", $holder, $name));
             }
         }
 
@@ -257,7 +443,8 @@ final readonly class UpdateApplier
 
         if ($root === null) {
             throw new UpdateException(sprintf(
-                "the archive holds '%s', which is under none of the roots a push may write (%s)",
+                "%s holds '%s', which is under none of the roots a push may write (%s)",
+                $holder,
                 $name,
                 new Collection(UpdateRoot::class)
                     ->with(...UpdateRoot::cases())
@@ -273,10 +460,11 @@ final readonly class UpdateApplier
         // of nothing and names the webroot directory itself. Nothing would be overwritten — the
         // rename fails on a directory — but it would be reported as a write that failed rather than
         // as a payload that was never legal.
-        if (!$entry->isDirectory && $root->isTree() && $name === $root->value) {
+        if (!$isDirectory && $root->isTree() && $name === $root->value) {
             throw new UpdateException(sprintf(
-                "the archive holds '%s' as a regular file, but that name is a tree this push writes "
+                "%s holds '%s' as a regular file, but that name is a tree this push writes "
                 . 'into rather than a file it writes',
+                $holder,
                 $name,
             ));
         }
@@ -321,16 +509,123 @@ final readonly class UpdateApplier
     }
 
     /**
+     * Records the release this push is about to replace, answering the report the push begins with.
+     *
+     * **What is recorded is what the push will change, and nothing it will not.** A file whose
+     * bytes are already there is neither saved nor listed — the rule {@link self::isCurrent()}
+     * states, which keeps a push from touching a file it is not changing, and keeps a rollback from
+     * touching it either. A file about to be overwritten is saved; one about to be written where
+     * there was none is listed as added; one the mirror will delete is saved.
+     *
+     * **A symbolic link is never read through.** A payload file whose destination is a link
+     * replaces the link — {@link File::write()} renames onto it — so the record lists the path as
+     * added; a surplus link is not kept at all, whatever the mirror then makes of it. Both are said
+     * in a note, since a rollback will not bring either link back.
+     *
+     * A push that changes nothing leaves the record as it is rather than replacing it with an empty
+     * one: running the same push twice should not cost the one step back the first one earned.
+     *
+     * @param Collection<UpdateFile> $files
+     * @param UpdateManifest $manifest
+     * @param Deployment $deployment
+     * @param int|null $serial
+     * @return UpdateReport
+     *
+     * @throws UpdateException if the record cannot be taken completely. Nothing live has been written.
+     */
+    private function record(
+        Collection $files,
+        UpdateManifest $manifest,
+        Deployment $deployment,
+        ?int $serial,
+    ): UpdateReport {
+        $report  = new UpdateReport();
+        $entries = new Collection(RecordEntry::class);
+
+        foreach ($files as $file) {
+            if ($this->isCurrent($file, $deployment)) {
+                continue;
+            }
+
+            $live = $deployment->destination($file->root, $file->name);
+
+            if (is_link($live->path)) {
+                $report = $report->noted(sprintf(
+                    '%s is a symbolic link the push writes over; the record does not keep the link',
+                    $file->name,
+                ));
+            }
+
+            $entries = $entries->with(is_link($live->path) || !$live->exists()
+                ? RecordEntry::added($file->root, $file->name, $file->contents)
+                : RecordEntry::changed($file->root, $file->name, self::saveable($live, $file->name), $file->contents));
+        }
+
+        foreach (UpdateRoot::cases() as $root) {
+            if (!$manifest->mirror || !self::carries($files, $root)) {
+                continue;
+            }
+
+            foreach ($this->surplusIn($root, $files, $deployment) as $name) {
+                $live = $deployment->destination($root, $name);
+
+                if (is_link($live->path)) {
+                    $report = $report->noted(sprintf(
+                        '%s is a symbolic link the payload omits; the record does not keep it',
+                        $name,
+                    ));
+                    continue;
+                }
+
+                $entries = $entries->with(RecordEntry::deleted($root, $name, self::saveable($live, $name)));
+            }
+        }
+
+        if ($entries->isEmpty()) {
+            return $report->noted('this push changes nothing, so the record of the previous release was left as it is');
+        }
+
+        $refused = new ReleaseRecord($deployment->previousRelease())->take($serial, $entries, $deployment);
+
+        if ($refused !== null) {
+            throw new UpdateException(sprintf(self::UNRECORDED, $refused));
+        }
+
+        $saved = $entries->where(static fn(RecordEntry $entry): bool => $entry->kind->saves())->count();
+
+        return $report->noted(sprintf(
+            'the release this replaces is recorded — %d saved, %d added — and `update v1 rollback` puts it back',
+            $saved,
+            $entries->count() - $saved,
+        ));
+    }
+
+    /**
+     * The bytes of $live, which the record is about to save.
+     *
+     * @param File $live
+     * @param string $name
+     * @return string
+     *
+     * @throws UpdateException if the file is there and cannot be read — a file the record cannot
+     *                         keep is a push it cannot take back.
+     */
+    private static function saveable(File $live, string $name): string
+    {
+        return $live->read()
+            ?? throw new UpdateException(sprintf(self::UNRECORDED, sprintf("'%s' could not be read", $name)));
+    }
+
+    /**
      * Writes every file, reporting each.
      *
      * @param Collection<UpdateFile> $files
      * @param Deployment $deployment
+     * @param UpdateReport $report What the run has to say before its first write.
      * @return UpdateReport
      */
-    private function write(Collection $files, Deployment $deployment): UpdateReport
+    private function write(Collection $files, Deployment $deployment, UpdateReport $report): UpdateReport
     {
-        $report = new UpdateReport();
-
         foreach ($files as $file) {
             if ($this->isCurrent($file, $deployment)) {
                 $report = $report->kept($file->name);
@@ -352,6 +647,88 @@ final readonly class UpdateApplier
         }
 
         return $report;
+    }
+
+    /**
+     * Restores $restore from the record, then removes $remove, then clears the record — each step
+     * only if the one before it completed.
+     *
+     * @param Collection<UpdateFile> $restore The proved saved copies: what the mirror deleted, then
+     *                                        what the push changed.
+     * @param Collection<RecordEntry> $remove What the push added.
+     * @param ReleaseRecord $record
+     * @param Deployment $deployment
+     * @param UpdateReport $report
+     * @return UpdateReport
+     */
+    private function undo(
+        Collection $restore,
+        Collection $remove,
+        ReleaseRecord $record,
+        Deployment $deployment,
+        UpdateReport $report,
+    ): UpdateReport {
+        $kept = 'the record was kept, so the rollback can be run again once what failed is fixed';
+
+        foreach ($restore as $file) {
+            $live = $deployment->destination($file->root, $file->name);
+
+            if (!$live->directory()->create()) {
+                $report = $report->failed($file->name, 'its directory could not be created');
+                continue;
+            }
+
+            $report = $live->write($file->contents)
+                ? $report->wrote($file->name)
+                : $report->failed($file->name, 'could not be written');
+        }
+
+        if (!$report->isComplete()) {
+            return $report
+                ->noted('nothing the push added was removed, because a restore failed')
+                ->noted($kept);
+        }
+
+        foreach ($remove as $entry) {
+            $report = $deployment->destination($entry->root, $entry->name)->delete()
+                ? $report->removed($entry->name)
+                : $report->failed($entry->name, 'could not be removed');
+        }
+
+        $this->sweepAfter($remove, $deployment);
+
+        if (!$report->isComplete()) {
+            return $report->noted($kept);
+        }
+
+        $cleared = $record->clear();
+
+        return $cleared === null
+            ? $report->noted('the record is cleared, so this rollback cannot be run twice')
+            : $report->failed(basename($deployment->previousRelease()->path), 'could not be cleared: ' . $cleared);
+    }
+
+    /**
+     * The digest of the regular file at $live, null where there is none, and `''` — which matches
+     * no recorded state — where there is something a rollback must not reason about: a symbolic
+     * link, or a file it cannot read.
+     *
+     * @param File $live
+     * @return string|null
+     */
+    private static function digestOf(File $live): ?string
+    {
+        if (is_link($live->path)) {
+            return '';
+        }
+
+        if (!$live->exists()) {
+            return null;
+        }
+
+        $bytes = $live->read();
+
+        return $bytes === null ? '' : RecordEntry::digest($bytes);
     }
 
     /**
@@ -561,6 +938,45 @@ final readonly class UpdateApplier
             foreach ($directories as $path) {
                 Diagnostics::muted(static fn(): bool => rmdir($path));
             }
+        }
+    }
+
+    /**
+     * Removes the directories a rollback emptied by removing what the push added — and only those:
+     * each removed file's own directories, up to and never including its root's.
+     *
+     * Narrower than {@link self::sweep()}, deliberately. That one sweeps every empty directory under
+     * a root, which is right after a mirror and wrong here, where a directory that was empty before
+     * the push is part of the release being put back. Deepest first, and `rmdir()` for sweep()'s
+     * reason: it refuses a directory that is not empty.
+     *
+     * @param Collection<RecordEntry> $removed
+     * @param Deployment $deployment
+     * @return void
+     */
+    private function sweepAfter(Collection $removed, Deployment $deployment): void
+    {
+        $directories = [];
+
+        foreach ($removed as $entry) {
+            $root = $deployment->directory($entry->root);
+
+            if ($root === null) {
+                continue;
+            }
+
+            $directory = dirname($deployment->destination($entry->root, $entry->name)->path);
+
+            while (strlen($directory) > strlen($root->path)) {
+                $directories[$directory] = substr_count($directory, '/');
+                $directory               = dirname($directory);
+            }
+        }
+
+        arsort($directories);
+
+        foreach ($directories as $directory => $depth) {
+            Diagnostics::muted(static fn(): bool => rmdir($directory));
         }
     }
 

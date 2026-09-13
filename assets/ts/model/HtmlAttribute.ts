@@ -26,4 +26,16 @@ export enum HtmlAttribute {
   Preload   = 'preload',
   AriaLabel = 'aria-label',
   AriaLive  = 'aria-live',
+
+  /** The form's attributes. Server-side only, like most of this list. */
+  AriaDescribedBy = 'aria-describedby',
+  Action          = 'action',
+  Method          = 'method',
+  Value           = 'value',
+  For             = 'for',
+  Required        = 'required',
+  MaxLength       = 'maxlength',
+  Autocomplete    = 'autocomplete',
+  Checked         = 'checked',
+  Selected        = 'selected',
 }

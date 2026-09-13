@@ -7,10 +7,10 @@ namespace Phpanta\Text;
 /**
  * The FrameworkText enum. The few words the framework says itself, whatever site it runs.
  *
- * Only what framework code sends without a site's view around it — a plain-text body the router or
- * the API controller writes before any page is involved. Everything a page says is the site's, in
- * the site's own catalogs; this is the one catalog a site inherits rather than writes, which is why
- * it holds so little.
+ * Only what framework code says without a site's words around it — a plain-text body the router or
+ * the API controller writes before any page is involved, and what a {@link \Phpanta\Form\Rule}
+ * says of a field it refuses. Everything else a page says is the site's, in the site's own catalogs;
+ * this is the one catalog a site inherits rather than writes, which is why it holds so little.
  */
 enum FrameworkText: string implements Translatable
 {
@@ -52,4 +52,31 @@ enum FrameworkText: string implements Translatable
         de: 'Zu viele Anfragen. Bitte warte einen Moment und versuche es dann noch einmal.',
     )]
     case TooManyRequests = 'too-many-requests';
+
+    /** A field that has to be filled in and was not — see Required. */
+    #[Translation(en: 'Please fill this in.', de: 'Bitte fülle das aus.')]
+    case FieldRequired = 'field-required';
+
+    /** A field longer than it may be — see MaxLength. */
+    #[Translation(
+        en: 'Please use at most {max, plural, one {# character} other {# characters}}.',
+        de: 'Bitte verwende höchstens {max, number} Zeichen.',
+    )]
+    case FieldTooLong = 'field-too-long';
+
+    /** A field that is not an email address — see Email. */
+    #[Translation(en: 'Please enter an email address.', de: 'Bitte gib eine E-Mail-Adresse ein.')]
+    case FieldNotEmail = 'field-not-email';
+
+    /** A field that is not a whole number — see WholeNumber. */
+    #[Translation(en: 'Please enter a whole number.', de: 'Bitte gib eine ganze Zahl ein.')]
+    case FieldNotWholeNumber = 'field-not-whole-number';
+
+    /** A field that names none of its choices — see OneOf. */
+    #[Translation(en: 'Please choose one of the options.', de: 'Bitte wähle eine der Optionen.')]
+    case FieldNotAChoice = 'field-not-a-choice';
+
+    /** The empty first option of a choice, which is what makes a required one ask — see Form. */
+    #[Translation(en: '— choose —', de: '— auswählen —')]
+    case FieldChoose = 'field-choose';
 }

@@ -38,6 +38,13 @@ use Phpanta\Support\SearchableCollection;
 final readonly class Input
 {
     /**
+     * What a whole number is, sent as text: digits with an optional minus and no leading zero,
+     * eighteen at most. Public because a form's rule asks the same question of a field — see
+     * {@link \Phpanta\Form\WholeNumber} — and one grammar written twice is two.
+     */
+    public const string WHOLE_NUMBER = '#\A-?(?:0|[1-9][0-9]{0,17})\z#';
+
+    /**
      * @param SearchableCollection<string> $values   Every name sent, with the last value sent for it.
      * @param Collection<string>           $repeated The names sent more than once.
      */
@@ -134,7 +141,7 @@ final readonly class Input
             return null;
         }
 
-        if (preg_match('#\A-?(?:0|[1-9][0-9]{0,17})\z#', $value) !== 1) {
+        if (preg_match(self::WHOLE_NUMBER, $value) !== 1) {
             throw new InputException(sprintf("'%s' is not a whole number.", self::name($parameter)));
         }
 

@@ -27,6 +27,8 @@ use Phpanta\Http\RetryAfter;
 use Phpanta\Http\RobotsPolicy;
 use Phpanta\Http\Security\ContentSecurityPolicy;
 use Phpanta\Http\Security\ContentTypeOptions;
+use Phpanta\Http\Security\CrossOriginOpenerPolicy;
+use Phpanta\Http\Security\CrossOriginResourcePolicy;
 use Phpanta\Http\Security\CspDirective;
 use Phpanta\Http\Security\CspHost;
 use Phpanta\Http\Security\CspKeyword;
@@ -58,6 +60,8 @@ use RecursiveIteratorIterator;
 #[CoversClass(PermissionsPolicyFeature::class)]
 #[CoversClass(SecurityHeader::class)]
 #[CoversClass(StrictTransportSecurity::class)]
+#[CoversClass(CrossOriginOpenerPolicy::class)]
+#[CoversClass(CrossOriginResourcePolicy::class)]
 // Declared because this file is the only thing that exercises the realm check, and a test class
 // that names any #[CoversClass] records coverage for *only* those classes — so without this line
 // the guard reads as 0% while eight data rows drive it. The same trap UpdateFile fell into.
@@ -440,6 +444,8 @@ final class SecurityPolicyTest extends TestCase
         yield 'a media type'              => ['text/html; charset=utf-8', MimeType::html()];
         yield 'the language a body is in' => ['de', new ContentLanguage(Language::German)];
         yield 'a single-value enum'       => ['nosniff', ContentTypeOptions::NoSniff];
+        yield 'no opener across origins'  => ['same-origin', CrossOriginOpenerPolicy::SameOrigin];
+        yield 'loaded only by this origin' => ['same-origin', CrossOriginResourcePolicy::SameOrigin];
 
         // A file response's four. It is the only response here whose body is not a rendered
         // page, so it is the only one that has a length to state, a part to name and a unit to
@@ -580,6 +586,8 @@ final class SecurityPolicyTest extends TestCase
                 'Phpanta\Http\RobotsPolicy',
                 'Phpanta\Http\Security\ContentSecurityPolicy',
                 'Phpanta\Http\Security\ContentTypeOptions',
+                'Phpanta\Http\Security\CrossOriginOpenerPolicy',
+                'Phpanta\Http\Security\CrossOriginResourcePolicy',
                 'Phpanta\Http\Security\PermissionsPolicy',
                 'Phpanta\Http\Security\ReferrerPolicy',
                 'Phpanta\Http\Security\StrictTransportSecurity',

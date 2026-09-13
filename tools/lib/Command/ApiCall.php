@@ -7,8 +7,10 @@ namespace Phpanta\Tool\Command;
 use BackedEnum;
 use Phpanta\Http\Api\ApiService;
 use Phpanta\Http\Api\ApiVersion;
+use Phpanta\Http\Api\UpdateAction;
 use Phpanta\Http\HttpMethod;
 use Phpanta\Http\HttpStatusCode;
+use Phpanta\Model\Update\UpdateManifest;
 use Phpanta\Tool\Api\ApiTarget;
 use Phpanta\Tool\Api\PrivateKey;
 use Phpanta\Tool\Api\SignedRequest;
@@ -26,10 +28,15 @@ use Phpanta\Tool\Http\TransportException;
 /**
  * The ApiCall command. One signed call to `/api`, named on the command line.
  *
- * `php tools/api.php update v1 version` is the shape of it — `health v1 report` and
- * `capability v1 extensions` are the same command. It is the client for every action that carries
- * **no body** — which is every action but `patch`, and that one has {@link PushUpdate} because
- * building the tree it sends is most of what that command does.
+ * `php tools/api.php update v1 version` is the shape of it — `health v1 report`,
+ * `capability v1 extensions` and `update v1 rollback` are the same command. It is the client for
+ * every action that carries **no body** — which is every action but `patch`, and that one has
+ * {@link PushUpdate} because building the tree it sends is most of what that command does.
+ *
+ * **A write is signed with `apply`**, the one field every write action reads — false under
+ * `--dry-run`, so the server reports what it would do, changes nothing and spends no serial. A
+ * read refuses `--dry-run` rather than ignoring it: a flag that does nothing on one address and
+ * everything on another is a flag somebody will one day trust on the wrong one.
  *
  * **A new service costs this file nothing**, which is the property worth stating rather than
  * assuming: the vocabulary below is the server's own {@link ApiService} and {@link ApiVersion}, and
@@ -83,7 +90,7 @@ final readonly class ApiCall implements Command
      */
     public function usage(): string
     {
-        return '<service> <version> <action> [--url <origin>] [--key <file>]';
+        return '<service> <version> <action> [--dry-run] [--url <origin>] [--key <file>]';
     }
 
     /**
@@ -133,9 +140,22 @@ final readonly class ApiCall implements Command
             return ExitCode::Usage;
         }
 
-        if (!$action instanceof BackedEnum || $action->method() !== HttpMethod::Get) {
+        if (!$action instanceof BackedEnum || $action === UpdateAction::Patch) {
             $output->error(sprintf(
                 "%s: %s carries a body, so it has a command of its own.\n",
+                $this->name(),
+                $input->operand(2) ?? '',
+            ));
+
+            return ExitCode::Usage;
+        }
+
+        $write  = $action->method() !== HttpMethod::Get;
+        $dryRun = $input->has(ApiCallOption::DryRun);
+
+        if ($dryRun && !$write) {
+            $output->error(sprintf(
+                "%s: %s is a read, which changes nothing, so it has no dry run.\n",
                 $this->name(),
                 $input->operand(2) ?? '',
             ));
@@ -158,7 +178,9 @@ final readonly class ApiCall implements Command
                 $version,
                 $action,
                 '',
-                [],
+                // The flag is negative and the field positive, as in PushUpdate: `--dry-run` means
+                // `apply: false`. The key is the server's own constant, so the two cannot drift.
+                $write ? [UpdateManifest::APPLY => !$dryRun] : [],
                 PrivateKey::fromFile($target->key),
             );
 
@@ -177,13 +199,20 @@ final readonly class ApiCall implements Command
 
         // A read that is not verified gets the rendered 404 an address that is not there gets,
         // which is a whole HTML page — so say what it means rather than leaving the operator to
-        // read markup. Same three causes a refused push has, in the same order.
+        // read markup. A write that is not verified gets the 405 an unrouted write gets, which is
+        // the same answer wearing the other face. Same three causes a refused push has, in the
+        // same order.
         //
         // Anything else was answered by a verified handler, whose body above already says what
-        // went wrong — a `health` check that failed is a 503 carrying the whole report. Calling
-        // that "refused" would send somebody looking at their key.
-        $output->error($response->code() === HttpStatusCode::NotFound
-            ? "\nrefused with 404.\n"
+        // went wrong — a `health` check that failed is a 503 carrying the whole report, a rollback
+        // with nothing to roll back is a 422 saying so. Calling that "refused" would send somebody
+        // looking at their key. This command never signs a verb its action does not answer, so a
+        // 405 here is never the verified one.
+        $unverified = $response->code() === HttpStatusCode::NotFound
+            || ($write && $response->code() === HttpStatusCode::MethodNotAllowed);
+
+        $output->error($unverified
+            ? sprintf("\nrefused with %d.\n", $response->status)
             . "  That is what /api answers to anything it will not verify — it does not"
             . " say which check failed, by design. In order of likelihood:\n"
             . "    1. data/update.pub on the server does not match this private key\n"

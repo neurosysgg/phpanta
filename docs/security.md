@@ -55,14 +55,22 @@ Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'
 Referrer-Policy: strict-origin-when-cross-origin
 X-Content-Type-Options: nosniff
 Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=(), usb=(), midi=()
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
 ```
 
-Those five are `SecurityHeader`'s whole set, and `SecurityHeadersTest` asserts both what an app that
-widens nothing is sent and what one that widens all three is. Three are the app's to widen, and
+Those seven are `SecurityHeader`'s whole set, and `SecurityHeadersTest` asserts both what an app that
+widens nothing is sent and what one that widens the rest is. Five are the app's to widen, and
 each is at its strictest unless the app says otherwise: `App::contentHosts()` names third-party
 origins under every fetch directive but `default-src` and `object-src` — `connect-src`, `media-src`
 and `font-src` are written only when it names one, and `frame-src` is `'none'` until it does — and
-`App::strictTransportSecurity()` and `App::permissionsPolicy()` answer for the other two. An app
+`App::strictTransportSecurity()` and `App::permissionsPolicy()` answer for the other two.
+`App::crossOriginOpenerPolicy()` and `App::crossOriginResourcePolicy()` answer for the two
+cross-origin policies, both `same-origin`: no window keeps a handle on this site's pages across the
+origin line, and nothing PHP answers — a page, a gated file — can be loaded as a resource by another
+site. A site whose sign-in popup must talk back, or that answers something meant to be embedded,
+says so there. The resource policy does not reach what the web server answers straight from the
+webroot, which never passes through PHP. An app
 that embeds a file host's images names it under `img-src`, as `https://images.example.test`, and
 nothing else changes. A `Permissions-Policy` case is a feature browsers still recognise; one they do
 not is a console error on every page, not a stricter policy.
@@ -102,7 +110,7 @@ broken asset would paste straight back in:
   report's `document-uri`/`blocked-uri` is data a privacy policy would have to claim first. The
   policy is asserted at **build time** — `SecurityHeadersTest` pins the directive set — rather than
   observed at run time, which is the job a `report-uri` would otherwise do. `report-to` would also
-  want a sixth header, `Reporting-Endpoints`, naming an endpoint that does not exist.
+  want an eighth header, `Reporting-Endpoints`, naming an endpoint that does not exist.
 - `object-src 'none'`, `frame-ancestors 'none'`, `base-uri 'self'`, and `form-action 'self'` round it
   out. `form-action` on a site with no form is belt over braces, and stays because the day a form
   appears is not the day anyone will remember to add it.
@@ -266,6 +274,12 @@ it to four things:
 handed out: a `_csrf` field that matches it, compared in constant time, or a 403 that no cache keeps.
 A read passes untouched. [`LoginGate`](../src/Service/Layer/LoginGate.php) sends a visitor who is not
 logged in to the login page for a read, and refuses a write.
+
+A [`Form`](../src/Form/Form.php) writes the `_csrf` field itself, from the token the page hands it,
+so a form that renders is one the guard accepts and no page spells the field for itself; a
+hand-authored `<form>` is refused by the parser for posting without one. Where a form may post is
+bound twice: its `action` is scheme-checked like any `href`, and the policy's `form-action 'self'`
+already refuses any other origin in the browser.
 
 **Both are listed on the routes that take them, never on the app.** An app layer stands in front of
 every address, and would answer one that does not exist differently from the API, which answers every
@@ -515,6 +529,40 @@ descending, so a stray link under a root is a leaf, and unlinking it removes the
 it points at. No payload can carry one — `TarArchive` refuses a symlink member — so a link there is
 the mark of a compromise that already holds the filesystem, and the one code path here that deletes
 must not be a second way outside the roots. `UpdateTest` plants one and asserts the target survives.
+
+**Before its first write, a push records the release it replaces** — the one thing a verified
+payload causes to be written outside the four roots. `ReleaseRecord` keeps it in `.update-previous/`
+beside `.update-serial` in `App::above()`: above the webroot, under no root (so no payload can name
+it and no mirror walks it), and not in `data/`. It saves the bytes of every file the push will
+overwrite and every file the mirror will delete, lists every file it will add, and keeps two digests
+per path — what was there, and what the push writes. A file whose bytes are already current is
+neither saved nor listed, for the NFS reason above. The index is written marked incomplete, then each
+copy, then the index again marked complete, each through `File::write()`; if any step fails the push
+is **refused with nothing live written** — a `422` saying why, its serial spent like any write's.
+Only the last release is kept: each push clears the record — an enumerated delete of what its own
+index lists, never a walk and never `Directory::remove()` — and takes a new one, and a push that
+changes nothing leaves the record as it found it. The record never goes through a symbolic link: not
+its directory, not a directory under `saved/`, not a copy, not a live file it saves. A surplus link
+is not kept, and a destination that is a link is recorded as added.
+
+### Taking a push back
+
+`update v1 rollback` is the second action that writes. It carries no body — everything it restores
+is already on the server — and one manifest field, `apply`, so a dry run reports, changes nothing
+and spends no serial, while a real one spends a serial like a push. The names it reads back out of
+the record pass every rule an archive member passes (`UpdateApplier::claim()`), so an edited index
+cannot point it at `data/` or outside the roots.
+
+It moves each recorded path from the state the push left to the state before it, **and from nowhere
+else**. A path holding neither the pushed bytes nor the earlier ones — a full deploy since, a hand
+edit, a link — refuses the whole rollback before anything is written, and so does a saved copy whose
+digest no longer matches. A path already back in its earlier state, a write the push never landed,
+is left alone. Then what the mirror deleted is recreated, what the push changed is restored in the
+order it was written, each through `File::write()`, and what it added is removed only if every
+restore landed — by `File::delete()`, one named path at a time, with `rmdir()` for only the
+directories those removals emptied. A rollback that completes clears the record, so a second is a
+`422` saying there is nothing to roll back; one that fails partway keeps it, answers `500`, and can
+be run again. It is one step back and never two, because the record holds one release.
 
 ### Where the roots resolve
 

@@ -49,4 +49,13 @@ export enum HtmlTag {
   Table    = 'table',
   Tr       = 'tr',
   Td       = 'td',
+
+  /** The form and its controls are the server's Form's to write; nothing client-side creates one. */
+  Form     = 'form',
+  Input    = 'input',
+  Label    = 'label',
+  Select   = 'select',
+  Option   = 'option',
+  Fieldset = 'fieldset',
+  Legend   = 'legend',
 }

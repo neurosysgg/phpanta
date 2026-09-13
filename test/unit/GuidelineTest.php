@@ -148,6 +148,8 @@ final class GuidelineTest extends TestCase
     {
         self::assertSame(
             [
+                'Phpanta\Data\Row::$values',
+                'Phpanta\Data\Row::__construct()',
                 'Phpanta\Http\AcceptedLanguages::$qualities',
                 'Phpanta\Http\AcceptedLanguages::__construct()',
                 'Phpanta\Http\AcceptedLanguages::entry()',
@@ -244,6 +246,7 @@ final class GuidelineTest extends TestCase
     {
         self::assertSame(
             [
+                'Phpanta\Data\Migrations string',
                 'Phpanta\Http\Input string',
                 'Phpanta\Http\Session string',
                 'Phpanta\Model\Health\HealthSection string',

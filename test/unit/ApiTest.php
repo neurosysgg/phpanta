@@ -28,11 +28,14 @@ use Phpanta\Model\Api\ApiEnvelope;
 use Phpanta\Model\Api\SerialRefusal;
 use Phpanta\Model\Api\VerifiedRequest;
 use Phpanta\Model\Update\Deployment;
+use Phpanta\Model\Update\RollbackManifest;
 use Phpanta\Router;
 use Phpanta\Service\Api\HealthCheck;
 use Phpanta\Service\Api\UpdatePatch;
+use Phpanta\Service\Api\UpdateRollback;
 use Phpanta\Service\Api\UpdateVersion;
 use Phpanta\Service\ApiGate;
+use Phpanta\Service\ReleaseRecord;
 use Phpanta\Service\UpdateApplier;
 use Phpanta\Support\ApiPath;
 use Phpanta\Support\Collection;
@@ -87,6 +90,11 @@ use stdClass;
 #[CoversClass(CapabilityAction::class)]
 #[CoversClass(UpdatePatch::class)]
 #[CoversClass(UpdateVersion::class)]
+#[CoversClass(UpdateRollback::class)]
+#[CoversClass(RollbackManifest::class)]
+#[CoversClass(UpdateApplier::class)]
+#[CoversClass(ReleaseRecord::class)]
+#[CoversClass(Deployment::class)]
 #[CoversClass(Allow::class)]
 #[CoversClass(PublicKey::class)]
 #[CoversClass(FileLock::class)]
@@ -98,6 +106,7 @@ final class ApiTest extends TestCase
 {
     private const string PATCH      = '/api/update/v1/patch';
     private const string VERSION    = '/api/update/v1/version';
+    private const string ROLLBACK   = '/api/update/v1/rollback';
     private const string HEALTH     = '/api/health/v1/report';
     private const string CAPABILITY = '/api/capability/v1/extensions';
 
@@ -796,6 +805,62 @@ final class ApiTest extends TestCase
             (int) trim((string) $this->serialFile->read()),
             'the bytes of a failed push stayed replayable',
         );
+    }
+
+    /**
+     * A signed rollback reaches its handler through the controller, and is a write in every way the
+     * gate cares about.
+     *
+     * **The deployment is `TestApp`'s fixture**, which is where {@link Deployment::current()}
+     * resolves under this suite — {@link \Phpanta\Http\Api\ApiAction::handler()} has nowhere to pass
+     * a sandbox, for the reason the test above gives. The fixture holds no record, so every call
+     * here ends in the same refusal and none of them can write: which is exactly what lets the
+     * controller's half be asserted end to end — the verb, the manifest read out of the signed
+     * bytes, the serial spent for a write and not for a dry run, and the refusal's 422. What a
+     * rollback does *with* a record is {@link RollbackTest}'s, against a sandbox.
+     *
+     * @return void
+     */
+    public function testARollbackIsASignedWriteThatReachesItsHandler(): void
+    {
+        $previous = $_SERVER['DOCUMENT_ROOT'] ?? null;
+        $_SERVER['DOCUMENT_ROOT'] = App::current()->above()->path . '/public';
+
+        try {
+            self::assertFalse(
+                Deployment::current()->previousRelease()->exists(),
+                'the fixture holds a record of a previous release, which this test would roll back',
+            );
+
+            $wrongVerb = $this->respond(self::ROLLBACK, HttpMethod::Get, '');
+            self::assertSame(HttpStatusCode::MethodNotAllowed, $wrongVerb->status());
+            self::assertStringContainsString('rollback answers POST', $wrongVerb->body());
+
+            $dryRun = $this->respond(self::ROLLBACK, HttpMethod::Post, '', apply: false);
+            self::assertSame(HttpStatusCode::UnprocessableContent, $dryRun->status());
+            self::assertStringContainsString('refused: there is no previous release to roll back to', $dryRun->body());
+            self::assertNull($this->serialFile->read(), 'a rollback dry run spent a serial');
+
+            $serial = time();
+            $real   = $this->respond(self::ROLLBACK, HttpMethod::Post, '', serial: $serial);
+            self::assertSame(HttpStatusCode::UnprocessableContent, $real->status());
+            self::assertStringContainsString('there is no previous release to roll back to', $real->body());
+            self::assertSame(
+                $serial,
+                (int) trim((string) $this->serialFile->read()),
+                'a rollback did not spend its serial',
+            );
+            self::assertFalse(
+                Deployment::current()->previousRelease()->exists(),
+                'a refused rollback created a record',
+            );
+        } finally {
+            if ($previous === null) {
+                unset($_SERVER['DOCUMENT_ROOT']);
+            } else {
+                $_SERVER['DOCUMENT_ROOT'] = $previous;
+            }
+        }
     }
 
     /**

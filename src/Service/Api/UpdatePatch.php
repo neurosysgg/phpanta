@@ -33,11 +33,15 @@ final readonly class UpdatePatch implements ApiHandler
      * @param UpdateApplier|null $applier A test seam, the way {@link \Phpanta\Service\ApiGate}'s
      *                                    key and serial are. Production passes nothing, which is what
      *                                    makes {@link UpdateApplier} resolve the live deployment.
+     * @param int|null $serial The envelope's serial, written into the record of the release this
+     *                         push replaces so a rollback can say which push it undoes. Null where
+     *                         there is no envelope to take it from — a test's handler.
      */
     public function __construct(
         private UpdateManifest $manifest,
         private string         $archive,
         private ?UpdateApplier $applier = null,
+        private ?int           $serial = null,
     ) {}
 
     /**
@@ -69,7 +73,7 @@ final readonly class UpdatePatch implements ApiHandler
      */
     public function handle(): Response
     {
-        $report = ($this->applier ?? new UpdateApplier())->apply($this->archive, $this->manifest);
+        $report = ($this->applier ?? new UpdateApplier())->apply($this->archive, $this->manifest, $this->serial);
 
         return new PlainTextResponse(
             $report->isComplete() ? HttpStatusCode::Ok : HttpStatusCode::InternalServerError,

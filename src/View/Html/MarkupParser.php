@@ -252,6 +252,17 @@ final readonly class MarkupParser
             ));
         }
 
+        // Refused for what it would do rather than for what it is. A form is written by
+        // Phpanta\Form\Form, which puts the visitor's form token in it; one parsed out of a document
+        // would post without it, and be refused by the guard on every send — a form that looks
+        // right and never works.
+        if ($tag === HtmlTag::Form) {
+            throw new ParserException(sprintf(
+                '<%s> is written by a Form, which carries the form token; a hand-authored one would post without it.',
+                $tag->tagName(),
+            ));
+        }
+
         if (in_array($tag, self::DOCUMENT_TAGS, true)) {
             throw new ParserException(sprintf(
                 '<%s> belongs to the document around a page, not to content a view parses.',

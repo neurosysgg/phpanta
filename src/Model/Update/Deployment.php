@@ -81,6 +81,22 @@ final readonly class Deployment
     }
 
     /**
+     * Where the record of the previous release is kept — see {@link \Phpanta\Service\ReleaseRecord}.
+     *
+     * Beside the update serial, and for the serial's reasons: above the webroot, so nothing serves
+     * it; in none of the roots, so no payload can name it and no mirror walks it; and outside
+     * `data/`, which a site deploys from whichever machine deployed last. Derived here rather than
+     * on the app because a test holds a Deployment over a sandbox, and the record must be as
+     * unreachable from a test as the tree it records.
+     *
+     * @return Directory
+     */
+    public function previousRelease(): Directory
+    {
+        return $this->above->directory('.update-previous');
+    }
+
+    /**
      * The payload name a file inside a root's tree would have been packed under.
      *
      * The inverse of {@link self::destination()}, and it exists for the mirror: the applier walks

@@ -86,6 +86,21 @@ enum HtmlTag: string implements TagName
     case Td    = 'td';
 
     /**
+     * What {@link \Phpanta\Form\Form} writes, and only it: a form carries the visitor's form token,
+     * so one assembled anywhere else is a form that posts without it. {@link MarkupParser} refuses a
+     * hand-authored one for that reason.
+     */
+    case Form = 'form';
+
+    /** A form control: void, like `<img>` — its value is an attribute, never content. */
+    case Input    = 'input';
+    case Label    = 'label';
+    case Select   = 'select';
+    case Option   = 'option';
+    case Fieldset = 'fieldset';
+    case Legend   = 'legend';
+
+    /**
      * @return string
      */
     public function tagName(): string
@@ -99,8 +114,8 @@ enum HtmlTag: string implements TagName
     public function isVoid(): bool
     {
         return match ($this) {
-            self::Meta, self::Link, self::Img, self::Br => true,
-            default                                     => false,
+            self::Meta, self::Link, self::Img, self::Br, self::Input => true,
+            default                                                  => false,
         };
     }
 }

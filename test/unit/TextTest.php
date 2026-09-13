@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Phpanta\Test\Unit;
 
 use MessageFormatter;
+use Phpanta\App;
 use Phpanta\Exception\TranslationException;
 use Phpanta\Test\SourceTree;
 use Phpanta\Text\FrameworkText;
 use Phpanta\Text\Joined;
 use Phpanta\Text\Language;
+use Phpanta\Text\Languages;
 use Phpanta\Text\Phrase;
 use Phpanta\Text\Translatable;
 use Phpanta\Text\Translated;
@@ -28,6 +30,8 @@ use UnitEnum;
  * How the markup tree decides which language one renders in is {@link MarkupTest}'s to say.
  */
 #[CoversClass(Translation::class)]
+#[CoversClass(Language::class)]
+#[CoversClass(Languages::class)]
 #[CoversClass(Phrase::class)]
 #[CoversClass(Verbatim::class)]
 #[CoversClass(Joined::class)]
@@ -37,14 +41,14 @@ final class TextTest extends TestCase
     /**
      * @return void
      */
-    public function testATranslationAnswersInEachLanguageAndGermanFallsBackToEnglish(): void
+    public function testATranslationAnswersInEachLanguageAndFallsBackToTheAppsDefault(): void
     {
         $both    = new Translation(en: 'downloads', de: 'Downloads');
         $english = new Translation(en: 'downloads');
 
         self::assertSame('downloads', $both->in(Language::English));
         self::assertSame('Downloads', $both->in(Language::German));
-        self::assertSame('downloads', $english->in(Language::German), 'German falls back to English');
+        self::assertSame('downloads', $english->in(Language::German), 'German falls back to the default');
 
         self::assertTrue($both->has(Language::German));
         self::assertFalse($english->has(Language::German), 'a fallback is not a translation');
@@ -52,16 +56,70 @@ final class TextTest extends TestCase
     }
 
     /**
-     * English is the language every other falls back to, so a translation without it has nothing to
-     * fall back on.
+     * Any language is enough, and a language nobody wrote falls back along the app's languages in
+     * order — the default first — and only then to whichever text was written first.
      *
      * @return void
      */
-    public function testATranslationWithNoEnglishIsRefused(): void
+    public function testAMissingTextFallsBackAlongTheOfferedLanguagesThenToTheFirstWritten(): void
+    {
+        $translation = new Translation(de: 'Downloads', fr: 'téléchargements', nl: 'downloads');
+
+        self::assertSame('téléchargements', $translation->in(Language::French));
+        self::assertSame('downloads', $translation->in(Language::Dutch));
+        self::assertFalse($translation->has(Language::English));
+        self::assertSame('Downloads', $translation->in(Language::English), 'TestApp offers German second');
+
+        self::assertSame(
+            'téléchargements',
+            $translation->fallback(new Languages(Language::Italian, Language::French, Language::German)),
+            'the first offered language that has a text, not the first in the enum',
+        );
+        self::assertSame(
+            'Downloads',
+            $translation->fallback(new Languages(Language::Spanish)),
+            'none offered has one: the first written',
+        );
+    }
+
+    /**
+     * A translation with nothing in it has nothing to fall back to.
+     *
+     * @return void
+     */
+    public function testATranslationWithNoTextIsRefused(): void
     {
         $this->expectException(TranslationException::class);
+        $this->expectExceptionMessage('at least one language');
 
-        new Translation(en: '  ', de: 'etwas');
+        new Translation();
+    }
+
+    /**
+     * A blank text would pass for a translation and show nothing; leaving the language out is how
+     * it falls back.
+     *
+     * @return void
+     */
+    public function testABlankTextIsRefused(): void
+    {
+        $this->expectException(TranslationException::class);
+        $this->expectExceptionMessage('The Italian text is blank');
+
+        new Translation(en: 'downloads', it: '  ');
+    }
+
+    /**
+     * A language switch names each language in itself, lower case.
+     *
+     * @return void
+     */
+    public function testEveryLanguageIsNamedInItself(): void
+    {
+        self::assertSame(
+            ['english', 'deutsch', 'français', 'español', 'italiano', 'nederlands'],
+            array_map(static fn(Language $language): string => $language->endonym(), Language::cases()),
+        );
     }
 
     /**
@@ -181,21 +239,20 @@ final class TextTest extends TestCase
         UnitEnum&Translatable $case,
     ): void {
         $translation = $case->translation();
+        $languages   = App::current()->languages();
 
-        self::assertTrue($translation->has(Language::German), 'no German: it would fall back to English');
-
-        foreach (Language::cases() as $language) {
+        foreach ($languages->offered()->toValues() as $language) {
+            self::assertTrue($translation->has($language), "no {$language->name}: it would fall back");
             self::assertNotNull(
                 MessageFormatter::create($language->value, $translation->pattern($language)),
                 "not a message ICU can read in {$language->name}",
             );
+            self::assertSame(
+                self::arguments($translation->pattern($languages->default())),
+                self::arguments($translation->pattern($language)),
+                "{$language->name} names different arguments from the default",
+            );
         }
-
-        self::assertSame(
-            self::arguments($translation->pattern(Language::English)),
-            self::arguments($translation->pattern(Language::German)),
-            'the two languages name different arguments',
-        );
     }
 
     /**

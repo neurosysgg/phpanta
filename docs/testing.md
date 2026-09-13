@@ -26,15 +26,17 @@ an app:
   paths the framework derives from an app then have somewhere real to land, and never land in a
   repository.
 
-`test/unit/` holds forty-six test classes, grouped by area:
+`test/unit/` holds fifty test classes, grouped by area:
 
 | Area | Tests |
 |---|---|
 | the app | `AppTest` (booting, what it derives, every `webroot()` refusal), `FaultTest` (who is told how a request broke) |
 | the API | `ApiTest` (the endpoint, its gate and its three services), `ApiClientTest` (signing against the real gate), `ApiCallTest`, `ApiTargetTest` |
-| the push | `PushUpdateTest`, `FrameworkCheckoutTest`, `TarWriterTest`, `UpdateTest` |
+| the push | `PushUpdateTest`, `FrameworkCheckoutTest`, `TarWriterTest`, `UpdateTest`, `RollbackTest` (what a push records of the release it replaces, and putting it back — or refusing to, once the deployment has moved on) |
 | health and capability | `HealthTest`, `RequirementTest`, `CapabilityTest` |
-| HTTP | `AnswerTest` (every answer, end to end, through `TestRequest`), `ResponseTest`, `RevalidationTest`, `FileResponseTest` (ranges and their headers), `JsonResponseTest` (the encoding's flags, a value that cannot encode), `StreamResponseTest` (chunks made at send time, never for a HEAD), `MimeTypeTest`, `RequestTest`, `InputTest` (the query and the form, by parameter and by type — and the API reading neither), `SecurityHeadersTest`, `SecurityPolicyTest`, `SyntheticPageTest` |
+| HTTP | `AnswerTest` (every answer, end to end, through `TestRequest`), `ResponseTest`, `RevalidationTest`, `FileResponseTest` (ranges and their headers), `JsonResponseTest` (the encoding's flags, a value that cannot encode), `StreamResponseTest` (chunks made at send time, never for a HEAD), `MimeTypeTest`, `RequestTest`, `InputTest` (the query and the form, by parameter and by type — and the API reading neither), `SecurityHeadersTest`, `SecurityPolicyTest`, `SyntheticPageTest`, `SitemapTest` (every exported page, absolute, and no sitemap without an origin) |
+| forms | `FormTest` (fields, rules, a submission read and refused, the form re-rendered with what was entered and its errors) |
+| data | `DatabaseTest` (opening, statements and their parameters, typed rows, transactions, migrations). It needs `pdo_sqlite`, and its database tests are skipped, not failed, without it |
 | auth | `AuthTest` (the comparison, its timing, the gates, `PasswordHash`), `SessionTest` (the sealed cookie kept, opened, refused and expired; the form token; the login gate), `LoginTest` (a login, counted by address and name), `ThrottleTest` (the sliding window, failing closed), `RateLimitTest` (the 429 and its `Retry-After`) |
 | routing | `RouterTest`, `RouteTest`, `RoutingFeatureTest` (typed placeholders, method sets, `OPTIONS`, groups, what a request says back), `RouteExportTest`, `LayerTest` (the order layers run in, a route's past its method gate, the five that ship) |
 | the markup tree | `MarkupTest` (building, escaping, the URL checks, parsing against a vocabulary) |
@@ -45,9 +47,12 @@ an app:
 | the rules | `BoundaryTest`, `GuidelineTest`, `NoDiscardTest` — see [below](#the-rules-the-framework-holds-itself-to) |
 | the framework's own site | `SitePagesTest`: every subheading in `site/data/` carries an anchor and links to it |
 
-Twelve fixtures sit beside the tests — `UpdateFixture`, `TextFixture`, `RoutePatternFixture`,
+Twenty-one fixtures sit beside the tests — `UpdateFixture`, `TextFixture`, `RoutePatternFixture`,
 `ExportFixturePath`, `ReadonlyFixture`, `CliOptionFixture`, `TagFixture`, `AttributeFixture`,
-`ClassFixture`, `ParameterFixture`, `SessionKeyFixture` and `EchoController` — with `PhpInputStream` standing in for `php://input`, which
+`ClassFixture`, `ParameterFixture`, `SessionKeyFixture`, `EchoController`; the forms' `FieldFixture`,
+`OtherFieldFixture` and `ChoiceFixture`; and the database's `TableFixture`, `NoteColumnFixture`,
+`AuthorColumnFixture`, `PragmaColumnFixture`, `NoteFixture` and `MigrationFixture` — with
+`PhpInputStream` standing in for `php://input`, which
 `RequestTest` still reads through when it tests a request that was not built with a body.
 
 **[`TestRequest`](../test/TestRequest.php) is the in-process client.** It builds the server
@@ -114,8 +119,9 @@ Two rules, the same as in any suite built on this one:
 - **Uncovered lines are a decision, not a budget.** A change that adds a guard covers it in the same
   commit. A guard no test can reach is deleted rather than covered by reflection.
 
-**The framework's suite alone covers nearly all of `src/`'s lines.** The figure was 98.93%
-(2598 of 2626) when last derived on 2026-09-13. Re-derive it
+**The framework's suite alone covers nearly all of `src/`'s lines.** The figure was 99.23%
+(3387 of 3413) when last derived on 2026-09-13, with `pdo_sqlite` loaded; without it the database
+tests skip and `Data/` reads as untested. Re-derive it
 with `XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-text` rather than trusting this.
 
 What it does not reach is what only a server reaches: `App::run()`, `Answer::send()` and

@@ -25,9 +25,10 @@ use Phpanta\Support\Collection;
  * {@link Security\CspSource}, {@link ReferrerPolicy} and {@link PermissionsPolicyFeature}. A misspelled
  * directive or an unquoted `'self'` is a parse error now, not a header the browser drops.
  *
- * Three of the five are the app's to widen — {@link App::contentHosts()},
- * {@link App::strictTransportSecurity()} and {@link App::permissionsPolicy()} — and each defaults
- * to the strict answer. The referrer policy and `nosniff` are not: nothing a site does needs
+ * Five of the seven are the app's to widen — {@link App::contentHosts()},
+ * {@link App::strictTransportSecurity()}, {@link App::permissionsPolicy()},
+ * {@link App::crossOriginOpenerPolicy()} and {@link App::crossOriginResourcePolicy()} — and each
+ * defaults to the strict answer. The referrer policy and `nosniff` are not: nothing a site does needs
  * either loosened.
  *
  * Static assets are served straight by Apache and never reach PHP, so they don't get these.
@@ -69,7 +70,7 @@ final class SecurityHeaders
      * A {@link Collection} rather than a list, because that is already what
      * {@link ViewResponse}, {@link PlainTextResponse} and {@link FileResponse} each take: the
      * headers a document sends were inside the type and the headers *every* response sends were
-     * not, which is the wrong way round for the five that cover the 401 as well as the 200.
+     * not, which is the wrong way round for the seven that cover the 401 as well as the 200.
      *
      * This runs on every request, so it is measured rather than assumed: **34.58 µs**, about 1.4 µs
      * more than a plain list for the construction plus one variadic `with()`, and in line with the
@@ -89,6 +90,8 @@ final class SecurityHeaders
             new Header(SecurityHeader::ReferrerPolicy, self::referrerPolicy()),
             new Header(SecurityHeader::ContentTypeOptions, ContentTypeOptions::NoSniff),
             new Header(SecurityHeader::PermissionsPolicy, $app->permissionsPolicy()),
+            new Header(SecurityHeader::CrossOriginOpenerPolicy, $app->crossOriginOpenerPolicy()),
+            new Header(SecurityHeader::CrossOriginResourcePolicy, $app->crossOriginResourcePolicy()),
         );
     }
 
@@ -160,7 +163,7 @@ final class SecurityHeaders
      *   privacy-policy decision before it is a code one: a site's privacy policy would have to
      *   claim that data before a report could carry it.
      *
-     * `report-to` also wants a `Reporting-Endpoints` header, which would be a sixth
+     * `report-to` also wants a `Reporting-Endpoints` header, which would be an eighth
      * {@link SecurityHeader} case naming an endpoint that does not exist. What stands in for
      * reporting here is that the policy is asserted rather than observed: the suites pin the
      * directive set and the hosts it names, and fail on an inline style or handler in any view. A

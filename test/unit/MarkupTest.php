@@ -15,12 +15,16 @@ use Phpanta\Text\Language;
 use Phpanta\View\Html\Attribute;
 use Phpanta\View\Html\AttributeName;
 use Phpanta\View\Html\AttributeValue;
+use Phpanta\View\Html\Autocomplete;
+use Phpanta\View\Html\ButtonType;
 use Phpanta\View\Html\Doctype;
 use Phpanta\View\Html\Document;
 use Phpanta\View\Html\Element;
+use Phpanta\View\Html\FormMethod;
 use Phpanta\View\Html\Fragment;
 use Phpanta\View\Html\HtmlAttribute;
 use Phpanta\View\Html\HtmlTag;
+use Phpanta\View\Html\InputType;
 use Phpanta\View\Html\LinkAttribute;
 use Phpanta\View\Html\LinkRel;
 use Phpanta\View\Html\LinkTarget;
@@ -66,6 +70,10 @@ use TypeError;
 #[CoversClass(LinkRel::class)]
 #[CoversClass(MetaName::class)]
 #[CoversClass(MediaPreload::class)]
+#[CoversClass(InputType::class)]
+#[CoversClass(FormMethod::class)]
+#[CoversClass(Autocomplete::class)]
+#[CoversClass(ButtonType::class)]
 final class MarkupTest extends TestCase
 {
     // ───────────────────────────── translated text ─────────────────────────────
@@ -422,6 +430,18 @@ final class MarkupTest extends TestCase
         }
         foreach (MediaPreload::cases() as $case) {
             yield 'MediaPreload::' . $case->name => [HtmlAttribute::Preload, $case];
+        }
+        foreach (InputType::cases() as $case) {
+            yield 'InputType::' . $case->name => [HtmlAttribute::Type, $case];
+        }
+        foreach (ButtonType::cases() as $case) {
+            yield 'ButtonType::' . $case->name => [HtmlAttribute::Type, $case];
+        }
+        foreach (FormMethod::cases() as $case) {
+            yield 'FormMethod::' . $case->name => [HtmlAttribute::Method, $case];
+        }
+        foreach (Autocomplete::cases() as $case) {
+            yield 'Autocomplete::' . $case->name => [HtmlAttribute::Autocomplete, $case];
         }
     }
 
@@ -1025,7 +1045,10 @@ final class MarkupTest extends TestCase
             }
         }
 
-        self::assertSame([HtmlAttribute::class . '::Href', HtmlAttribute::class . '::Src'], $urls);
+        self::assertSame(
+            [HtmlAttribute::class . '::Href', HtmlAttribute::class . '::Src', HtmlAttribute::class . '::Action'],
+            $urls,
+        );
     }
 
     /**
@@ -1244,6 +1267,7 @@ final class MarkupTest extends TestCase
         yield 'content hoisted into the head'       => ['<title>x</title><p>a</p>'];
         yield 'a closing tag that matches nothing'  => ['<p>hi</div>'];
         yield 'a script, whose text cannot escape'  => ['<p>a</p><script>x</script>'];
+        yield 'a form, which would post without its token' => ['<form action="/x"><input name="a"></form>'];
     }
 
     /**

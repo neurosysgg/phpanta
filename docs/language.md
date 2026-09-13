@@ -89,8 +89,12 @@ enum PostText: string implements Translatable
   backed enum's values must be unique. The key is also how the guideline rules see the file: an
   enum is exempt from the bare-string rule, and so are attribute arguments. See
   [guidelines.md](guidelines.md).
-- **English is required, and German falls back to it.** A site's suite can hold every catalog case
-  to its German anyway, and it should, because the fallback is an English word on a German page.
+- **Any one language is enough, and none may be blank.** `Translation` takes `en:`, `de:`, `fr:`,
+  `es:`, `it:` and `nl:`, each optional. A language with no text falls back along the app's
+  `Languages` in order, the default first, and then to the first text written. A blank text is
+  refused: a language with nothing to say is left out, so that it falls back. A site's suite should
+  still hold every catalog case to every language it offers, because a fallback is a word in the
+  wrong language on the page.
 - **Text is literal until it takes arguments.** `->with(title: …)` binds arguments into a `Phrase`,
   and only then is the text an ICU message: `{title}`, `{count, plural, one {# comment} other {#
   comments}}`, and numbers in the language's own style (`1.000` in German, `1,000` in English). That
@@ -144,19 +148,23 @@ Any switch owes three things:
 ## The client
 
 The client writes a few words of its own, such as a consent notice or an iframe title. It reads the
-language off `<html lang>` through `pageLanguage()` in
-[`model/Language.ts`](../assets/ts/model/Language.ts), a mirror of `Language`. That fallback is
-English, hard-coded rather than the app's default. A page the server sent always states a language,
-so the fallback is only for a document that did not come from it, which in practice is a test's
-document.
+language off `<html lang>` through `pageLanguage(offered)` in
+[`model/Language.ts`](../assets/ts/model/Language.ts), a mirror of `Language`. `offered` is the
+site's own list, its default first, stated once on the client beside the other facts it shares with
+the server, and checked against `languages()`. The answer is always one of `offered`, and the
+fallback is its first, the site's default. A page the server sent always states a language, so the
+fallback is only for a document that did not come from it, which in practice is a test's document.
 
-Each element keeps its words in a `Record<Language, …>`. A language the server gains without its
-words there is then a compile error, rather than an English gate on a German page.
+Each element keeps its words in a `Record` over the languages the site offers, not over every
+`Language`. A language the site gains without its words there is then a compile error, rather than
+an English gate on a German page. A language the framework gains costs the element nothing.
 
 ## What checks it
 
 - **`TextTest`**, in the framework's suite, pins these behaviours:
-  - `Translation` falls back to English, and refuses a translation with no English;
+  - `Translation` falls back along the app's languages, then to the first text written, and
+    refuses a translation with no text or a blank one;
+  - every framework catalog case is written in every language `TestApp` offers;
   - unbound text stays literal;
   - a catalog case with no `#[Translation]` is loud;
   - `Phrase` formats plurals and numbers by the language's rules (`1.000`), and an ICU message it
@@ -164,8 +172,9 @@ words there is then a compile error, rather than an English gate on a German pag
   - `Verbatim` is the same in every language, and `Joined` puts each part into the language first.
 - **A site's own suite holds its catalogs**, and this is the check worth writing first:
   - every case has a `#[Translation]`;
-  - both languages parse as ICU messages and name the same arguments;
-  - the German is written;
+  - each offered language parses as an ICU message and names the same arguments as the default;
+  - each offered language is written, asking `has()` of `languages()->offered()` rather than of
+    `Language::cases()`, which lists languages the site never writes;
   - every enum under `src/` that uses `Translated` is reachable from the site's index, so no catalog
     goes unchecked;
   - no view passes a word straight to `containing()`, `alt`, `title` or `aria-label` as a literal.
@@ -181,11 +190,20 @@ words depend on something the view knows, name it in the message (`{title}`) and
 
 ## Adding a language
 
+The framework knows six: English, German, French, Spanish, Italian and Dutch. An app offering one
+of those skips the first two steps.
+
 1. A `Language` case, and its `endonym()`; the same case in `assets/ts/model/Language.ts`.
-2. A parameter on `Translation` (`fr:`), and its arm in `pattern()` and `has()`.
-3. The app offering it, in `languages()`.
-4. Its words on every catalog case. A site's catalog check lists each one missing.
+2. A parameter on `Translation` (`pl:`), and its arm in `written()`.
+3. The app offering it, in `languages()`, and in the client's list of the languages it offers.
+4. Its words on every catalog case. A site's catalog check lists each one missing. The framework's
+   own words, in `FrameworkText`, are written in English and German; in another language they fall
+   back until someone writes them.
 5. Its words in each client `Record`. `tsc` lists each one missing.
+
+A site whose default is not English writes its default first, `new Languages(Language::German,
+Language::English)`, and nothing else changes: the fallback, the tie in `Accept-Language` and the
+client's fallback all follow it.
 
 A document written separately in each language rather than translated, such as a legal text, gains a
 third version only by someone writing it. That is a decision, not a translation.

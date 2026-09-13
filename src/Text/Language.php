@@ -13,6 +13,11 @@ namespace Phpanta\Text;
  * lives under `Text` rather than beside the markup vocabulary it began in, because it stopped being
  * only an attribute value: the request decides it, and the pages are written in it.
  *
+ * **A case is a language the framework knows, not one any app writes.** Which of these an app
+ * offers, and which it falls back to, is its {@link Languages}; a case it does not offer is answered
+ * as if it were nothing. So a new case costs an app nothing until it offers it — then its catalogs
+ * owe that language their words, and its own suite says which are missing.
+ *
  * Still an attribute *value* as well — {@link \Phpanta\View\Html\Element::attr()} takes it for
  * `lang` like any backed enum — and **a wrong `lang` is its failure mode, which is not at all.**
  * Nothing validates a language tag: a browser meeting `lang="eng"` or `lang="en-"` does not warn, it
@@ -31,16 +36,28 @@ namespace Phpanta\Text;
  */
 enum Language: string
 {
-    /** English: the text every {@link Translation} is required to have, and falls back to. */
+    /** English. */
     case English = 'en';
 
     /**
-     * German, which a {@link Translation} may carry beside the English.
+     * German.
      *
      * A site that owes legal notices in German — an imprint, a privacy policy — keeps their German
      * half whichever language leads, by marking that half with its own `lang`.
      */
     case German = 'de';
+
+    /** French. */
+    case French = 'fr';
+
+    /** Spanish. */
+    case Spanish = 'es';
+
+    /** Italian. */
+    case Italian = 'it';
+
+    /** Dutch. */
+    case Dutch = 'nl';
 
     /**
      * The language's name in itself — `deutsch`, `english` — which is how a language switch names
@@ -54,6 +71,10 @@ enum Language: string
         return match ($this) {
             self::English => 'english',
             self::German  => 'deutsch',
+            self::French  => 'français',
+            self::Spanish => 'español',
+            self::Italian => 'italiano',
+            self::Dutch   => 'nederlands',
         };
     }
 }

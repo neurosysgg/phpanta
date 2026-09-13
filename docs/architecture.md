@@ -309,6 +309,7 @@ Everything about a request or a response is a typed value here, not a string.
 | `StreamResponse` | a body generated as it is sent — a large CSV, server-sent events; no `Content-Length`, `no-store`, and a HEAD never runs the closure |
 | `Session` | what a visitor carries between requests, sealed into `__Host-session`; immutable, attached to an answer to be kept |
 | `SessionSeal` | AES-256-GCM under the deployment's `data/session.key`; what does not open is no session |
+| `Sitemap` | every exported page, absolute on `App::origin()`, as sitemaps.org XML built through the DOM; no `hreflang`, since every language is one address |
 | `Header` | a `HeaderName` and a `HeaderValue`; formats `Name: value` in one place |
 | `MimeType` | a `TopLevelType`, a validated subtype, and a `Charset` |
 | `HttpStatusCode` | every standard status code, backed by its number |
@@ -361,6 +362,15 @@ exception to a guideline — see [guidelines.md](guidelines.md).
 tree read it and `View/` has no other reason to know anything about HTTP. It carries two forms —
 `utf-8` for the header parameter, `canonical()` for the document head and for the one escaping call,
 in `Text` — because those two readers write it differently, and one enum keeps both spellings in step.
+
+## `Data/` — the database
+
+Optional, and a site's choice: `Database`, one SQLite connection opened the one way the framework
+opens one; `Sql`, a statement whose parameters are bound by type and compared with its placeholders
+where it is written; `Row` and its typed readers; `Table` and `Column`, the interfaces a site's enums
+implement; `Migration` and `Migrations`, applied once each and recorded. pdo_sqlite is not in the
+framework's floor — a site that keeps a database declares it with `Database::requirement()`. See
+[data.md](data.md).
 
 ## The type discipline
 
@@ -415,25 +425,32 @@ replace a variadic. The whole of it is in [collections.md](collections.md).
 ## Exceptions
 
 Every condition the framework can be in has a name, and all of them live in `Phpanta\Exception`.
-Fifteen classes — one of them abstract — and one interface, read from `src/Exception/`:
+Twenty-two classes — one of them abstract — and one interface, read from `src/Exception/`:
 
 | Class | Extends | Thrown when | Thrown by |
 |---|---|---|---|
 | `SiteException` | `Throwable` — the marker, an interface | — | — |
-| `AppException` | `LogicException` | no app is booted, the booted one is not the class asked for, or a second is booted | `App` |
+| `AppException` | `LogicException` | no app is booted, the booted one is not the class asked for, or a second is booted; a sitemap is asked of an app with no origin | `App`, `Sitemap` |
 | `ApiException` | `RuntimeException` | a signed request cannot be read or trusted | `ApiCredential`, `ApiEnvelope` |
-| ` └ UpdateException` | `ApiException` | a payload cannot be read or applied; a webroot cannot be resolved | `App::webroot()`, `PublicKey`, `TarArchive`, `UpdateApplier`, `UpdateManifest` |
+| ` └ UpdateException` | `ApiException` | a payload cannot be read or applied; a webroot cannot be resolved; a previous release cannot be recorded or put back | `App::webroot()`, `PublicKey`, `TarArchive`, `UpdateApplier`, `UpdateManifest`, `ReleaseRecord`, `PreviousRelease`, `RecordEntry`, `RollbackManifest` |
 | `CollectionException` | `TypeError` | a collection is asked to hold or produce the wrong type | `TypedItems` |
+| `DatabaseException` | `RuntimeException` | a database cannot be opened, or a file opened as one is not one | `Database` |
+| `FormException` | `LogicException` | a form is declared with what it cannot be, or asked for another form's field | `Form`, `Submission`, `MaxLength`, `OneOf` |
 | `GuidelineException` | `InvalidArgumentException` | an excuse for a guideline has no reason, or no subject | `BareArray`, `BareString`, `BareCall` |
-| `InvalidValueException` | `LogicException` | a value object is handed something that is not its kind of value | `PasswordHash`, and a site's own value objects |
+| `InputException` | `UnexpectedValueException` | what a query string or a form sent cannot be read as asked — answered with a 400 | `Input`, `Request` |
+| `InvalidValueException` | `LogicException` | a value object is handed something that is not its kind of value | `PasswordHash`, `Throttle`, and a site's own value objects |
 | `JsonEncodingException` | `RuntimeException` | a value cannot be written as JSON — a NAN, a string that is not UTF-8 | `JsonResponse` |
 | `MarkupException` | `LogicException`, abstract | — | — |
 | ` ├ ElementException` | `MarkupException` | an element is asked to be what no element can be | `Element` |
 | ` └ ParserException` | `MarkupException` | hand-authored markup is outside the app's vocabulary, or does not parse cleanly | `MarkupParser` |
+| `MigrationException` | `LogicException` | a list of migrations disagrees with the history a database records | `Migrations` |
 | `MimeTypeException` | `LogicException` | a media type is not one | `MimeType` |
 | `RequirementException` | `LogicException` | a requirement is declared with something it cannot check | 5 classes under `Model/Health/` |
-| `RouteException` | `LogicException` | a `Path` is given the wrong number of values | `FillsPlaceholders` |
-| `SecurityPolicyException` | `LogicException` | a policy or header value is not valid on the wire | 10 classes under `Http/` |
+| `RouteException` | `LogicException` | a `Path` is given the wrong number of values, or one its placeholder's type does not take; a method set is empty | `FillsPlaceholders`, `PlaceholderType`, `MethodSet` |
+| `SecurityPolicyException` | `LogicException` | a policy or header value is not valid on the wire | 12 classes under `Http/` |
+| `SessionException` | `RuntimeException` | a session is kept without a key to seal it, or grows past what a cookie holds | `Session`, `SessionSeal` |
+| `SqlException` | `LogicException` | a statement, a row read or a transaction is written wrong | `Sql`, `Row`, `Database` |
+| `ThrottleException` | `RuntimeException` | the throttle's record cannot be read or written, so it fails closed | `Throttle` |
 | `TranslationException` | `LogicException` | text cannot be put into a language | `Languages`, `Phrase`, `Translated`, `TranslatedText`, `Translation` |
 
 **A site adds its own the same way**, in its own namespace: a class that extends the one it
@@ -442,15 +459,16 @@ specialises — a `MarkupException` for a component that cannot draw what it was
 framework counterpart, the SPL class it replaces plus `SiteException`. Either way the family's
 `catch` still covers it, and the last-resort handler still reports it as the site's own.
 
-**`SiteException` is an interface because the inheritance chain is already spent.** Twelve classes
-declare it and the three under `MarkupException` and `ApiException` inherit it; of the twelve, eight
-are a `LogicException`, two a `RuntimeException`, one a `TypeError` and one an
-`InvalidArgumentException` — each saying something true — so the question *did this come from us*
-has nowhere else to live. It matters more than it looks: `CollectionException extends TypeError`
-extends **`Error`**, a sibling of `Exception` rather than a subclass, so `catch (Exception)` — the
-widest net anybody reaches for by habit — misses one of the fourteen concrete classes, silently, in
-the class most likely to be thrown by a mistake made five minutes ago. Only `Throwable` catches all
-fourteen, and `Throwable` also catches everything PHP raises. This interface is the difference, and
+**`SiteException` is an interface because the inheritance chain is already spent.** Nineteen classes
+declare it and the three under `MarkupException` and `ApiException` inherit it; of the nineteen,
+eleven are a `LogicException`, five a `RuntimeException`, one a `TypeError`, one an
+`InvalidArgumentException` and one an `UnexpectedValueException` — each saying something true — so
+the question *did this come from us* has nowhere else to live. It matters more than it looks:
+`CollectionException extends TypeError` extends **`Error`**, a sibling of `Exception` rather than a
+subclass, so `catch (Exception)` — the widest net anybody reaches for by habit — misses one of the
+twenty-one concrete classes, silently, in the class most likely to be thrown by a mistake made five
+minutes ago. Only `Throwable` catches all twenty-one, and `Throwable` also catches everything PHP
+raises. This interface is the difference, and
 the last-resort handler in a site's `public/index.php` is what it is for.
 
 **An exception becomes ours by extending the SPL class it already was, not by replacing it.**
@@ -682,5 +700,43 @@ taken under one is quoted at the other.
 **Never parse anything a request can influence** — not because it would be an injection, which is
 what the refusals are for, but because the vocabulary is the site's own, so a visitor would
 otherwise get to choose which of its elements to build.
+
+### Forms
+
+A form is an enum of `Field` cases and the `Path` it posts to. A `Field` is a `Parameter` — its
+value is the name on the wire — with a `label()`, a `type()` (an `InputType`) and its `rules()`, a
+`Collection` of `Rule`s. Everything is in `src/Form/`.
+
+```php
+$form       = new Form(ContactField::class, AppPath::Contact);
+$submission = $request->method() === HttpMethod::Post ? $form->read($request) : $form->blank();
+
+$form->render($submission, $session->token(), ContactText::Send);   // an Element
+```
+
+- **`read()` reads `Request::form()`** and asks each field's rules of its value, in order; the first
+  to refuse is the field's error, and a field shows one thing to fix at a time. A field not sent is
+  `''`, which is how an unticked checkbox arrives. A body that cannot be read, or a field sent twice,
+  is the `InputException` the router answers with a 400, and the form lets it through. A `Submission`
+  is immutable; a blank one holds no error and is not `isValid()`, since nothing was sent to act on.
+- **An empty value passes every rule but `Required`.** `MaxLength` counts characters, not bytes;
+  `Email` is `FILTER_VALIDATE_EMAIL`, which says nothing of whether an address exists and refuses a
+  few real ones — a dotless domain, a quoted or non-ASCII local part; `WholeNumber` is
+  `Input::WHOLE_NUMBER`, the grammar `Input::int()` reads; `OneOf` names a backed enum's cases,
+  compared as text. What they say is `FrameworkText`, in every language the framework writes.
+- **`render()` writes the whole form through the tree**: `<form method="post" action>`, the hidden
+  `_csrf` field, then per field a `<label for>` and its control — an `<input>` of its type, or a
+  `<select>` with an empty first option for a `OneOf` field — with `required` and `maxlength` read
+  off the rules, `autocomplete` where the enum implements `Autocompleting`, and the error after the
+  control, which names it in `aria-describedby`. `FieldId` builds each `for`/`id` pair, so a label
+  cannot name a control that is not there. What a visitor typed comes back escaped like any value.
+- **Three things it never leaves to a page.** It writes the form token itself, under the name
+  `CsrfGuard` reads — see [security.md](security.md#sessions-the-form-token-and-the-login). It
+  always posts, since a `get` puts every field into the address bar. And it never gives a password
+  field its value back, because the value would be written into a page that caches and saved copies
+  keep. A field named `_csrf` is refused when the form is built, and `MarkupParser` refuses a
+  hand-authored `<form>`, which would post without the token.
+- **`action` is an address.** `HtmlAttribute::isUrl()` says so, so `render()` scheme-checks it like
+  an `href` and an export rebases it.
 
 ---

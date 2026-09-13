@@ -9,10 +9,10 @@ use Phpanta\Tool\Cli\Option;
 /**
  * The ApiCallOption enum. The flags `api` accepts.
  *
- * Two, and both are the ones {@link PushUpdateOption} has for the same reasons — where to go and
- * which key to sign with. There is deliberately no flag that changes *what* is asked for: that is
- * the three operands, because a service, a version and an action are what the address is, and a
- * flag would let one of them be forgotten and defaulted.
+ * Three, and all are ones {@link PushUpdateOption} has for the same reasons — where to go, which key
+ * to sign with, and whether a write is only a rehearsal. There is deliberately no flag that changes
+ * *what* is asked for: that is the three operands, because a service, a version and an action are
+ * what the address is, and a flag would let one of them be forgotten and defaulted.
  */
 enum ApiCallOption: string implements Option
 {
@@ -21,6 +21,12 @@ enum ApiCallOption: string implements Option
 
     /** The private key. Defaults to the one the command was given, under `$HOME`. */
     case Key = 'key';
+
+    /**
+     * A write's dry run: the server reports what it would do, changes nothing and spends no serial.
+     * Refused on a read, which has nothing to rehearse.
+     */
+    case DryRun = 'dry-run';
 
     /**
      * @return string
@@ -35,6 +41,6 @@ enum ApiCallOption: string implements Option
      */
     public function takesValue(): bool
     {
-        return true;
+        return $this !== self::DryRun;
     }
 }

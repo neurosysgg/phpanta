@@ -12,6 +12,9 @@
         "ext-uri": "*",
         "ext-zlib": "*"
     },
+    "suggest": {
+        "ext-pdo_sqlite": "for Phpanta\\Data, when a site keeps a database; declare it with Database::requirement()"
+    },
     "require-dev": {
         "ext-curl": "*",
         "phpunit/php-code-coverage": "^14.3",

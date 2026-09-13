@@ -13,9 +13,12 @@ use Phpanta\Exception\AppException;
 use Phpanta\Exception\UpdateException;
 use Phpanta\Http\Answer;
 use Phpanta\Http\HttpStatusCode;
+use Phpanta\Http\Origin;
 use Phpanta\Http\PlainTextResponse;
 use Phpanta\Http\Request;
 use Phpanta\Http\Response;
+use Phpanta\Http\Security\CrossOriginOpenerPolicy;
+use Phpanta\Http\Security\CrossOriginResourcePolicy;
 use Phpanta\Http\Security\CspDirective;
 use Phpanta\Http\Security\CspSource;
 use Phpanta\Http\Security\PermissionsPolicy;
@@ -256,6 +259,47 @@ abstract class App
     public function permissionsPolicy(): PermissionsPolicy
     {
         return PermissionsPolicy::denyAll();
+    }
+
+    /**
+     * The origin the site is served from — `https://example.org` — or null, by default, where it
+     * does not say.
+     *
+     * Most of the framework never needs it: a link is a path, and a path is on whatever origin the
+     * request came to. What does is anything that names an address *outside* a request, a
+     * {@link Http\Sitemap} above all — which refuses, loudly, for an app that has not said.
+     *
+     * @return Origin|null
+     */
+    public function origin(): ?Origin
+    {
+        return null;
+    }
+
+    /**
+     * The `Cross-Origin-Opener-Policy` the site sends: `same-origin`, by default.
+     *
+     * A site whose page opens a popup that must talk back — a third-party sign-in — overrides this
+     * with {@link CrossOriginOpenerPolicy::SameOriginAllowPopups}. See that enum.
+     *
+     * @return CrossOriginOpenerPolicy
+     */
+    public function crossOriginOpenerPolicy(): CrossOriginOpenerPolicy
+    {
+        return CrossOriginOpenerPolicy::SameOrigin;
+    }
+
+    /**
+     * The `Cross-Origin-Resource-Policy` the site sends on what PHP answers: `same-origin`, by default.
+     *
+     * A site that answers something meant to be embedded elsewhere overrides this. See
+     * {@link CrossOriginResourcePolicy} for what it does and does not cover.
+     *
+     * @return CrossOriginResourcePolicy
+     */
+    public function crossOriginResourcePolicy(): CrossOriginResourcePolicy
+    {
+        return CrossOriginResourcePolicy::SameOrigin;
     }
 
     /**
