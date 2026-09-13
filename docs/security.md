@@ -54,22 +54,34 @@ Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'
     base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'
 Referrer-Policy: strict-origin-when-cross-origin
 X-Content-Type-Options: nosniff
-Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=(), usb=(), midi=(), interest-cohort=()
+Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=(), usb=(), midi=()
 ```
 
 Those five are `SecurityHeader`'s whole set, and a test asserts the enum and what is sent match
-exactly. A document carries three more, which are about caching rather than security and so live in
+exactly. Three are the app's to widen, and each is at its strictest unless the app says otherwise:
+`App::contentHosts()` names third-party origins under every fetch directive but `default-src` and
+`object-src` — `connect-src`, `media-src` and `font-src` are written only when it names one — and
+`App::strictTransportSecurity()` and `App::permissionsPolicy()` answer for the other two. A
+`Permissions-Policy` case is a feature browsers still recognise; one they do not is a console error
+on every page, not a stricter policy.
+
+A document carries three more, which are about caching rather than security and so live in
 `ResponseHeader`:
 
 ```
 Cache-Control: no-cache
 ETag: "…"
-Vary: X-Requested-With
+Vary: X-Requested-With, Accept-Language, Cookie
 ```
 
 `no-cache` is not `no-store` — it means keep the copy and revalidate before reusing it. The one page
 behind the admin gate says `no-store, private` instead, and opting out that way is also what stops
-`ViewResponse` giving it a validator at all. See `ViewResponse::cacheHeaders()`.
+`ViewResponse` giving it a validator at all. Only a 2xx carries an `ETag` or is answered with a
+`304`; a 404 still says `no-cache`, and every response `ViewResponse` sends carries the `Vary`,
+because it says what the body depends on rather than how long it may be kept. `If-None-Match` is
+read as a list and compared weakly, and a `-gzip`, `-br` or `-deflate` that a compressing module
+appended inside the quotes is dropped — compared verbatim, no compressed page was ever a 304. See
+`ViewResponse::cacheHeaders()` and `ETag::matches()`.
 
 The CSP's **absences** are the interesting part, because each is a scheme source someone debugging a
 broken asset would paste straight back in:

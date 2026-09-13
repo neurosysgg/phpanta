@@ -15,8 +15,7 @@ namespace Phpanta\Http;
  * because nothing else can produce one.
  *
  * The hash algorithm lives here for the same reason: it is a fact about what an ETag on this site
- * *is*, and the comparison in `ViewResponse` only works because both ends of it come through this
- * class.
+ * *is*, and {@link self::matches()} can read a validator back only because this class wrote it.
  */
 final readonly class ETag implements HeaderValue
 {
@@ -29,6 +28,23 @@ final readonly class ETag implements HeaderValue
      * would serve a stale document; that is not a threat model, it is a rounding error.
      */
     private const string ALGORITHM = 'xxh128';
+
+    /**
+     * One entity-tag in an `If-None-Match` list: an optional weak prefix, then the opaque tag in its
+     * quotes, captured without them.
+     *
+     * Found rather than split on commas, because a comma is a legal byte inside the quotes.
+     */
+    private const string ENTITY_TAG = '#(?:W/)?"([^"]*)"#';
+
+    /**
+     * What a compressing module appends inside the quotes of every body it encodes: `-gzip` from
+     * Apache's mod_deflate, `-br` from mod_brotli, and `-deflate` where a configuration asks for it.
+     */
+    private const string CODING_SUFFIX = '/-(?:gzip|br|deflate)\z/';
+
+    /** `If-None-Match: *` — whatever the current representation is. */
+    private const string ANY = '*';
 
     /**
      * Constructs an instance of {@link self}.
@@ -49,18 +65,40 @@ final readonly class ETag implements HeaderValue
     }
 
     /**
-     * True if $validator is the one this ETag would have handed out.
+     * True if $ifNoneMatch names this ETag.
      *
-     * Compared as the rendered form, quotes included, because that is what a browser echoes back in
-     * `If-None-Match`. A weak validator (`W/"…"`) is not equal to a strong one and is not accepted:
-     * this site never sends one, so one arriving is not our ETag.
+     * Read as the list the header is, and compared the way RFC 9110 §13.1.2 compares `If-None-Match`
+     * — **weakly**:
      *
-     * @param string $validator
+     * - `*` matches, because there is a current representation whenever this is asked;
+     * - any entry of a comma-separated list may be the one, because a cache holding several copies
+     *   sends every validator it has;
+     * - a `W/` prefix is dropped rather than refused, because weak comparison ignores it, and a
+     *   proxy that changes a body on the way — compressing it, say — is required to add one;
+     * - a `-gzip`, `-br` or `-deflate` at the end of the tag is dropped. Apache's compression
+     *   modules append one to the `ETag` of every body they encode, so the tag a browser holds is
+     *   `"…-gzip"` and never `"…"`. Compared verbatim, as it once was, a compressed page never
+     *   validated: every return visit fetched the whole page again, and nothing anywhere said why.
+     *   The fingerprint is hex, so no tag this class writes can end in one of them.
+     *
+     * @param string $ifNoneMatch The raw `If-None-Match` value, or `''` if the request carried none.
      * @return bool
      */
-    public function matches(string $validator): bool
+    public function matches(string $ifNoneMatch): bool
     {
-        return $validator === $this->render();
+        if (trim($ifNoneMatch) === self::ANY) {
+            return true;
+        }
+
+        preg_match_all(self::ENTITY_TAG, $ifNoneMatch, $tags);
+
+        foreach ($tags[1] as $tag) {
+            if (preg_replace(self::CODING_SUFFIX, '', $tag) === $this->fingerprint) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -62,18 +62,30 @@ enum AuthScheme: string
     case NS1 = 'NS1';
 
     /**
+     * An `Authorization` value in one scheme: the scheme's token, one space or more, then its
+     * parameters, captured.
+     *
+     * `%s` is the token, quoted in by {@link self::parameters()}. `i` because RFC 9110 §11.1 makes a
+     * scheme token case-insensitive, and `s` so the parameters are all that is left, whatever it is.
+     */
+    private const string GRAMMAR = '/\A%s +(.*)\z/is';
+
+    /**
      * True if $authorization is a credential in this scheme.
      *
-     * The space is part of the question and not decoration: `Basicxyz` starts with `Basic` and is
-     * not a Basic credential. RFC 9110 separates the scheme from the parameters with at least one
-     * space, and one is what every client sends.
+     * Matched as RFC 9110 §11.4 writes it — `auth-scheme [ 1*SP token68 ]` — so `basic` and `BASIC`
+     * are Basic, and so is a credential two spaces along. Every browser sends `Basic` and one space,
+     * which is why the stricter reading this once had worked; but a client that sent anything else
+     * was refused as though its password were wrong, which is the quiet failure this enum exists
+     * to prevent. The space is still part of the question: `Basicxyz` starts with `Basic` and is not
+     * a Basic credential.
      *
      * @param string $authorization A raw `Authorization` header value, or `''` if none arrived.
      * @return bool
      */
     public function carries(string $authorization): bool
     {
-        return str_starts_with($authorization, $this->value . ' ');
+        return $this->parameters($authorization) !== null;
     }
 
     /**
@@ -86,20 +98,17 @@ enum AuthScheme: string
      * {@link \Phpanta\Service\ApiGate}, has to refuse both and should not have to know they
      * arrived by different routes.
      *
+     * The scheme is separated from its parameters by the first run of spaces and by no other, so
+     * parameters holding a space survive intact.
+     *
      * @param string $authorization A raw `Authorization` header value, or `''` if none arrived.
      * @return string|null
      */
     public function parameters(string $authorization): ?string
     {
-        if (!$this->carries($authorization)) {
-            return null;
-        }
+        $grammar = sprintf(self::GRAMMAR, preg_quote($this->value, '/'));
 
-        // Limit 2 for the reason credentials() gives: the scheme is separated from its parameters
-        // by the first space and by no other, so a token containing one survives intact.
-        [, $parameters] = explode(' ', $authorization, 2);
-
-        return $parameters;
+        return preg_match($grammar, $authorization, $match) === 1 ? $match[1] : null;
     }
 
     /**
@@ -125,13 +134,11 @@ enum AuthScheme: string
         // credential would not fail, it would split a signature on its first colon and hand the two
         // halves to a comparison as though they were a login. `carries()` is not enough on its own
         // here, because for the wrong case it answers true about the wrong grammar.
-        if ($this !== self::Basic || !$this->carries($authorization)) {
+        $encoded = $this === self::Basic ? $this->parameters($authorization) : null;
+
+        if ($encoded === null) {
             return ['', ''];
         }
-
-        // Limit 2, so a password containing a space survives: the scheme is separated from its
-        // parameters by the first space and by no other.
-        [, $encoded] = explode(' ', $authorization, 2);
 
         // strict: true, so base64 that is not base64 comes back false rather than being silently
         // repaired into some other user's name. Same instinct as HttpMethod::tryFrom() refusing to
@@ -142,8 +149,8 @@ enum AuthScheme: string
             return ['', ''];
         }
 
-        // Limit 2, and for a stronger reason than above: a colon is legal in a password and illegal
-        // in a user name, so the first one is the separator and every later one is content.
+        // Limit 2: a colon is legal in a password and illegal in a user name, so the first one is
+        // the separator and every later one is content.
         //
         // Padded rather than guarded, which is the behaviour this has always had and is pinned by a
         // test named for it: a payload with no colon at all is a user name and no password. That

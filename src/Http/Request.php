@@ -186,6 +186,14 @@ readonly class Request
      * It is the target's **path** rather than the whole of it — {@link self::unparsedPath()} says
      * why.
      *
+     * **A target is a path, never an authority.** A request line carries an absolute path, whose
+     * segments may be empty, so `//x/releases` is three segments and the first of them is empty.
+     * {@link Uri::parse()} reads the same string as a relative reference, where a leading `//` opens
+     * an authority: it answered `/releases` for that target, and the releases page was served at an
+     * address with a host written into it. A target that opens with `//` therefore never reaches
+     * the parser and is cut the way an unreadable one is, which keeps every segment — and 404s,
+     * because no route has an empty one.
+     *
      * Raw, not decoded: a route matches the target as it was sent.
      *
      * @param string $uri The raw request target, as `REQUEST_URI` carries it.
@@ -193,8 +201,10 @@ readonly class Request
      */
     private static function normalisePath(string $uri): string
     {
+        $path = str_starts_with($uri, '//') ? null : Uri::parse($uri)?->getRawPath();
+
         // `?:` so a target of only slashes comes back as the root rather than as an empty string.
-        return rtrim(Uri::parse($uri)?->getRawPath() ?? self::unparsedPath($uri), '/') ?: '/';
+        return rtrim($path ?? self::unparsedPath($uri), '/') ?: '/';
     }
 
     /**
@@ -337,12 +347,17 @@ readonly class Request
      * either way: send the whole file. See that class for why that is a legal answer and not a
      * shortcut.
      *
+     * **And a request that is not a GET**, because RFC 9110 §14.2 has a server ignore `Range` on
+     * any other method. A HEAD is answered as the GET without one would be — the whole file's
+     * length and a 200 — so a client that asks before it downloads is told how long the file is,
+     * not how long the part was.
+     *
      * @param int $size The size of the file being asked for.
      * @return ByteRange|null
      */
     public function range(int $size): ?ByteRange
     {
-        return ByteRange::parse($this->rangeHeader, $size);
+        return $this->method === HttpMethod::Get ? ByteRange::parse($this->rangeHeader, $size) : null;
     }
 
     /**

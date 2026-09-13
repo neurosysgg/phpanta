@@ -70,6 +70,9 @@ readonly class FileResponse implements Response
      *   the client can work out what it should have asked for. Deliberately not a 200: handing
      *   over the whole file would look to the client like the part it asked for.
      *
+     * A `Range` is read on a GET and on nothing else, so a HEAD is answered as the GET without one
+     * would be — see {@link Request::range()}.
+     *
      * @param Request $request
      * @return void
      */

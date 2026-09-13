@@ -9,10 +9,8 @@ use Phpanta\Http\Security\ContentSecurityPolicy;
 use Phpanta\Http\Security\ContentTypeOptions;
 use Phpanta\Http\Security\CspDirective;
 use Phpanta\Http\Security\CspKeyword;
-use Phpanta\Http\Security\PermissionsPolicy;
 use Phpanta\Http\Security\PermissionsPolicyFeature;
 use Phpanta\Http\Security\ReferrerPolicy;
-use Phpanta\Http\Security\StrictTransportSecurity;
 use Phpanta\Support\BareArray;
 use Phpanta\Support\Collection;
 
@@ -26,6 +24,11 @@ use Phpanta\Support\Collection;
  * Every value here is a typed object rather than a header string: see {@link CspDirective},
  * {@link CspSource}, {@link ReferrerPolicy} and {@link PermissionsPolicyFeature}. A misspelled
  * directive or an unquoted `'self'` is a parse error now, not a header the browser drops.
+ *
+ * Three of the five are the app's to widen — {@link App::contentHosts()},
+ * {@link App::strictTransportSecurity()} and {@link App::permissionsPolicy()} — and each defaults
+ * to the strict answer. The referrer policy and `nosniff` are not: nothing a site does needs
+ * either loosened.
  *
  * Static assets are served straight by Apache and never reach PHP, so they don't get these.
  * That is fine for what `public/assets/` holds; if it ever holds something user-supplied, add
@@ -72,16 +75,20 @@ final class SecurityHeaders
      * more than a plain list for the construction plus one variadic `with()`, and in line with the
      * 1.76 µs a `Collection` is documented to cost before it holds anything.
      *
+     * @param App|null $app The app whose headers these are: the booted one, unless a test hands in
+     *                      another to ask what a different app would be sent.
      * @return Collection<Header>
      */
-    public static function all(): Collection
+    public static function all(?App $app = null): Collection
     {
+        $app ??= App::current();
+
         return new Collection(Header::class)->with(
-            new Header(SecurityHeader::StrictTransportSecurity, self::strictTransportSecurity()),
-            new Header(SecurityHeader::ContentSecurityPolicy, self::contentSecurityPolicy()),
+            new Header(SecurityHeader::StrictTransportSecurity, $app->strictTransportSecurity()),
+            new Header(SecurityHeader::ContentSecurityPolicy, self::contentSecurityPolicy($app)),
             new Header(SecurityHeader::ReferrerPolicy, self::referrerPolicy()),
             new Header(SecurityHeader::ContentTypeOptions, ContentTypeOptions::NoSniff),
-            new Header(SecurityHeader::PermissionsPolicy, self::permissionsPolicy()),
+            new Header(SecurityHeader::PermissionsPolicy, $app->permissionsPolicy()),
         );
     }
 
@@ -95,6 +102,7 @@ final class SecurityHeaders
      * to check the player is not denied something it needs. Rendering {@link self::all()} is a
      * view over the typed list, not a second statement of it.
      *
+     * @param App|null $app As for {@link self::all()}.
      * @return array<string, string>
      */
     #[BareArray(
@@ -103,31 +111,15 @@ final class SecurityHeaders
         . 'name. A SearchableCollection here would be a second statement of the typed list rather '
         . 'than a view over it.',
     )]
-    public static function headers(): array
+    public static function headers(?App $app = null): array
     {
         $rendered = [];
 
-        foreach (self::all() as $header) {
+        foreach (self::all($app) as $header) {
             $rendered[$header->name->headerName()] = $header->value->render();
         }
 
         return $rendered;
-    }
-
-    /**
-     * Builds the Strict-Transport-Security policy.
-     *
-     * The site is read-only and sets no cookie, so the thing this protects is the credentials on
-     * the two Basic Auth gates — the admin one, and the pre-launch one that runs on every single
-     * request. Basic is base64. Over plaintext it is readable, and the `.htaccess` redirect cannot
-     * help the request that carried it. See {@link StrictTransportSecurity}, and note the ramp
-     * documented on its ONE_DAY constant before raising this on an estate you have not checked.
-     *
-     * @return StrictTransportSecurity
-     */
-    public static function strictTransportSecurity(): StrictTransportSecurity
-    {
-        return new StrictTransportSecurity();
     }
 
     /**
@@ -150,6 +142,11 @@ final class SecurityHeaders
      * documented exfiltration channel for an attacker who has already found an injection.
      * The site's own images are the placeholder and whatever HiDrive serves, and those are what
      * it now says.
+     *
+     * **Every fetch directive but two takes the app's hosts** — see {@link App::contentHosts()}.
+     * `connect-src`, `media-src` and `font-src` are written only when the app names one, because
+     * `default-src 'self'` already says everything they would say without one; a policy that
+     * wrote them anyway would be longer and no stricter.
      *
      * **There is deliberately no `report-uri` or `report-to`**, and the reason is worth having
      * written down, because on a policy this strict a reporting endpoint is the obvious next
@@ -175,24 +172,38 @@ final class SecurityHeaders
      * `HtmlTest` checks every `Tag` case against the stylesheet. A future change that would violate
      * this policy fails the build instead of a stranger's browser.
      *
+     * @param App|null $app As for {@link self::all()}.
      * @return ContentSecurityPolicy
      */
-    public static function contentSecurityPolicy(): ContentSecurityPolicy
+    public static function contentSecurityPolicy(?App $app = null): ContentSecurityPolicy
     {
-        $app    = App::current();
-        $frames = $app->contentHosts(CspDirective::FrameSrc);
+        $app  ??= App::current();
+        $policy = new ContentSecurityPolicy()->allow(CspDirective::DefaultSrc, CspKeyword::SelfOrigin);
 
-        return new ContentSecurityPolicy()
-            ->allow(CspDirective::DefaultSrc, CspKeyword::SelfOrigin)
-            ->allow(CspDirective::ScriptSrc, CspKeyword::SelfOrigin)
-            ->allow(CspDirective::StyleSrc, CspKeyword::SelfOrigin)
-            ->allow(
-                CspDirective::ImgSrc,
+        foreach ([CspDirective::ScriptSrc, CspDirective::StyleSrc, CspDirective::ImgSrc] as $directive) {
+            $policy = $policy->allow(
+                $directive,
                 CspKeyword::SelfOrigin,
-                ...$app->contentHosts(CspDirective::ImgSrc)->toValues(),
-            )
-            // Nothing of the site's own is framed, so a site that frames nobody else frames nothing.
-            ->allow(CspDirective::FrameSrc, ...($frames->isEmpty() ? [CspKeyword::None] : $frames->toValues()))
+                ...$app->contentHosts($directive)->toValues(),
+            );
+        }
+
+        // Nothing of the site's own is framed, so a site that frames nobody else frames nothing.
+        $frames = $app->contentHosts(CspDirective::FrameSrc);
+        $policy = $policy->allow(
+            CspDirective::FrameSrc,
+            ...($frames->isEmpty() ? [CspKeyword::None] : $frames->toValues()),
+        );
+
+        foreach ([CspDirective::ConnectSrc, CspDirective::MediaSrc, CspDirective::FontSrc] as $directive) {
+            $hosts = $app->contentHosts($directive);
+
+            if (!$hosts->isEmpty()) {
+                $policy = $policy->allow($directive, CspKeyword::SelfOrigin, ...$hosts->toValues());
+            }
+        }
+
+        return $policy
             ->allow(CspDirective::BaseUri, CspKeyword::SelfOrigin)
             ->allow(CspDirective::FormAction, CspKeyword::SelfOrigin)
             ->allow(CspDirective::FrameAncestors, CspKeyword::None)
@@ -209,19 +220,5 @@ final class SecurityHeaders
     private static function referrerPolicy(): ReferrerPolicy
     {
         return ReferrerPolicy::StrictOriginWhenCrossOrigin;
-    }
-
-    /**
-     * The site asks for none of these, so all of them are denied to everyone.
-     *
-     * Denies every {@link PermissionsPolicyFeature} case, which makes that enum the list of
-     * things the site refuses rather than a catalogue of what exists — see its docblock before
-     * adding a case, because `Permissions-Policy` also applies to the SoundCloud iframe.
-     *
-     * @return PermissionsPolicy
-     */
-    private static function permissionsPolicy(): PermissionsPolicy
-    {
-        return PermissionsPolicy::denyAll();
     }
 }

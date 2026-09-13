@@ -80,4 +80,17 @@ enum HttpStatusCode: int
     case LoopDetected                  = 508;
     case NotExtended                   = 510;
     case NetworkAuthenticationRequired = 511;
+
+    /**
+     * True for a 2xx: the response carries the representation that was asked for.
+     *
+     * What a validator needs to know, because an `ETag` names a representation and only a success
+     * is one — a 404's body is the page saying there is none.
+     *
+     * @return bool
+     */
+    public function isSuccessful(): bool
+    {
+        return intdiv($this->value, 100) === 2;
+    }
 }

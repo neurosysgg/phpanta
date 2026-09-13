@@ -28,6 +28,15 @@ enum CspDirective: string
     /** What may be loaded into an `<iframe>`. */
     case FrameSrc = 'frame-src';
 
+    /** Where `fetch()`, `XMLHttpRequest`, `EventSource` and WebSockets may connect. */
+    case ConnectSrc = 'connect-src';
+
+    /** Where `<audio>` and `<video>` may load from. */
+    case MediaSrc = 'media-src';
+
+    /** Where an `@font-face` may load from. */
+    case FontSrc = 'font-src';
+
     /** What `<base href>` may be set to — otherwise an injected tag can re-root every relative URL. */
     case BaseUri = 'base-uri';
 

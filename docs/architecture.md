@@ -35,7 +35,9 @@ What a site owes, and what it may add:
 | | `vocabulary()` | every tag and attribute hand-authored markup may be parsed into |
 | | `buildId()` | which build is deployed, as `update v1 version` reports it |
 | | `ownDataFiles()` | the site's own files under `data/`, beside the framework's credentials |
-| may add | `contentHosts()` | third-party origins per CSP directive; none by default |
+| may add | `contentHosts()` | third-party origins per CSP fetch directive; none by default |
+| | `strictTransportSecurity()` | the HSTS policy; a year, subdomains included, by default |
+| | `permissionsPolicy()` | the `Permissions-Policy`; every feature it knows denied by default |
 | | `ownRequirements()` | what it needs of its host beyond the framework's floor; none by default |
 
 **What the framework derives from those is final** — `data()`, `webroot()`, `updateSerial()`,

@@ -12,6 +12,9 @@ use Phpanta\Http\Request;
 use Phpanta\Http\Response;
 use Phpanta\Http\Security\CspDirective;
 use Phpanta\Http\Security\CspSource;
+use Phpanta\Http\Security\PermissionsPolicy;
+use Phpanta\Http\Security\PermissionsPolicyFeature;
+use Phpanta\Http\Security\StrictTransportSecurity;
 use Phpanta\Http\SecurityHeaders;
 use Phpanta\Http\ServerVariable;
 use Phpanta\Model\Health\Requirement;
@@ -199,9 +202,12 @@ abstract class App
     /**
      * The third-party origins the site loads from under $directive, beyond its own.
      *
-     * Asked by {@link Http\SecurityHeaders::contentSecurityPolicy()} for the directives where a
-     * site can reasonably need one — images and frames — and nothing by default, which is the
-     * strict policy a site that loads nothing from anywhere else should have.
+     * Asked by {@link Http\SecurityHeaders::contentSecurityPolicy()} for every fetch directive a
+     * site can reasonably need one for — scripts, styles, images, frames, connections, media and
+     * fonts — and nothing by default, which is the strict policy a site that loads nothing from
+     * anywhere else should have. Never asked for `default-src`, which stays `'self'` because every
+     * other directive narrows it, or `object-src`, which stays `'none'` because nothing legitimate
+     * uses the plugin surface.
      *
      * @param CspDirective $directive
      * @return Collection<CspSource>
@@ -209,6 +215,38 @@ abstract class App
     public function contentHosts(CspDirective $directive): Collection
     {
         return new Collection(CspSource::class);
+    }
+
+    /**
+     * The `Strict-Transport-Security` the site sends: a year, subdomains included, by default.
+     *
+     * What it protects is any credential a request carries — HTTP Basic is base64, legible to
+     * anyone on the path of a plaintext request, and a redirect to `https://` cannot help the
+     * request that already crossed. A site overrides this for the ramp,
+     * {@link StrictTransportSecurity::ONE_DAY} while it checks that every name under its domain
+     * serves HTTPS, or for an estate with a name that cannot, which is the one reason to drop
+     * `includeSubDomains`. See that class before raising it on an estate you have not checked.
+     *
+     * @return StrictTransportSecurity
+     */
+    public function strictTransportSecurity(): StrictTransportSecurity
+    {
+        return new StrictTransportSecurity();
+    }
+
+    /**
+     * The `Permissions-Policy` the site sends: every {@link PermissionsPolicyFeature} denied, by
+     * default.
+     *
+     * A site that needs one of them overrides this with {@link PermissionsPolicy::deny()} over the
+     * rest. The policy also binds every frame the site embeds, so a feature a player asks for in
+     * its `allow` attribute is one this must not deny.
+     *
+     * @return PermissionsPolicy
+     */
+    public function permissionsPolicy(): PermissionsPolicy
+    {
+        return PermissionsPolicy::denyAll();
     }
 
     /**

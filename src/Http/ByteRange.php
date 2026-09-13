@@ -26,8 +26,11 @@ namespace Phpanta\Http;
  */
 final readonly class ByteRange
 {
-    /** `bytes=` then `a-b`, `a-` or `-n`. One range: the unit is fixed and a list is not read. */
-    private const string PATTERN = '/^bytes=(?:(\d+)-(\d*)|-(\d+))\z/';
+    /**
+     * `bytes=` then `a-b`, `a-` or `-n`. One range: a list is not read. `i` because a range unit is
+     * a token, and RFC 9110 §14.1 compares one case-insensitively.
+     */
+    private const string PATTERN = '/^bytes=(?:(\d+)-(\d*)|-(\d+))\z/i';
 
     /**
      * Constructs an instance of {@link self}.
@@ -45,11 +48,11 @@ final readonly class ByteRange
     /**
      * Reads a `Range` header, or answers null where there is nothing here to act on.
      *
-     * Null covers four things a caller treats identically — an absent header, a unit that is not
-     * `bytes`, a comma-separated list, and anything malformed. All four mean "send the whole file",
-     * which is a legal response to any of them and the honest one: a server may always ignore a
-     * `Range`. Returning null rather than guessing at a repair is the same rule
-     * `HttpMethod::tryFrom()` follows in not guessing GET.
+     * Null covers five things a caller treats identically — an absent header, a unit that is not
+     * `bytes`, a comma-separated list, a number too long to be an integer, and anything malformed.
+     * All five mean "send the whole file", which is a legal response to any of them and the honest
+     * one: a server may always ignore a `Range`. Returning null rather than guessing at a repair is
+     * the same rule `HttpMethod::tryFrom()` follows in not guessing GET.
      *
      * `bytes=500-100` is malformed rather than unsatisfiable — the range is backwards, so it names
      * nothing at any size — and comes back null with the rest.
@@ -64,29 +67,39 @@ final readonly class ByteRange
             return null;
         }
 
-        // A suffix range: the last n bytes, however big the file turns out to be. n of 0 asks for
-        // nothing, which is unsatisfiable by definition rather than a request for an empty body.
+        // A suffix range: the last n bytes, however big the file turns out to be.
         if (($match[3] ?? '') !== '') {
-            $wanted = (int) $match[3];
+            $wanted = self::integer($match[3]);
 
-            return $wanted === 0
-                ? new self(1, 0, $size)
-                : new self(max(0, $size - $wanted), $size - 1, $size);
+            return match (true) {
+                $wanted === null => null,
+                // n of 0 asks for nothing, which is unsatisfiable by definition rather than a
+                // request for an empty body.
+                $wanted === 0    => new self(1, 0, $size),
+                // An empty file has no last n bytes, and a 206 has no way to say so. RFC 9110 counts
+                // a non-zero suffix as satisfiable whatever the length, so it is not a 416 either:
+                // the answer is the whole file, which is nothing, with a 200.
+                $size === 0      => null,
+                default          => new self(max(0, $size - $wanted), $size - 1, $size),
+            };
         }
 
-        $first = (int) $match[1];
+        $first = self::integer($match[1]);
+        $last  = $match[2] === '' ? null : self::integer($match[2]);
 
-        // An open-ended `a-` runs to the end. A closed `a-b` is clamped there too: asking past the
-        // end is not an error, the answer is simply shorter than the question.
-        $last = $match[2] === '' ? $size - 1 : min((int) $match[2], $size - 1);
-
-        // Backwards, and so not a range at any size. Not the same as unsatisfiable, which is a
-        // well-formed range this particular file is too short for.
-        if ($match[2] !== '' && (int) $match[2] < $first) {
+        if ($first === null || ($match[2] !== '' && $last === null)) {
             return null;
         }
 
-        return new self($first, $last, $size);
+        // Backwards, and so not a range at any size. Not the same as unsatisfiable, which is a
+        // well-formed range this particular file is too short for.
+        if ($last !== null && $last < $first) {
+            return null;
+        }
+
+        // An open-ended `a-` runs to the end. A closed `a-b` is clamped there too: asking past the
+        // end is not an error, the answer is simply shorter than the question.
+        return new self($first, min($last ?? $size - 1, $size - 1), $size);
     }
 
     /**
@@ -110,5 +123,25 @@ final readonly class ByteRange
     public function length(): int
     {
         return $this->isSatisfiable() ? $this->last - $this->first + 1 : 0;
+    }
+
+    /**
+     * $digits as an integer, or null where they are too many to be one.
+     *
+     * `(int)` saturates at `PHP_INT_MAX` rather than failing, so a position of twenty nines would be
+     * read as a different number from the one sent — and a backwards range whose two ends both
+     * saturate would read as the one byte at `PHP_INT_MAX`, and be answered with a 416 for a range
+     * the client never asked for. A number this cannot hold is one it did not understand.
+     *
+     * @param string $digits One or more ASCII digits, as the pattern captured them.
+     * @return int|null
+     */
+    private static function integer(string $digits): ?int
+    {
+        // Arithmetic rather than a cast: a numeric string that overflows an integer becomes a
+        // float instead of saturating, and leading zeros — legal in the grammar — are only zeros.
+        $number = 0 + $digits;
+
+        return is_int($number) ? $number : null;
     }
 }

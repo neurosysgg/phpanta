@@ -109,8 +109,10 @@ app is refused. What a site owes the framework:
 | `buildId()` | which build is deployed, for `update v1 version` |
 | `ownDataFiles()` | the site's own files under `data/` |
 
-and what it may add: `contentHosts()` for third-party origins in the CSP, `ownRequirements()` for
-what it needs of its host beyond the framework's floor. The framework derives the rest — `data/`,
+and what it may add: `contentHosts()` for third-party origins in the CSP, `strictTransportSecurity()`
+and `permissionsPolicy()` to loosen the two policies it is otherwise sent at their strictest, and
+`ownRequirements()` for what it needs of its host beyond the framework's floor. The framework derives
+the rest — `data/`,
 the webroot, the update serial, the error log — and those derivations are final.
 
 ### Building and testing

@@ -73,7 +73,7 @@ readonly class ViewResponse implements Response
 
         // A validator the browser already holds means the copy it already holds is current. 304 and
         // nothing else — no Content-Type, because there is no content to describe.
-        if (!$cache->isEmpty() && $etag->matches($request->ifNoneMatch())) {
+        if ($this->validates() && $etag->matches($request->ifNoneMatch())) {
             http_response_code(HttpStatusCode::NotModified->value);
             self::sendAll($cache);
 
@@ -132,7 +132,7 @@ readonly class ViewResponse implements Response
     }
 
     /**
-     * The headers that say whether this document may be reused, or none if the caller already said.
+     * The headers that say whether this document may be reused, and what a reused copy depends on.
      *
      * **`no-cache` is not `no-store`.** It means keep the copy and ask before reusing it, so a
      * return visit costs a round trip and no bytes — the 304 above. What it buys over a `max-age`
@@ -165,10 +165,19 @@ readonly class ViewResponse implements Response
      * from the view**, through {@link View::varyOn()}, because the page is what knows which other
      * headers it read — none, today.
      *
-     * **A caller that supplied its own `Cache-Control` gets none of this**, and no 304 either.
+     * **`Vary` goes on every response this class sends**, whatever else is left out, because it is
+     * a statement about the body rather than about caching it. A caller that says how its response
+     * may be kept has said how long a copy may live, not what the copy depends on, and a `max-age`
+     * without a `Vary` is exactly the cache that hands one visitor another's language.
+     *
+     * **A caller that supplied its own `Cache-Control` gets no validator**, and no 304 either.
      * That is `StatsController`, which says `no-store, private` because
      * it sits behind a password; adding a validator to a response we just asked not to be stored
      * would be arguing with ourselves.
+     *
+     * **Neither does anything but a success** — see {@link self::validates()}. A 404 still says
+     * `no-cache`, because a 404 is cacheable by default: a browser left to its heuristics could
+     * keep one for a page that has since been published.
      *
      * The other responses are not this class's to answer for and deliberately carry nothing: the
      * 303 a download redirects with is logged per hit and must be re-asked every time, the 401
@@ -181,27 +190,52 @@ readonly class ViewResponse implements Response
      */
     private function cacheHeaders(ETag $etag): Collection
     {
-        $said = $this->headers->first(
-            static fn(Header $header): bool => $header->name === ResponseHeader::CacheControl,
-        );
+        $headers = new Collection(Header::class);
 
-        if ($said !== null) {
-            return new Collection(Header::class);
+        if (!$this->saysHowToKeep()) {
+            $headers = $headers->with(new Header(ResponseHeader::CacheControl, CacheControl::revalidate()));
         }
 
-        return new Collection(Header::class)->with(
-            new Header(ResponseHeader::CacheControl, CacheControl::revalidate()),
-            new Header(ResponseHeader::ETag, $etag),
-            new Header(
-                ResponseHeader::Vary,
-                Vary::on(
-                    RequestHeader::RequestedWith,
-                    RequestHeader::AcceptLanguage,
-                    RequestHeader::Cookie,
-                    ...$this->view->varyOn(),
-                ),
+        if ($this->validates()) {
+            $headers = $headers->with(new Header(ResponseHeader::ETag, $etag));
+        }
+
+        return $headers->with(new Header(
+            ResponseHeader::Vary,
+            Vary::on(
+                RequestHeader::RequestedWith,
+                RequestHeader::AcceptLanguage,
+                RequestHeader::Cookie,
+                ...$this->view->varyOn(),
             ),
-        );
+        ));
+    }
+
+    /**
+     * True if this response carries a validator, and so may be answered with a 304.
+     *
+     * A success only: RFC 9110 §13.2.1 has a server ignore every precondition when the response
+     * would otherwise not be a 2xx, so a 404 revalidated into a 304 would tell a cache that the
+     * copy it holds of the page — a 200, from before the page went — is still current. And never
+     * where the caller said how the response may be kept — see {@link self::cacheHeaders()}.
+     *
+     * @return bool
+     */
+    private function validates(): bool
+    {
+        return $this->status->isSuccessful() && !$this->saysHowToKeep();
+    }
+
+    /**
+     * True if the caller supplied its own `Cache-Control`.
+     *
+     * @return bool
+     */
+    private function saysHowToKeep(): bool
+    {
+        return $this->headers->first(
+            static fn(Header $header): bool => $header->name === ResponseHeader::CacheControl,
+        ) !== null;
     }
 
     /**

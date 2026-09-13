@@ -102,7 +102,11 @@ These fail silently — no error, no log, a page that looks fine.
 **Requests and auth**
 - Never `parse_url()` the request target: it fails with `false`, which `??` does not guard.
   `Request::path()` uses `Uri\Rfc3986\Uri::parse()`, which answers null.
+- A target opening with `//` is a path, and `Uri::parse()` reads one as an authority — `//x/releases`
+  as the page at `/releases` — so `Request` never hands one to the parser.
 - A `{placeholder}` compiles to `[^/]+` and matches an unparseable target too.
+- Behind a compressing module, the `ETag` a browser echoes has `-gzip` inside the quotes;
+  `ETag::matches()` drops it, and a verbatim compare never answers a 304.
 - A misspelled `ServerVariable` or `DataFileName` is not an error but a default.
 
 **The API and deploying**

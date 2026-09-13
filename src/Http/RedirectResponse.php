@@ -7,21 +7,24 @@ namespace Phpanta\Http;
 use Phpanta\Support\Collection;
 
 /**
- * The RedirectResponse class. Issues an HTTP redirect to the given URL and terminates.
+ * The RedirectResponse class. Issues an HTTP redirect to the given location and terminates.
  */
 readonly class RedirectResponse implements Response
 {
     /**
      * Constructs an instance of {@link self}.
      *
-     * @param string             $url     The URL to redirect to.
-     * @param HttpStatusCode     $status  The HTTP status code; defaults to 303 See Other.
-     * @param Collection<Header> $headers Extra headers, sent ahead of the redirect — the language
-     *                                    switch's cookie. The same parameter
-     *                                    {@link PlainTextResponse} and {@link ViewResponse} take.
+     * @param Location           $location Where to send the visitor. A {@link Location} rather than
+     *                                     the string it was, so an address that type refuses throws
+     *                                     where it is written — in the controller that chose it —
+     *                                     and not in send(), after the controller has returned.
+     * @param HttpStatusCode     $status   The HTTP status code; defaults to 303 See Other.
+     * @param Collection<Header> $headers  Extra headers, sent ahead of the redirect — the language
+     *                                     switch's cookie. The same parameter
+     *                                     {@link PlainTextResponse} and {@link ViewResponse} take.
      */
     public function __construct(
-        private string         $url,
+        private Location       $location,
         private HttpStatusCode $status = HttpStatusCode::SeeOther,
         private Collection     $headers = new Collection(Header::class),
     ) {}
@@ -44,7 +47,7 @@ readonly class RedirectResponse implements Response
             header($header->line());
         }
 
-        header(new Header(ResponseHeader::Location, new Location($this->url))->line(), true, $this->status->value);
+        header(new Header(ResponseHeader::Location, $this->location)->line(), true, $this->status->value);
         exit;
     }
 }
