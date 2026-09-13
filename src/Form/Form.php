@@ -9,8 +9,11 @@ use NoDiscard;
 use Phpanta\Exception\FormException;
 use Phpanta\Exception\InputException;
 use Phpanta\Exception\RouteException;
+use Phpanta\Exception\TooLargeException;
 use Phpanta\Http\CsrfField;
+use Phpanta\Http\FormEncoding;
 use Phpanta\Http\Request;
+use Phpanta\Http\Upload;
 use Phpanta\Support\Collection;
 use Phpanta\Support\Path;
 use Phpanta\Support\SearchableCollection;
@@ -54,6 +57,11 @@ use Phpanta\View\Html\Node;
  * `maxlength` where the rules say so, and, when the field has an error, the error after it, which
  * the control names in `aria-describedby`. All of it through the tree, so a value a visitor typed
  * comes back escaped like any other text.
+ *
+ * **A form with a {@link InputType::File} field sends files**: it is rendered with
+ * `enctype=multipart/form-data`, and each file is read into its field's entry — see
+ * {@link Submission::upload()}. Such a form's field names may hold no dot, space or bracket, because
+ * PHP renames those in a multipart body and the field would read as never sent.
  */
 final readonly class Form
 {
@@ -66,7 +74,8 @@ final readonly class Form
      * @param class-string<Field> $fields The form's fields: an enum of {@link Field} cases.
      * @param Path                $path   The address it posts to.
      * @param string|int          ...$values The path's placeholders, filled in as {@link Path::to()} fills them.
-     * @throws FormException if $fields is not a Field enum, or one of its fields is named like the form token.
+     * @throws FormException if $fields is not a Field enum, one of its fields is named like the form
+     *                       token, or a form that sends files has a field PHP would rename.
      * @throws RouteException if the values do not fit the path.
      */
     public function __construct(private string $fields, Path $path, string|int ...$values)
@@ -87,6 +96,21 @@ final readonly class Form
                 $fields,
                 $token->name,
                 CsrfField::Token->value,
+            ));
+        }
+
+        // PHP turns a dot or a space in a posted name into an underscore and a bracket into a list,
+        // so in a multipart body such a field would arrive under another name — and read as `''`.
+        $renamed = $this->sendsFiles() ? $this->fields()->first(
+            static fn(Field $field): bool => strpbrk((string) $field->value, '. [') !== false,
+        ) : null;
+
+        if ($renamed !== null) {
+            throw new FormException(sprintf(
+                "%s::%s is named '%s', which PHP renames in a form that sends files.",
+                $fields,
+                $renamed->name,
+                $renamed->value,
             ));
         }
 
@@ -116,10 +140,15 @@ final readonly class Form
      * error; the rest are not asked, so a field shows one thing to fix at a time. A field the form
      * does not have is ignored, as `_csrf` is.
      *
+     * A file field's value is the name its file was sent under, so {@link Required} asks whether a
+     * file came; an {@link UploadRule} then asks its question of the file itself. A file larger than
+     * the host takes is that field's error, where the visitor can choose a smaller one.
+     *
      * @param Request $request
      * @return Submission
      * @throws InputException if the body cannot be read as a form, or a field was sent twice. The
-     *                        router answers it with a 400; a form never has to.
+     *                        router answers it with a 400 — or a 413, for a whole form larger than
+     *                        the host takes; a form never has to.
      */
     #[NoDiscard('read() reads the submission; a call whose result goes nowhere checked nothing')]
     public function read(Request $request): Submission
@@ -128,7 +157,11 @@ final readonly class Form
 
         return new Submission(
             $this->fields,
-            $this->entries(static function (Field $field) use ($input): FieldEntry {
+            $this->entries(static function (Field $field) use ($input, $request): FieldEntry {
+                if ($field->type() === InputType::File) {
+                    return self::uploaded($field, $request);
+                }
+
                 $value = $input->text($field) ?? '';
 
                 return new FieldEntry($value, self::firstError($field, $value));
@@ -143,7 +176,8 @@ final readonly class Form
      * **A password field is never given its value back**, even when the form comes back for a
      * mistake in another field. The value would be written into the page — into a response a
      * browser may keep for its back button, a proxy may hold, and a saved copy of the page carries
-     * — and typing it again is the smaller cost.
+     * — and typing it again is the smaller cost. A file control has no value to give back at all:
+     * a browser lets no page choose a file for its visitor, so one is chosen again.
      *
      * @param Submission   $submission What to fill it with: {@link self::blank()} or {@link self::read()}.
      * @param string       $token      The visitor's form token, from their session.
@@ -157,6 +191,7 @@ final readonly class Form
         return new Element(HtmlTag::Form)
             ->attr(HtmlAttribute::Method, FormMethod::Post)
             ->attr(HtmlAttribute::Action, $this->action)
+            ->attr(HtmlAttribute::Enctype, $this->sendsFiles() ? FormEncoding::Multipart : null)
             ->containing(
                 new Element(HtmlTag::Input)
                     ->attr(HtmlAttribute::Type, InputType::Hidden)
@@ -184,6 +219,37 @@ final readonly class Form
     }
 
     /**
+     * Whether a field is a file, which makes this a form that sends files.
+     *
+     * @return bool
+     */
+    private function sendsFiles(): bool
+    {
+        return $this->fields()->first(static fn(Field $field): bool => $field->type() === InputType::File) !== null;
+    }
+
+    /**
+     * A file field's entry: the name its file was sent under, what its rules say, and the file.
+     *
+     * @param Field   $field
+     * @param Request $request
+     * @return FieldEntry
+     * @throws InputException if the file arrived only in part or as a list.
+     */
+    private static function uploaded(Field $field, Request $request): FieldEntry
+    {
+        try {
+            $upload = $request->upload($field);
+        } catch (TooLargeException) {
+            return new FieldEntry('', FrameworkText::FileTooLarge);
+        }
+
+        $value = $upload?->clientName() ?? '';
+
+        return new FieldEntry($value, self::firstError($field, $value, $upload), $upload);
+    }
+
+    /**
      * One entry per field, keyed by its name.
      *
      * @param callable(Field): FieldEntry $entry
@@ -201,16 +267,19 @@ final readonly class Form
     }
 
     /**
-     * The first of $field's rules to refuse $value, in their order, or null.
+     * The first of $field's rules to refuse $value — or, for an {@link UploadRule}, $upload — in
+     * their order, or null.
      *
-     * @param Field  $field
-     * @param string $value
+     * @param Field       $field
+     * @param string      $value
+     * @param Upload|null $upload The file a file field sent, which only an upload rule is asked about.
      * @return Translatable|null
      */
-    private static function firstError(Field $field, string $value): ?Translatable
+    private static function firstError(Field $field, string $value, ?Upload $upload = null): ?Translatable
     {
         foreach ($field->rules() as $rule) {
-            $error = $rule->check($value);
+            $error = $rule->check($value)
+                ?? ($rule instanceof UploadRule && $upload !== null ? $rule->checkUpload($upload) : null);
 
             if ($error !== null) {
                 return $error;
@@ -277,8 +346,9 @@ final readonly class Form
 
         $required = $rules->first(static fn(Rule $rule): bool => $rule instanceof Required) !== null;
 
-        // A length is the browser's to hold only where something is typed; a choice and a box have none.
-        $typed = !($choice instanceof OneOf) && $field->type() !== InputType::Checkbox;
+        // A length is the browser's to hold only where something is typed; a choice, a box and a
+        // file have none.
+        $typed = !($choice instanceof OneOf) && !in_array($field->type(), [InputType::Checkbox, InputType::File], true);
 
         $control = $choice instanceof OneOf
             ? new Element(HtmlTag::Select)
@@ -298,8 +368,8 @@ final readonly class Form
 
         return match ($field->type()) {
             InputType::Checkbox => $control->attr(HtmlAttribute::Checked, $value !== ''),
-            // Never given its value back — see render().
-            InputType::Password => $control,
+            // Never given its value back, and a file has none to give — see render().
+            InputType::Password, InputType::File => $control,
             default             => $control->attr(HtmlAttribute::Value, $value === '' ? null : $value),
         };
     }

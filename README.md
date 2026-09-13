@@ -27,7 +27,7 @@ phpanta/
 ├── autoload.php     ← Phpanta\ → src/. The only part that ships, with src/
 ├── src/             ← the runtime
 │   ├── App.php      ← what a site tells the framework about itself
-│   ├── Http/        ← Request, Input, Session, Answer, the Response types, every header typed;
+│   ├── Http/        ← Request, Input, Upload, Session, Answer, the Response types, every header typed;
 │   │                  Api/, Security/
 │   ├── View/        ← View, Shell; Html/ — the markup tree, MarkupParser, the vocabularies
 │   ├── Form/        ← a form as an enum of fields, its rules, a submission read and re-rendered

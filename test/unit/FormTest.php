@@ -12,6 +12,7 @@ use Phpanta\Form\Email;
 use Phpanta\Form\FieldEntry;
 use Phpanta\Form\FieldId;
 use Phpanta\Form\Form;
+use Phpanta\Form\MaxBytes;
 use Phpanta\Form\MaxLength;
 use Phpanta\Form\OneOf;
 use Phpanta\Form\Required;
@@ -19,11 +20,15 @@ use Phpanta\Form\Rule;
 use Phpanta\Form\Submission;
 use Phpanta\Form\WholeNumber;
 use Phpanta\Http\CsrfField;
+use Phpanta\Http\FormEncoding;
 use Phpanta\Http\HttpMethod;
 use Phpanta\Http\HttpStatusCode;
 use Phpanta\Http\Input;
+use Phpanta\Http\MultipartParameters;
 use Phpanta\Http\Request;
 use Phpanta\Http\ServerVariable;
+use Phpanta\Http\Upload;
+use Phpanta\Support\File;
 use Phpanta\Support\SearchableCollection;
 use Phpanta\Test\TestRequest;
 use Phpanta\Text\FrameworkText;
@@ -52,6 +57,10 @@ use stdClass;
 #[CoversClass(FieldId::class)]
 #[CoversClass(Required::class)]
 #[CoversClass(MaxLength::class)]
+#[CoversClass(MaxBytes::class)]
+#[CoversClass(Upload::class)]
+#[CoversClass(MultipartParameters::class)]
+#[CoversClass(FormEncoding::class)]
 #[CoversClass(Email::class)]
 #[CoversClass(WholeNumber::class)]
 #[CoversClass(OneOf::class)]
@@ -76,12 +85,142 @@ final class FormTest extends TestCase
 
     private Form $form;
 
+    /** @var list<File> The files a test sent, removed after it. */
+    private array $sent = [];
+
     /**
      * @return void
      */
     protected function setUp(): void
     {
         $this->form = new Form(FieldFixture::class, RoutePatternFixture::Form);
+    }
+
+    /**
+     * @return void
+     */
+    protected function tearDown(): void
+    {
+        foreach ($this->sent as $file) {
+            $file->delete();
+        }
+    }
+
+    // ───────────────────────── files ─────────────────────────
+
+    /**
+     * A file field's value is the name its file was sent under, and its entry holds the file; the
+     * other fields of the same multipart form read as any other.
+     *
+     * @return void
+     */
+    public function testAFileFieldReadsTheFileItSent(): void
+    {
+        $sent = self::uploads()->read(
+            $this->sending('12345', 'a.txt')->withField(UploadFieldFixture::Caption, 'hi')->request(),
+        );
+
+        self::assertTrue($sent->isValid());
+        self::assertSame('a.txt', $sent->value(UploadFieldFixture::File));
+        self::assertSame(5, $sent->upload(UploadFieldFixture::File)?->size());
+        self::assertSame('hi', $sent->value(UploadFieldFixture::Caption));
+        self::assertNull($sent->upload(UploadFieldFixture::Caption));
+    }
+
+    /**
+     * What a file field says of each way its file can be wrong — and a file too large for the host
+     * is said beside the field, where another can be chosen, rather than answered with a 413.
+     *
+     * @param string       $contents
+     * @param int          $error
+     * @param FrameworkText $expected
+     * @return void
+     */
+    #[DataProvider('fileErrorProvider')]
+    public function testAFileFieldSaysWhatIsWrongWithItsFile(
+        string $contents,
+        int $error,
+        FrameworkText $expected,
+    ): void {
+        $sent = self::uploads()->read($this->sending($contents, 'a.txt', $error)->request());
+
+        self::assertFalse($sent->isValid());
+        self::assertSame($expected, $sent->error(UploadFieldFixture::File));
+    }
+
+    /**
+     * @return iterable<string, array{string, int, FrameworkText}>
+     */
+    public static function fileErrorProvider(): iterable
+    {
+        $over = str_repeat('x', UploadFieldFixture::MAX + 1);
+
+        yield 'larger than its rule' => [$over, UPLOAD_ERR_OK, FrameworkText::FileTooLarge];
+        yield 'larger than the host' => ['x', UPLOAD_ERR_INI_SIZE, FrameworkText::FileTooLarge];
+        yield 'none chosen'          => ['', UPLOAD_ERR_NO_FILE, FrameworkText::FieldRequired];
+    }
+
+    /**
+     * A file field of a form that did not arrive as multipart sent no file.
+     *
+     * @return void
+     */
+    public function testAFileFieldOfAFormSentWithoutFilesHasNone(): void
+    {
+        $sent = self::uploads()->read(self::post('file=a.txt&caption=hi'));
+
+        self::assertSame(FrameworkText::FieldRequired, $sent->error(UploadFieldFixture::File));
+        self::assertNull($sent->upload(UploadFieldFixture::File));
+    }
+
+    /**
+     * A form that sends files says so, and never gives a file control a value or a length; a form
+     * that sends none says nothing.
+     *
+     * @return void
+     */
+    public function testAFormThatSendsFilesSaysSo(): void
+    {
+        $form = self::uploads();
+        $html = $form->render($form->read($this->sending('x', 'a.txt')->request()), self::TOKEN, new Verbatim('Send'))
+            ->render(0, Language::English);
+
+        self::assertStringContainsString('enctype="multipart/form-data"', $html);
+        self::assertSame(1, preg_match('#<input type="file"[^>]*>#', $html, $control));
+        self::assertStringNotContainsString('value', $control[0]);
+        self::assertStringNotContainsString('maxlength', $control[0]);
+        self::assertStringNotContainsString('a.txt', $html);
+        self::assertStringNotContainsString('enctype', $this->render($this->form->blank(), Language::English));
+    }
+
+    /**
+     * A form that sends files cannot have a field PHP would rename in the body it sends, because
+     * that field would read as never sent.
+     *
+     * @return void
+     */
+    public function testAFormThatSendsFilesRefusesAFieldPhpWouldRename(): void
+    {
+        $this->expectException(FormException::class);
+        $this->expectExceptionMessage(
+            "RenamedFieldFixture::Dotted is named 'a.b', which PHP renames in a form that sends files.",
+        );
+
+        new Form(RenamedFieldFixture::class, RoutePatternFixture::Form);
+    }
+
+    /**
+     * A size asks nothing of a name, and a file that may hold nothing is not a size.
+     *
+     * @return void
+     */
+    public function testMaxBytesAsksOnlyAboutTheFile(): void
+    {
+        self::assertNull(new MaxBytes(1)->check(str_repeat('x', 100)));
+
+        $this->expectException(FormException::class);
+
+        new MaxBytes(0);
     }
 
     // ───────────────────────── reading ─────────────────────────
@@ -196,8 +335,8 @@ final class FormTest extends TestCase
     {
         yield 'a body of another kind' => [
             TestRequest::to(HttpMethod::Post, '/form')
-                ->withServer(ServerVariable::ContentType, 'multipart/form-data; boundary=x')
-                ->withBody('--x--')
+                ->withServer(ServerVariable::ContentType, 'text/plain')
+                ->withBody('name=Ada')
                 ->request(),
         ];
         yield 'a field sent twice'     => [self::post(self::VALID . '&email=b%40example.org')];
@@ -639,5 +778,33 @@ final class FormTest extends TestCase
             ->withServer(ServerVariable::ContentType, 'application/x-www-form-urlencoded')
             ->withBody($body)
             ->request();
+    }
+
+    /**
+     * The form that sends a file.
+     *
+     * @return Form
+     */
+    private static function uploads(): Form
+    {
+        return new Form(UploadFieldFixture::class, RoutePatternFixture::Form);
+    }
+
+    /**
+     * A multipart POST to the form's address sending $contents as its file, under $name, as PHP
+     * would have kept it.
+     *
+     * @param string $contents
+     * @param string $name
+     * @param int    $error
+     * @return TestRequest
+     */
+    private function sending(string $contents, string $name, int $error = UPLOAD_ERR_OK): TestRequest
+    {
+        $file = new File(sys_get_temp_dir() . '/phpanta-form-' . bin2hex(random_bytes(6)));
+        file_put_contents($file->path, $contents);
+        $this->sent[] = $file;
+
+        return TestRequest::to(HttpMethod::Post, '/form')->withUpload(UploadFieldFixture::File, $file, $name, $error);
     }
 }

@@ -470,6 +470,7 @@ final class RequestTest extends TestCase
             'PHPANTA_ENVIRONMENT',
             'REMOTE_ADDR',
             'CONTENT_TYPE',
+            'CONTENT_LENGTH',
         ], array_column(ServerVariable::cases(), 'value'));
     }
 

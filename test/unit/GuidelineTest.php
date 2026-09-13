@@ -154,6 +154,10 @@ final class GuidelineTest extends TestCase
                 'Phpanta\Http\AcceptedLanguages::__construct()',
                 'Phpanta\Http\AcceptedLanguages::entry()',
                 'Phpanta\Http\AuthScheme::credentials()',
+                'Phpanta\Http\MultipartParameters::$fields',
+                'Phpanta\Http\MultipartParameters::$files',
+                'Phpanta\Http\MultipartParameters::__construct()',
+                'Phpanta\Http\MultipartParameters::uploaded()',
                 'Phpanta\Http\SecurityHeaders::headers()',
                 'Phpanta\Http\Security\ContentSecurityPolicy::hosts()',
                 'Phpanta\Http\ServerParameters::$values',
@@ -248,6 +252,7 @@ final class GuidelineTest extends TestCase
             [
                 'Phpanta\Data\Migrations string',
                 'Phpanta\Http\Input string',
+                'Phpanta\Http\MultipartParameters string',
                 'Phpanta\Http\Session string',
                 'Phpanta\Model\Health\HealthSection string',
                 'Phpanta\Model\Update\UpdateReport string',

@@ -110,7 +110,8 @@ any of the framework's code runs. See [security.md](security.md) for the policie
 
 [`Request::fromGlobals()`](../src/Http/Request.php) is the only place a request is built
 from the superglobals: it hands [`ServerParameters`](../src/Http/ServerParameters.php) — the one
-reader of `$_SERVER` — to `Request::from()`, which is also how a test builds any other request. What comes out is `readonly` and typed — here, method `HttpMethod::Get` and
+reader of `$_SERVER` — and [`MultipartParameters`](../src/Http/MultipartParameters.php), the one
+reader of `$_POST` and `$_FILES`, to `Request::from()`, which is also how a test builds any other request. What comes out is `readonly` and typed — here, method `HttpMethod::Get` and
 path `/api/update/v1/version` — and three of its decisions are deliberate:
 
 | Member | Decision |
@@ -118,7 +119,8 @@ path `/api/update/v1/version` — and three of its decisions are deliberate:
 | `method()` | `HttpMethod::tryFrom()` — **nullable**. An unrecognised verb is `null`, and null is not read-only. Never guessed as GET. |
 | `path()` | Parsed with `Uri\Rfc3986\Uri::parse()`, which returns `null` on failure — so `??` is a real guard, where `parse_url()`'s `false` would not be. A target opening with `//` is never handed to the parser at all, which would read it as an authority. A target that will not parse comes back as **its own path**, everything up to the first `?` or `#`. That still matches a placeholder route, because `{param}` compiles to `([^/]+)`; see [security.md](security.md). |
 | `authUser()` / `authPassword()` | Read from `PHP_AUTH_*`, falling back to decoding `Authorization` — some hosts do not hand PHP the former. |
-| `query()` / `form()` | An [`Input`](../src/Http/Input.php), asked for by [`Parameter`](../src/Http/Parameter.php) case and by type: absent is null, a value that does not read is an `InputException` the router answers with a 400. Read by this code, never `parse_str()`; `form()` reads only a url-encoded body, bounded, and refuses files. The API reads neither, and `InputTest` holds it. |
+| `query()` / `form()` | An [`Input`](../src/Http/Input.php), asked for by [`Parameter`](../src/Http/Parameter.php) case and by type: absent is null, a value that does not read is an `InputException` the router answers with a 400. Read by this code, never `parse_str()`; `form()` reads a url-encoded body, bounded, or a multipart one from what PHP parsed — see below. The API reads neither, and `InputTest` holds it. |
+| `upload()` | The [`Upload`](../src/Http/Upload.php) a multipart form sent under a `Parameter`, or null: its name as the browser gave it, its size, and `keepAs()`. Too large for the host is a `TooLargeException` the router answers with a 413; the host failing to keep it is an `UploadException`, a 500. |
 
 The path is **raw, not decoded**, and trailing slashes are trimmed: a route matches the target as it
 was sent, and a value is decoded only after it has matched.
@@ -298,6 +300,9 @@ Everything about a request or a response is a typed value here, not a string.
 | Type | Is |
 |---|---|
 | `Request` | readonly, read out of `ServerParameters` — `$_SERVER`'s, or a test's — or `synthetic()`, for a static export |
+| `MultipartParameters` | `$_POST` and `$_FILES` as PHP parsed a multipart body, and their one reader; a test builds one by hand |
+| `Upload` | one file a form sent: the name the browser gave it, its size, and `keepAs()`, which moves it beside its target and renames it into place |
+| `FormEncoding` | the two bodies a form sends, each a `MimeType` spelled once, by its essence |
 | `Response` | an interface with one method: `answer(Request): Answer` |
 | `Answer` | what goes on the wire: a status, the headers in order, a `Body`; `send()` is the one emitter |
 | `Body` | `TextBody`, a string; `FileBody`, a file read a chunk at a time; or `StreamBody`, chunks a closure makes at send time |
@@ -435,9 +440,10 @@ Twenty-two classes — one of them abstract — and one interface, read from `sr
 | ` └ UpdateException` | `ApiException` | a payload cannot be read or applied; a webroot cannot be resolved; a previous release cannot be recorded or put back | `App::webroot()`, `PublicKey`, `TarArchive`, `UpdateApplier`, `UpdateManifest`, `ReleaseRecord`, `PreviousRelease`, `RecordEntry`, `RollbackManifest` |
 | `CollectionException` | `TypeError` | a collection is asked to hold or produce the wrong type | `TypedItems` |
 | `DatabaseException` | `RuntimeException` | a database cannot be opened, or a file opened as one is not one | `Database` |
-| `FormException` | `LogicException` | a form is declared with what it cannot be, or asked for another form's field | `Form`, `Submission`, `MaxLength`, `OneOf` |
+| `FormException` | `LogicException` | a form is declared with what it cannot be, or asked for another form's field | `Form`, `Submission`, `MaxLength`, `MaxBytes`, `OneOf` |
 | `GuidelineException` | `InvalidArgumentException` | an excuse for a guideline has no reason, or no subject | `BareArray`, `BareString`, `BareCall` |
-| `InputException` | `UnexpectedValueException` | what a query string or a form sent cannot be read as asked — answered with a 400 | `Input`, `Request` |
+| `InputException` | `UnexpectedValueException` | what a query string or a form sent cannot be read as asked — answered with a 400 | `Input`, `Request`, `MultipartParameters` |
+| ` └ TooLargeException` | `InputException` | what was sent is readable but larger than the host takes — a 413, or a file field's error | `Request`, `MultipartParameters` |
 | `InvalidValueException` | `LogicException` | a value object is handed something that is not its kind of value | `PasswordHash`, `Throttle`, and a site's own value objects |
 | `JsonEncodingException` | `RuntimeException` | a value cannot be written as JSON — a NAN, a string that is not UTF-8 | `JsonResponse` |
 | `MarkupException` | `LogicException`, abstract | — | — |
@@ -452,6 +458,7 @@ Twenty-two classes — one of them abstract — and one interface, read from `sr
 | `SqlException` | `LogicException` | a statement, a row read or a transaction is written wrong | `Sql`, `Row`, `Database` |
 | `ThrottleException` | `RuntimeException` | the throttle's record cannot be read or written, so it fails closed | `Throttle` |
 | `TranslationException` | `LogicException` | text cannot be put into a language | `Languages`, `Phrase`, `Translated`, `TranslatedText`, `Translation` |
+| `UploadException` | `RuntimeException` | the host could not keep a file a request sent — no temporary directory, a failed write | `MultipartParameters` |
 
 **A site adds its own the same way**, in its own namespace: a class that extends the one it
 specialises — a `MarkupException` for a component that cannot draw what it was handed, an
@@ -738,5 +745,13 @@ $form->render($submission, $session->token(), ContactText::Send);   // an Elemen
   hand-authored `<form>`, which would post without the token.
 - **`action` is an address.** `HtmlAttribute::isUrl()` says so, so `render()` scheme-checks it like
   an `href` and an export rebases it.
+- **A form with a `File` field sends files.** `render()` writes `enctype="multipart/form-data"` and
+  never gives a file control a value. `read()` puts the file in its field's entry, read back with
+  `Submission::upload()`; the field's value is the name the file was sent under, so `Required` asks
+  whether one came. `MaxBytes` is an `UploadRule`, asked of the file itself, and a file larger than
+  the host takes is the field's error rather than a 413. PHP parses a multipart body itself and
+  renames a dot, a space or a bracket in a name, so a form that sends files refuses such a field —
+  and a plain name sent twice is the one duplicate it cannot catch. Keeping a file is the page's:
+  `Upload::keepAs()`, once `isValid()` says so. See [security.md](security.md#uploads).
 
 ---

@@ -21,4 +21,7 @@ enum InputType: string
     case Search   = 'search';
     case Url      = 'url';
     case Tel      = 'tel';
+
+    /** A file, which only a {@link \Phpanta\Http\FormEncoding::Multipart} form sends — see Form::render(). */
+    case File     = 'file';
 }

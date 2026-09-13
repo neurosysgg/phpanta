@@ -364,12 +364,19 @@ final class SessionTest extends TestCase
         self::assertSame('page GET', $this->guarded(TestRequest::get('/')->request())->body());
         self::assertSame('page POST', $this->guarded($this->posted($session, '_csrf=' . $token))->body());
 
+        // A form that sends a file carries its token the same way, read from what PHP parsed.
+        $multipart = TestRequest::to(HttpMethod::Post, '/')
+            ->with(RequestHeader::Cookie, '__Host-session=' . $this->sealedValue($session))
+            ->withField(CsrfField::Token, $token)
+            ->request();
+        self::assertSame('page POST', $this->guarded($multipart)->body());
+
         foreach (
             [
                 'no token in the session' => $this->posted(Session::fresh($this->seal), '_csrf=' . $token),
                 'no field'                => $this->posted($session, 'q=1'),
                 'the wrong field'         => $this->posted($session, '_csrf=' . str_repeat('0', 64)),
-                'an unread form'          => $this->posted($session, '_csrf=' . $token, 'multipart/form-data; b=x'),
+                'an unread form'          => $this->posted($session, '_csrf=' . $token, 'text/plain'),
             ] as $case => $request
         ) {
             $answer = $this->guarded($request);

@@ -153,6 +153,15 @@ enum ServerVariable: string
     case ContentType = 'CONTENT_TYPE';
 
     /**
+     * How long the request's body is, as its sender says — the pair of {@link self::ContentType},
+     * handed over the same way and a case for the same reason.
+     *
+     * Read for one question: whether a multipart form PHP emptied was over `post_max_size`, since
+     * the length is all that is left of it. See {@link Request::form()}.
+     */
+    case ContentLength = 'CONTENT_LENGTH';
+
+    /**
      * This variable's value in the process's own server variables, or null if it did not arrive.
      *
      * For a reader with no {@link Request} to ask — see the class docblock. It asks

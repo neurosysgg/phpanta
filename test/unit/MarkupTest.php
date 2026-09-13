@@ -7,6 +7,7 @@ namespace Phpanta\Test\Unit;
 use BackedEnum;
 use Phpanta\Exception\MarkupException;
 use Phpanta\Exception\TranslationException;
+use Phpanta\Http\FormEncoding;
 use Phpanta\Support\Collection;
 use Phpanta\Support\SearchableCollection;
 use Phpanta\Support\UrlScheme;
@@ -439,6 +440,9 @@ final class MarkupTest extends TestCase
         }
         foreach (FormMethod::cases() as $case) {
             yield 'FormMethod::' . $case->name => [HtmlAttribute::Method, $case];
+        }
+        foreach (FormEncoding::cases() as $case) {
+            yield 'FormEncoding::' . $case->name => [HtmlAttribute::Enctype, $case];
         }
         foreach (Autocomplete::cases() as $case) {
             yield 'Autocomplete::' . $case->name => [HtmlAttribute::Autocomplete, $case];

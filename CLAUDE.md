@@ -119,6 +119,10 @@ These fail silently — no error, no log, a page that looks fine.
 - Behind a compressing module, the `ETag` a browser echoes has `-gzip` inside the quotes;
   `ETag::matches()` drops it, and a verbatim compare never answers a 304.
 - A misspelled `ServerVariable` or `DataFileName` is not an error but a default.
+- **A multipart body is PHP's parse, not ours.** `MultipartParameters` is the one reader of `$_POST`
+  and `$_FILES`; a name with a dot, a space or a bracket arrives renamed, a plain name sent twice
+  keeps its last value, and a body over `post_max_size` arrives empty — which `Request::form()`
+  turns into a 413 from the sender's `Content-Length`, rather than a form that sent nothing.
 
 **The API and deploying**
 - **`data/update.pub` absent means `/api` is off; `data/site_auth.php` absent means the site gate is

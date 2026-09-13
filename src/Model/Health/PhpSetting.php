@@ -35,6 +35,15 @@ enum PhpSetting: string
      */
     case PostMaxSize = 'post_max_size';
 
+    /**
+     * Whether PHP takes a file a form sends at all. Off, and every file input arrives empty — see
+     * {@link \Phpanta\Http\Upload::requirements()}, which a site that takes uploads lists.
+     */
+    case FileUploads = 'file_uploads';
+
+    /** The largest file PHP keeps. A larger one arrives as an error, never as a file. */
+    case UploadMaxFilesize = 'upload_max_filesize';
+
     /** How long a request may run. A push writes a few hundred files inside one. */
     case MaxExecutionTime = 'max_execution_time';
 

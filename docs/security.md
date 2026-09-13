@@ -249,6 +249,29 @@ All of them anchor with `\z`, not `$`, because `$` also matches before a trailin
 rule the router's patterns follow. A value type a site adds for its own data — a share id, a
 profile URL — follows the same rule, and its bad-input cases include a trailing newline.
 
+## Uploads
+
+A file a form sends is an [`Upload`](../src/Http/Upload.php), and everything about it but its bytes
+is the sender's word:
+
+- **The name is shown, never used.** `clientName()` is what the browser sent, which PHP cuts to
+  the last segment of any path and otherwise leaves as any name at all — a dotfile, `index.php`.
+  A page keeps a file under a name of its own, outside the webroot, and shows the client's name
+  escaped like any other text.
+- **The claimed type is not read at all.** A part's `Content-Type` is the browser's guess, or a lie.
+  The framework needs no `ext/fileinfo`, so a site that cares what a file is checks its bytes.
+- **Size is bounded three times**: `upload_max_filesize` and `post_max_size` on the host, which
+  `Upload::requirements()` states for `health v1`, and a field's own `MaxBytes`. A form over
+  `post_max_size`, which PHP empties in silence, is a 413 — never a form that seems to have sent
+  nothing, and never a form token refused for being absent.
+- **Kept atomically, and only where asked.** `keepAs()` moves the file beside its target and
+  renames it into place, creating no directory. It is not `move_uploaded_file()`, whose
+  `is_uploaded_file()` guards a temporary name a request could write; here the name is PHP's, read
+  from `$_FILES` by one class, [`MultipartParameters`](../src/Http/MultipartParameters.php).
+
+A form that sends files carries its form token like any other: `CsrfGuard` reads it from what PHP
+parsed.
+
 ## Sessions, the form token and the login
 
 A site that has a form and a login keeps a [`Session`](../src/Http/Session.php). The framework holds

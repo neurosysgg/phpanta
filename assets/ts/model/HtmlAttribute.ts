@@ -31,6 +31,7 @@ export enum HtmlAttribute {
   AriaDescribedBy = 'aria-describedby',
   Action          = 'action',
   Method          = 'method',
+  Enctype         = 'enctype',
   Value           = 'value',
   For             = 'for',
   Required        = 'required',

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Phpanta\Support;
 
+use NoDiscard;
+
 /**
  * The File class. A path on disk, and the handful of things an app does with one.
  *
@@ -22,9 +24,10 @@ namespace Phpanta\Support;
  * create it would create it on the live server, where it then has to be deleted by hand. Creating a
  * directory is {@link Directory}'s to do and a caller's to ask for. See docs/history/types.md.
  *
- * Who reads what: an app **reads** and **appends** — it never writes a file and never deletes
- * one, which is a property of a read-only deployment rather than a gap. The tooling writes and
- * deletes. The tests build fixtures with {@link Directory}, and each one is a `File`.
+ * Who reads what: an app **reads** and **appends**, and one that takes uploads keeps them — see
+ * {@link \Phpanta\Http\Upload::keepAs()}, which names its temporary file here. A read-only
+ * deployment never writes a file and never deletes one. The tooling writes and deletes. The tests
+ * build fixtures with {@link Directory}, and each one is a `File`.
  */
 final readonly class File
 {
@@ -178,9 +181,7 @@ final readonly class File
      */
     public function write(string $contents, ?int $mode = null): bool
     {
-        // Random as well as per-process: php-fpm serves request after request from one PID, so the
-        // PID alone names the same temporary file for two writes in flight at once.
-        $temporary = $this->path . '.' . getmypid() . '.' . bin2hex(random_bytes(4)) . '.tmp';
+        $temporary = $this->temporarySibling()->path;
         $mode    ??= $this->mode();
 
         // Created empty, then narrowed, then filled — and the order is the whole point rather than
@@ -213,6 +214,22 @@ final readonly class File
         }
 
         return true;
+    }
+
+    /**
+     * A file beside this one that nothing else is named — the name to fill and then rename onto this
+     * one, so a reader sees the old file or the new one, as {@link self::write()} does.
+     *
+     * Beside it, because `rename()` is atomic only within a filesystem. Random as well as
+     * per-process: php-fpm serves request after request from one PID, so the PID alone names the
+     * same temporary file for two writes in flight at once.
+     *
+     * @return self
+     */
+    #[NoDiscard('temporarySibling() only names a file; a call whose result goes nowhere named nothing')]
+    public function temporarySibling(): self
+    {
+        return new self($this->path . '.' . getmypid() . '.' . bin2hex(random_bytes(4)) . '.tmp');
     }
 
     /**

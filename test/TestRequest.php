@@ -6,11 +6,16 @@ namespace Phpanta\Test;
 
 use Phpanta\App;
 use Phpanta\Http\Answer;
+use Phpanta\Http\FileEntryKey;
+use Phpanta\Http\FormEncoding;
 use Phpanta\Http\HttpMethod;
+use Phpanta\Http\MultipartParameters;
+use Phpanta\Http\Parameter;
 use Phpanta\Http\Request;
 use Phpanta\Http\RequestHeader;
 use Phpanta\Http\ServerParameters;
 use Phpanta\Http\ServerVariable;
+use Phpanta\Support\File;
 
 /**
  * A request a test builds, and the answer the booted app gives it — the in-process client.
@@ -35,10 +40,17 @@ use Phpanta\Http\ServerVariable;
 final readonly class TestRequest
 {
     /**
-     * @param array<string, string> $server
-     * @param string|null           $body
+     * @param array<string, string>               $server
+     * @param string|null                         $body
+     * @param array<string, string>               $fields A multipart body's fields, as `$_POST` holds them.
+     * @param array<string, array<string, mixed>> $files  Its files, as `$_FILES` holds them.
      */
-    private function __construct(private array $server, private ?string $body = null) {}
+    private function __construct(
+        private array $server,
+        private ?string $body = null,
+        private array $fields = [],
+        private array $files = [],
+    ) {}
 
     /**
      * A GET for $target.
@@ -78,7 +90,7 @@ final readonly class TestRequest
      */
     public function with(RequestHeader $header, string $value): self
     {
-        return new self([...$this->server, $header->serverKey() => $value], $this->body);
+        return new self([...$this->server, $header->serverKey() => $value], $this->body, $this->fields, $this->files);
     }
 
     /**
@@ -91,7 +103,7 @@ final readonly class TestRequest
      */
     public function withServer(ServerVariable $variable, string $value): self
     {
-        return new self([...$this->server, $variable->value => $value], $this->body);
+        return new self([...$this->server, $variable->value => $value], $this->body, $this->fields, $this->files);
     }
 
     /**
@@ -115,7 +127,50 @@ final readonly class TestRequest
      */
     public function withBody(string $body): self
     {
-        return new self($this->server, $body);
+        return new self($this->server, $body, $this->fields, $this->files);
+    }
+
+    /**
+     * This request as a multipart form, sending $value as $parameter — what PHP would have parsed
+     * into `$_POST`.
+     *
+     * @param Parameter $parameter
+     * @param string    $value
+     * @return self
+     */
+    public function withField(Parameter $parameter, string $value): self
+    {
+        return new self(
+            self::multipart($this->server),
+            $this->body,
+            [...$this->fields, (string) $parameter->value => $value],
+            $this->files,
+        );
+    }
+
+    /**
+     * This request as a multipart form, sending $file as $parameter under $clientName — what PHP
+     * would have kept in a temporary file and named in `$_FILES`. The test owns $file, and removes it.
+     *
+     * @param Parameter $parameter
+     * @param File      $file
+     * @param string    $clientName What the browser says the file was called.
+     * @param int       $error      PHP's `UPLOAD_ERR_*` code: anything but OK sends no file.
+     * @return self
+     */
+    public function withUpload(Parameter $parameter, File $file, string $clientName, int $error = UPLOAD_ERR_OK): self
+    {
+        $kept = $error === UPLOAD_ERR_OK;
+
+        return new self(self::multipart($this->server), $this->body, $this->fields, [
+            ...$this->files,
+            (string) $parameter->value => [
+                FileEntryKey::Name->value    => $clientName,
+                FileEntryKey::TmpName->value => $kept ? $file->path : '',
+                FileEntryKey::Error->value   => $error,
+                FileEntryKey::Size->value    => $kept ? $file->size() : 0,
+            ],
+        ]);
     }
 
     /**
@@ -125,7 +180,25 @@ final readonly class TestRequest
      */
     public function request(): Request
     {
-        return Request::from(new ServerParameters($this->server), $this->body);
+        return Request::from(
+            new ServerParameters($this->server),
+            $this->body,
+            new MultipartParameters($this->fields, $this->files),
+        );
+    }
+
+    /**
+     * $server, saying its body is a multipart form.
+     *
+     * @param array<string, string> $server
+     * @return array<string, string>
+     */
+    private static function multipart(array $server): array
+    {
+        return [
+            ...$server,
+            ServerVariable::ContentType->value => FormEncoding::Multipart->value . '; boundary=phpanta',
+        ];
     }
 
     /**

@@ -100,6 +100,30 @@ final readonly class MimeType implements HeaderValue
     }
 
     /**
+     * The type $essence names — `multipart/form-data`, as {@link self::essence()} writes one — with
+     * no charset.
+     *
+     * For a vocabulary spelled by its essence, such as {@link FormEncoding}: it derives its type from
+     * the one spelling it has rather than writing the type a second time, and the type checks it.
+     *
+     * @param string $essence
+     * @return self
+     * @throws MimeTypeException if $essence is not a top-level type this knows, a slash and a subtype.
+     */
+    public static function fromEssence(string $essence): self
+    {
+        [$type, $subtype] = array_pad(explode('/', $essence, 2), 2, '');
+
+        return new self(
+            TopLevelType::tryFrom($type) ?? throw new MimeTypeException(
+                sprintf("'%s' does not open with a top-level type this knows.", $essence),
+            ),
+            $subtype,
+            null,
+        );
+    }
+
+    /**
      * An audio file, named by its extension.
      *
      * The charset is explicitly null and that is the interesting half: every other body the

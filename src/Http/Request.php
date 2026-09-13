@@ -6,6 +6,8 @@ namespace Phpanta\Http;
 
 use Phpanta\App;
 use Phpanta\Exception\InputException;
+use Phpanta\Exception\TooLargeException;
+use Phpanta\Support\Diagnostics;
 use Phpanta\Support\File;
 use Phpanta\Text\Language;
 use Uri\Rfc3986\Uri;
@@ -45,8 +47,10 @@ readonly class Request
      * @param string $origin          The `Origin` header, raw — see {@link self::origin()}.
      * @param string $preflightMethod The `Access-Control-Request-Method` header, raw.
      * @param string $contentType     What the body is, as its sender says — see {@link self::form()}.
+     * @param int    $contentLength   How long the sender says the body is, or 0 where it did not say.
      * @param string|null $body The body, where the request was built with one; null to read
      *                          `php://input` — see {@link self::body()}.
+     * @param MultipartParameters $multipart What a multipart body sent, as PHP parsed it.
      */
     private function __construct(
         private ?HttpMethod $method,
@@ -66,17 +70,20 @@ readonly class Request
         private string $origin = '',
         private string $preflightMethod = '',
         private string $contentType = '',
+        private int    $contentLength = 0,
         private ?string $body = null,
+        private MultipartParameters $multipart = new MultipartParameters([], []),
     ) {}
 
     /**
-     * The request this process was started for, read out of PHP's own server variables.
+     * The request this process was started for, read out of PHP's own server variables — and, for
+     * a multipart body, out of what PHP parsed it into.
      *
      * @return static
      */
     public static function fromGlobals(): static
     {
-        return static::from(ServerParameters::fromGlobals());
+        return static::from(ServerParameters::fromGlobals(), null, MultipartParameters::fromGlobals());
     }
 
     /**
@@ -89,10 +96,15 @@ readonly class Request
      * @param string|null      $body   Its body, or null for the one `php://input` holds — which is
      *                                 the only body a request from a real server has, and why only
      *                                 a request built some other way passes one.
+     * @param MultipartParameters|null $multipart What a multipart body sent, as PHP parsed it, or
+     *                                            null for nothing.
      * @return static
      */
-    public static function from(ServerParameters $server, ?string $body = null): static
-    {
+    public static function from(
+        ServerParameters $server,
+        ?string $body = null,
+        ?MultipartParameters $multipart = null,
+    ): static {
         // tryFrom, not from: REQUEST_METHOD is whatever the client sent, and an unrecognised one
         // has to be refused rather than throw. Null is not read-only, which is the safe default.
         $method   = HttpMethod::tryFrom(strtoupper(
@@ -133,7 +145,14 @@ readonly class Request
             $server->header(RequestHeader::Origin),
             $server->header(RequestHeader::AccessControlRequestMethod),
             $server->string(ServerVariable::ContentType) ?? '',
+            // A length that is not a whole number is no length, which is what 0 says.
+            (int) filter_var(
+                $server->string(ServerVariable::ContentLength) ?? '',
+                FILTER_VALIDATE_INT,
+                ['options' => ['min_range' => 0]],
+            ),
             $body,
+            $multipart ?? new MultipartParameters([], []),
         );
     }
 
@@ -369,7 +388,8 @@ readonly class Request
      * `Request` would make all of them pay for the one that does, and would quietly turn a class
      * that describes a request into one that has consumed it. So this is a method, not a property,
      * and `Request` stays `readonly` with nothing to memoise — `php://input` is re-readable for
-     * anything that is not a multipart form, and nothing here posts a form.
+     * anything that is not a multipart form. A multipart body is never there at all: PHP parses it
+     * before the script runs, and {@link self::form()} and {@link self::upload()} read what it made.
      *
      * **It has exactly one caller**, {@link \Phpanta\Controller\ApiController}, and that is the
      * guarantee: the body is read at one call site, past a route that accepts POST and nothing else
@@ -495,29 +515,58 @@ readonly class Request
     /**
      * What a form sent in the body, to be asked for like {@link self::query()}.
      *
-     * Only a body its sender calls `application/x-www-form-urlencoded` is read — what an HTML form
-     * sends unless it says otherwise. A request that says nothing about its body has sent no form.
-     * Any other kind is refused rather than half-read: `multipart/form-data` is how a form sends a
-     * file, and nothing here reads files. At most {@link self::MAX_FORM} bytes are read, and a form
-     * larger than that is refused rather than cut.
+     * Two kinds of body are read, the two an HTML form sends. `application/x-www-form-urlencoded`,
+     * the default, is read here, at most {@link self::MAX_FORM} bytes of it, and a form larger than
+     * that is refused rather than cut. `multipart/form-data`, how a form sends a file, is read from
+     * what PHP parsed it into — see {@link MultipartParameters} — and its files are
+     * {@link self::upload()}'s. A request that says nothing about its body has sent no form, and any
+     * other kind is refused rather than half-read.
      *
      * An API action never calls this either, for the reason {@link self::query()} gives.
      *
      * @return Input
-     * @throws InputException for a body of another kind, a form too large, or one that does not decode.
+     * @throws TooLargeException if PHP emptied a multipart form for being over `post_max_size`.
+     * @throws InputException    for a body of another kind, a form too large, or one that does not decode.
      */
     public function form(): Input
     {
-        $type = strtolower(trim(explode(';', $this->contentType, 2)[0]));
+        $type = $this->bodyType();
 
         if ($type === '') {
             return Input::none();
         }
 
-        if ($type !== self::formType()->essence()) {
-            throw new InputException(sprintf("A body sent as '%s' is not a form this reads.", $type));
-        }
+        return match (FormEncoding::tryFrom($type)) {
+            FormEncoding::Multipart  => $this->posted(),
+            FormEncoding::UrlEncoded => $this->urlEncoded(),
+            null                     => throw new InputException(
+                sprintf("A body sent as '%s' is not a form this reads.", $type),
+            ),
+        };
+    }
 
+    /**
+     * The multipart form PHP parsed, unless PHP emptied it.
+     *
+     * @return Input
+     * @throws TooLargeException
+     * @throws InputException
+     */
+    private function posted(): Input
+    {
+        $this->refuseEmptied();
+
+        return Input::fromPosted($this->multipart);
+    }
+
+    /**
+     * The url-encoded form in the body, read no further than {@link self::MAX_FORM} and a byte.
+     *
+     * @return Input
+     * @throws InputException
+     */
+    private function urlEncoded(): Input
+    {
         $body = $this->body(self::MAX_FORM + 1);
 
         if (strlen($body) > self::MAX_FORM) {
@@ -528,13 +577,58 @@ readonly class Request
     }
 
     /**
-     * The one kind of body {@link self::form()} reads.
+     * The file a multipart form sent as $parameter, or null where it sent none — or was no multipart
+     * form at all. See {@link Upload}.
      *
-     * @return MimeType
+     * An API action never calls this either, for the reason {@link self::query()} gives.
+     *
+     * @param Parameter $parameter
+     * @return Upload|null
+     * @throws TooLargeException if the file, or the whole form, was larger than the host takes.
+     * @throws InputException    if it arrived only in part or as a list.
+     * @throws \Phpanta\Exception\UploadException if the host could not keep it.
      */
-    private static function formType(): MimeType
+    public function upload(Parameter $parameter): ?Upload
     {
-        return new MimeType(TopLevelType::Application, 'x-www-form-urlencoded', null);
+        if (FormEncoding::tryFrom($this->bodyType()) !== FormEncoding::Multipart) {
+            return null;
+        }
+
+        $this->refuseEmptied();
+
+        return $this->multipart->upload($parameter);
+    }
+
+    /**
+     * The essence of what the sender says the body is — `multipart/form-data` out of
+     * `multipart/form-data; boundary=…` — lower-cased, or `''` where it says nothing.
+     *
+     * @return string
+     */
+    private function bodyType(): string
+    {
+        return strtolower(trim(explode(';', $this->contentType, 2)[0]));
+    }
+
+    /**
+     * Refuses a multipart body larger than `post_max_size`.
+     *
+     * **PHP empties such a form in silence**: a warning in the log, and `$_POST` and `$_FILES` as
+     * empty as a form that sent nothing. Read as it stands, it would be a form with every field
+     * blank — a page asking the visitor to fill in what they had, or a form-token guard refusing a
+     * token that was sent. The length the sender gave is the one sign left, so it is compared here.
+     *
+     * @return void
+     * @throws TooLargeException
+     */
+    private function refuseEmptied(): void
+    {
+        $limit = (int) Diagnostics::muted(static fn(): int => ini_parse_quantity((string) ini_get('post_max_size')));
+
+        // 0 is post_max_size's own spelling of no limit.
+        if ($limit > 0 && $this->contentLength > $limit) {
+            throw new TooLargeException(sprintf('A form over post_max_size (%d bytes) was emptied by PHP.', $limit));
+        }
     }
 
     /**

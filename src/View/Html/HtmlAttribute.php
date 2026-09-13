@@ -72,6 +72,9 @@ enum HtmlAttribute: string implements AttributeName
     /** How a `<form>` sends it. See {@link FormMethod}. */
     case Method = 'method';
 
+    /** How a `<form>` packs what it sends. See {@link \Phpanta\Http\FormEncoding}. */
+    case Enctype = 'enctype';
+
     case Value = 'value';
 
     /**

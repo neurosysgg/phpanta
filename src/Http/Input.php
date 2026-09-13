@@ -97,6 +97,32 @@ final readonly class Input
     }
 
     /**
+     * What a `multipart/form-data` body sent, as PHP parsed it — see {@link MultipartParameters} for
+     * what that parse loses.
+     *
+     * A name sent as a list is refused when it is read, as a name sent twice is by
+     * {@link self::fromUrlEncoded()}; anything that is not UTF-8 is refused outright, as there.
+     *
+     * @param MultipartParameters $posted
+     * @return self
+     * @throws InputException if a name or a value is not UTF-8.
+     */
+    public static function fromPosted(MultipartParameters $posted): self
+    {
+        $values = $posted->fields();
+
+        foreach ($values->toKeys() as $name) {
+            self::utf8((string) $name);
+        }
+
+        foreach ($values as $value) {
+            self::utf8($value);
+        }
+
+        return new self($values, $posted->lists());
+    }
+
+    /**
      * Whether $parameter was sent at all.
      *
      * @param Parameter $parameter
@@ -247,12 +273,22 @@ final readonly class Input
      */
     private static function decoded(string $encoded): string
     {
-        $decoded = rawurldecode(str_replace('+', ' ', $encoded));
+        return self::utf8(rawurldecode(str_replace('+', ' ', $encoded)));
+    }
 
-        if (!mb_check_encoding($decoded, 'UTF-8')) {
+    /**
+     * $sent, if it is UTF-8.
+     *
+     * @param string $sent
+     * @return string
+     * @throws InputException if it is not.
+     */
+    private static function utf8(string $sent): string
+    {
+        if (!mb_check_encoding($sent, 'UTF-8')) {
             throw new InputException('Something sent does not decode to UTF-8.');
         }
 
-        return $decoded;
+        return $sent;
     }
 }

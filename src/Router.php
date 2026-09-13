@@ -8,6 +8,7 @@ use Phpanta\Controller\Controller;
 use Phpanta\Controller\Layered;
 use Phpanta\Controller\UnroutedController;
 use Phpanta\Exception\InputException;
+use Phpanta\Exception\TooLargeException;
 use Phpanta\Http\EmptyResponse;
 use Phpanta\Http\Header;
 use Phpanta\Http\HttpMethod;
@@ -64,6 +65,8 @@ readonly class Router implements Controller
                     // refused here, once, rather than by every page that reads a parameter.
                     try {
                         return Layered::around($route->layers(), $route->createController($params))->handle($request);
+                    } catch (TooLargeException) {
+                        return self::tooLarge($request);
                     } catch (InputException) {
                         return self::unreadable($request);
                     }
@@ -118,6 +121,22 @@ readonly class Router implements Controller
         return new PlainTextResponse(
             HttpStatusCode::BadRequest,
             FrameworkText::BadRequest->in($request->language()) . "\n",
+        );
+    }
+
+    /**
+     * The 413 a route's controller or layers are answered with when what the request sent was
+     * readable but larger than the host takes — see {@link TooLargeException}. Like the 400, it
+     * says only that.
+     *
+     * @param Request $request
+     * @return PlainTextResponse
+     */
+    private static function tooLarge(Request $request): PlainTextResponse
+    {
+        return new PlainTextResponse(
+            HttpStatusCode::ContentTooLarge,
+            FrameworkText::ContentTooLarge->in($request->language()) . "\n",
         );
     }
 

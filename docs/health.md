@@ -176,6 +176,11 @@ app that adds nothing, `TestApp` among them, reports exactly this table.
 | | every tracked data file | present | required |
 | | `logs/` | writable, so PHP can log into it | optional |
 
+- **A site that takes uploads lists `Upload::requirements($maxBytes)`** in its `ownRequirements()`:
+  `file_uploads` on, and `upload_max_filesize` and `post_max_size` at least the largest file it
+  takes. They are not the floor because most sites take no file, and a floor that demanded
+  `file_uploads` would fail a host that switched it off on purpose — the same reason
+  `Database::requirement()` is a site's to list.
 - **Pin these values to their sources.** The extension list and the PHP floor are stated in
   `composer.json` too, and the two size floors are derived from `MAX_BODY`. Composer never runs on
   the server to notice a drift, so a site's suite should hold the two statements to each other.

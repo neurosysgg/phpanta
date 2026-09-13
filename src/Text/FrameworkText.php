@@ -31,6 +31,10 @@ enum FrameworkText: string implements Translatable
     #[Translation(en: 'This request could not be read.', de: 'Diese Anfrage konnte nicht gelesen werden.')]
     case BadRequest = 'bad-request';
 
+    /** The body of the 413 a request larger than the host takes is answered with — see Router. */
+    #[Translation(en: 'This request is too large.', de: 'Diese Anfrage ist zu groß.')]
+    case ContentTooLarge = 'content-too-large';
+
     /** The body of the 403 a write without its form token is refused with — see CsrfGuard. */
     #[Translation(
         en: 'This form has expired. Please go back, reload the page and send it again.',
@@ -75,6 +79,10 @@ enum FrameworkText: string implements Translatable
     /** A field that names none of its choices — see OneOf. */
     #[Translation(en: 'Please choose one of the options.', de: 'Bitte wähle eine der Optionen.')]
     case FieldNotAChoice = 'field-not-a-choice';
+
+    /** A file larger than it may be, or than the host takes — see MaxBytes and Form::read(). */
+    #[Translation(en: 'This file is too large.', de: 'Diese Datei ist zu groß.')]
+    case FileTooLarge = 'file-too-large';
 
     /** The empty first option of a choice, which is what makes a required one ask — see Form. */
     #[Translation(en: '— choose —', de: '— auswählen —')]

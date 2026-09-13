@@ -6,6 +6,7 @@ namespace Phpanta\Form;
 
 use NoDiscard;
 use Phpanta\Exception\FormException;
+use Phpanta\Http\Upload;
 use Phpanta\Support\SearchableCollection;
 use Phpanta\Text\Translatable;
 
@@ -77,6 +78,22 @@ final readonly class Submission
     public function error(Field $field): ?Translatable
     {
         return $this->entry($field)->error;
+    }
+
+    /**
+     * The file $field sent, or null where it sent none — and for any field that is not a file.
+     *
+     * Present whether or not the submission is valid, as {@link self::value()} is; a page keeps it
+     * only once {@link self::isValid()} says so.
+     *
+     * @param Field $field
+     * @return Upload|null
+     * @throws FormException if $field is not a field of this form.
+     */
+    #[NoDiscard('upload() only reads; a call whose result goes nowhere read nothing')]
+    public function upload(Field $field): ?Upload
+    {
+        return $this->entry($field)->upload;
     }
 
     /**
