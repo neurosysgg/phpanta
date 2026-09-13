@@ -22,11 +22,13 @@ use Phpanta\Tool\Http\CurlTransport;
 use Phpanta\Tool\Http\Transport;
 use Phpanta\Tool\Http\TransportException;
 use Phpanta\Tool\Http\Url;
+use Phpanta\Tool\Update\FrameworkCheckout;
 use Phpanta\Tool\Update\PackedFile;
 use Phpanta\Tool\Update\TarWriter;
 
 /**
- * The PushUpdate command. Deploys `public/`, `src/` and `autoload.php` in one signed HTTPS request.
+ * The PushUpdate command. Deploys the framework, `src/`, `autoload.php` and `public/` in one signed
+ * HTTPS request.
  *
  * **Why it exists is a measurement.** `deploy.sh` rsyncs over a GVFS SFTP mount where a single
  * `stat` costs 480 ms and walking `src/` alone costs 3.7 s; with `-c` it reads every one of 269
@@ -42,6 +44,10 @@ use Phpanta\Tool\Update\TarWriter;
  * It ships the **prod** tree, the same one `deploy.sh` does — `build/dist/public/` rather than
  * `public/` — so what lands is bundled and minified with no source maps, and the manifest goes with
  * it. Building is the caller's job: `npm run build:prod` first, exactly as the script does.
+ *
+ * The framework ships out of the working tree too, so **it refuses a framework no commit of the site
+ * reproduces** — one missing, edited and not committed, or not the one the site records — unless
+ * `--any-framework` says that is the point. See {@link FrameworkCheckout}.
  */
 final readonly class PushUpdate implements Command
 {
@@ -77,7 +83,7 @@ final readonly class PushUpdate implements Command
      */
     public function usage(): string
     {
-        return '[--dry-run] [--no-mirror] [--url <origin>] [--key <file>]';
+        return '[--dry-run] [--no-mirror] [--any-framework] [--url <origin>] [--key <file>]';
     }
 
     /**
@@ -85,7 +91,7 @@ final readonly class PushUpdate implements Command
      */
     public function description(): string
     {
-        return 'Deploy public/, src/ and autoload.php in one signed request.';
+        return 'Deploy phpanta/, src/, autoload.php and public/ in one signed request.';
     }
 
     /**
@@ -108,6 +114,22 @@ final readonly class PushUpdate implements Command
         if (!$dist->directory('public')->exists()) {
             $output->error("build/dist/ is not there — run `npm run build:prod` first.\n");
             return ExitCode::Failure;
+        }
+
+        // Before anything is signed or sent, and for a dry run too: a dry run that passed a framework
+        // the real push would refuse would be a plan for a different push.
+        if (!$input->has(PushUpdateOption::AnyFramework)) {
+            $refusal = new FrameworkCheckout($this->root)->refusal();
+
+            if ($refusal !== null) {
+                $output->error(sprintf(
+                    "%s: %s\n  (--any-framework ships it as it stands.)\n",
+                    $this->name(),
+                    $refusal,
+                ));
+
+                return ExitCode::Failure;
+            }
         }
 
         $dryRun = $input->has(PushUpdateOption::DryRun);

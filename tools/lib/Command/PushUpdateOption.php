@@ -27,6 +27,15 @@ enum PushUpdateOption: string implements Option
     case NoMirror = 'no-mirror';
 
     /**
+     * Ship the framework as it stands in `phpanta/` — or none, if none is checked out.
+     *
+     * Without it, a push refuses a framework that is missing, has changes that are not committed, or
+     * is not the commit the site's HEAD records: each would put code on the server that no checkout
+     * of the site reproduces. See {@link \Phpanta\Tool\Update\FrameworkCheckout}.
+     */
+    case AnyFramework = 'any-framework';
+
+    /**
      * Which deployment to push to. Defaults to the live site.
      *
      * An **origin** rather than an endpoint: the path is derived from the typed action, so naming a

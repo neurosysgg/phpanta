@@ -115,6 +115,9 @@ These fail silently — no error, no log, a page that looks fine.
 - The mirror is an enumerated delete: it never follows a symlink and never calls `Directory::remove()`.
 - **The server writes a push in the order it is packed**: the framework, the site's source, the
   autoloader, the webroot, the stamped manifest last.
+- A push packs `phpanta/` out of the working tree, so `push-update` refuses a framework that is not
+  checked out, has changes that are not committed, or is not the commit the site's `HEAD` records.
+  `--any-framework` is the deliberate way past; a copied-in `phpanta/` has nothing to compare and passes.
 - Rewriting a file the request is executing makes NFS silly-rename it into an undeletable
   `.nfsXXXXXXXX`; a push leaves byte-identical files untouched for that reason.
 - A health check **returns** its 503, and `Requirement::check()` never throws.
