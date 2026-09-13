@@ -94,34 +94,38 @@ final readonly class Directory
     }
 
     /**
-     * The files directly in this directory, in the order the filesystem gives them.
+     * The files directly in this directory whose names match $pattern, in the order the filesystem
+     * gives them.
      *
      * Directories are left out: every caller wants files, and one that had to check each entry
      * would be doing by hand what this exists to have done once.
      *
-     * `glob()` is the door: it answers with a plain array of paths, so the adapter is the
-     * {@link Collection} built from it rather than anything further in. What crosses the boundary
-     * is a collection, which is what lets a caller ask `->first()` or `->where()` of a directory
-     * without unwrapping it first.
+     * **Listed with `scandir()` and matched with `fnmatch()`, never `glob()`.** `glob()` reads the
+     * whole path as a pattern, so a directory whose own name holds a `[` or a `*` — a folder called
+     * `site [draft]` — was read as a pattern too, and listed nothing. Only a name is matched here.
+     * `FNM_PERIOD` keeps the one rule of `glob()`'s worth keeping: a leading dot is matched only by a
+     * pattern that writes one, so a release folder's `.DS_Store` is not a file anybody asked for.
+     *
+     * What crosses the boundary is a {@link Collection}, which is what lets a caller ask `->first()`
+     * or `->where()` of a directory without unwrapping it first.
      *
      * **`settled()`, because a listing is a snapshot and not a live query.** `where()` is lazy and
      * `exists()` is a `stat()`, so left pending this would re-read the filesystem on every
-     * materialisation — two questions of the same object could answer differently, and
-     * {@link self::remove()} would interleave its stats with its deletes. `glob()` has already
-     * answered once here; settling keeps the whole listing one answer taken at one moment, which is
-     * what every caller has always read it as.
+     * materialisation — two questions of the same object could answer differently. The directory has
+     * already been read once here; settling keeps the whole listing one answer taken at one moment,
+     * which is what every caller has always read it as.
      *
-     * @param string $pattern A glob pattern matched against the name — `*.flac`, `*`.
+     * @param string $pattern A shell wildcard matched against the name — `*.flac`, `*`.
      * @return Collection<File>
      */
     public function files(string $pattern = '*'): Collection
     {
-        $matches = glob($this->path . '/' . $pattern) ?: [];
-
         $files = new Collection(File::class);
 
-        foreach ($matches as $path) {
-            $files = $files->with(new File($path));
+        foreach ($this->entries() as $name) {
+            if (fnmatch($pattern, $name, FNM_PERIOD)) {
+                $files = $files->with($this->file($name));
+            }
         }
 
         return $files->where(static fn(File $file): bool => $file->exists())->settled();
@@ -145,23 +149,52 @@ final readonly class Directory
     /**
      * Removes the files in this directory, and then the directory.
      *
-     * Refuses to descend — a subdirectory left inside means `rmdir()` fails and this answers false,
-     * rather than this quietly deleting a tree somebody did not mean to name.
+     * Every file, dotfiles included — a fixture's `.gitkeep`, left behind because a listing skipped
+     * it, is a directory `rmdir()` refuses. Refuses to descend — a subdirectory left inside means
+     * `rmdir()` fails and this answers false, rather than this quietly deleting a tree somebody did
+     * not mean to name.
+     *
+     * **And refuses a link rather than following it.** A link's target is somewhere nobody named,
+     * and emptying it through the link is the one mistake a delete that never recurses could still
+     * make.
      *
      * @return bool True if there is nothing here afterwards.
      */
     public function remove(): bool
     {
+        if (is_link($this->path)) {
+            return false;
+        }
+
         if (!$this->exists()) {
             return true;
         }
 
-        foreach ($this->files() as $file) {
-            if (!$file->delete()) {
+        foreach ($this->entries() as $name) {
+            if (!$this->file($name)->delete()) {
                 return false;
             }
         }
 
         return Diagnostics::muted(fn(): bool => rmdir($this->path));
+    }
+
+    /**
+     * Every name in this directory, or none where it cannot be read.
+     *
+     * `.` and `..` among them, harmlessly: both are directories, so neither is ever a file
+     * {@link self::files()} answers or {@link self::remove()} deletes.
+     *
+     * @return list<string>
+     */
+    #[BareArray(
+        'scandir() is the door, the way glob() was before it: what it hands over is names, and what '
+        . 'crosses into the rest of this class is Files built from them.',
+    )]
+    private function entries(): array
+    {
+        $names = Diagnostics::muted(fn(): array|false => scandir($this->path));
+
+        return $names === false ? [] : $names;
     }
 }

@@ -32,6 +32,20 @@ readonly class Route
      */
     public const string PLACEHOLDER_PATTERN = '/\{(\w+)\}/';
 
+    /** What a placeholder matches: one whole segment, whatever is in it. */
+    private const string SEGMENT = '([^/]+)';
+
+    /** The compiled expression's delimiter, which {@link self::compile()} quotes in every static part. */
+    private const string DELIMITER = '#';
+
+    /**
+     * The expression this route's pattern compiles to, built once, when the route is.
+     *
+     * It was built on every {@link self::matches()} call, which the router makes once per route
+     * until one answers — the whole table compiled again for every request.
+     */
+    private string $regex;
+
     /**
      * @param Path $pattern
      * @param Closure $factory
@@ -50,7 +64,9 @@ readonly class Route
         private Closure      $factory,
         private MethodPolicy $methods = MethodPolicy::ReadOnly,
         private ?Closure     $exports = null,
-    ) {}
+    ) {
+        $this->regex = self::compile($pattern->value);
+    }
 
     /**
      * The address pattern this route answers on.
@@ -113,6 +129,13 @@ readonly class Route
     /**
      * Tests whether this route matches $path.
      *
+     * **Each value comes back decoded**, so this and {@link Path::to()} are inverses: `to()`
+     * encodes a value into its segment — `a b` is linked as `a%20b` — and this hands back `a b`
+     * rather than the encoding. It decodes after matching and never before, which is what keeps a
+     * segment one segment: an encoded `%2F` is matched as part of the segment it arrived in, and
+     * only then becomes a slash inside the value. A value is a key a controller looks something up
+     * by — every one here finds it in a collection first — never a path it builds.
+     *
      * @param string $path
      * @return array<int,string>|false Positional capture values on match, false otherwise.
      */
@@ -123,16 +146,19 @@ readonly class Route
     )]
     public function matches(string $path): array|false
     {
-        // \z rather than $: `$` also matches immediately before a trailing newline, so `$` would
-        // let `/releases/ill\n` match and capture the newline into the slug. Not reachable today —
-        // parse_url() does not decode %0a and Apache refuses a raw one in the request line — but
-        // the anchor that means "the end" should be the one that says so.
-        $regex = '@^' . preg_replace(self::PLACEHOLDER_PATTERN, '([^/]+)', $this->pattern->value) . '\z@';
-        if (!preg_match($regex, $path, $m)) {
+        if (preg_match($this->regex, $path, $captures) !== 1) {
             return false;
         }
-        array_shift($m);
-        return $m;
+
+        array_shift($captures);
+
+        $values = [];
+
+        foreach ($captures as $capture) {
+            $values[] = rawurldecode($capture);
+        }
+
+        return $values;
     }
 
     /**
@@ -148,5 +174,32 @@ readonly class Route
     public function createController(array $params): Controller
     {
         return ($this->factory)(...$params);
+    }
+
+    /**
+     * $pattern as the expression that matches it.
+     *
+     * Every static part is quoted, delimiter included, so a path holding a character a regex
+     * reads — a `.` in `/feed.xml`, a `+` — matches itself and nothing else, and none can end the
+     * expression early. Each placeholder becomes {@link self::SEGMENT}.
+     *
+     * `\z` rather than `$`: `$` also matches immediately before a trailing newline, so `$` would let
+     * `/releases/ill\n` match and capture the newline into the slug. The anchor that means "the
+     * end" should be the one that says so.
+     *
+     * @param string $pattern
+     * @return string
+     */
+    private static function compile(string $pattern): string
+    {
+        $regex = '';
+
+        // No null check, the way Path::to() has none: the pattern is a constant, and splitting a
+        // string on a literal expression has no failure to report.
+        foreach (preg_split(self::PLACEHOLDER_PATTERN, $pattern) as $index => $part) {
+            $regex .= ($index === 0 ? '' : self::SEGMENT) . preg_quote($part, self::DELIMITER);
+        }
+
+        return self::DELIMITER . '\A' . $regex . '\z' . self::DELIMITER;
     }
 }

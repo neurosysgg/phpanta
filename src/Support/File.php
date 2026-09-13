@@ -171,13 +171,18 @@ final readonly class File
      *
      * @param string   $contents
      * @param int|null $mode Applied to the temporary file *before a byte of $contents is in it*, so
-     *                       the contents are never readable at the default mode. Null leaves it to
-     *                       the umask.
+     *                       the contents are never readable at the default mode. Null keeps the
+     *                       mode of the file being replaced, where there is one, and leaves a new
+     *                       file to the umask: a rewrite that put a file back to the umask's mode
+     *                       would widen one an earlier write had narrowed.
      * @return bool
      */
     public function write(string $contents, ?int $mode = null): bool
     {
-        $temporary = $this->path . '.' . getmypid() . '.tmp';
+        // Random as well as per-process: php-fpm serves request after request from one PID, so the
+        // PID alone names the same temporary file for two writes in flight at once.
+        $temporary = $this->path . '.' . getmypid() . '.' . bin2hex(random_bytes(4)) . '.tmp';
+        $mode    ??= $this->mode();
 
         // Created empty, then narrowed, then filled — and the order is the whole point rather than
         // a style. `file_put_contents()` creates at `0666 & ~umask`, so writing first and chmod-ing
@@ -209,6 +214,18 @@ final readonly class File
         }
 
         return true;
+    }
+
+    /**
+     * The permission bits of the file here, or null where there is none to keep.
+     *
+     * @return int|null
+     */
+    private function mode(): ?int
+    {
+        $permissions = $this->exists() ? Diagnostics::muted(fn(): int|false => fileperms($this->path)) : false;
+
+        return $permissions === false ? null : $permissions & 0o7777;
     }
 
     /**

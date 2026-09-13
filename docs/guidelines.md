@@ -115,7 +115,8 @@ argument: it cannot say *which* diagnostics it meant — it silences every one r
 expression, at any severity, from any call nested inside it, so a `@file_get_contents()` written for a
 missing file also swallows an `E_DEPRECATED` that arrives with a PHP upgrade — and it cannot answer
 *for one call*, because `error_get_last()` is process-global and sticky. `Diagnostics` names the
-severities it handles and hands everything else back to PHP untouched, and `watched()` keeps the
+severities it handles — warnings and notices, never a deprecation, which explains no return value —
+and hands everything else back to PHP untouched, and `watched()` keeps the
 messages, which is what `MarkupParser` uses to refuse a parse error. It costs **0.58 µs** a call,
 measured; against the 3.4 µs a failing `file_get_contents()` takes to fail, it does not show up.
 

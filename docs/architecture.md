@@ -497,7 +497,8 @@ to.
 **The refusals are the point, so they are exhaustive rather than illustrative** — the same stance
 `TarArchive` takes about a member name off the network. An unknown element, an unknown attribute
 (which is what refuses an `onerror=`), a comment, a CDATA section, an element from another namespace,
-content the parser hoists into `<head>`, a `<script>` — whose content is raw text that `Text` would
+a document's own elements — `<title>`, `<meta>`, `<link>` and the rest — whether the parser hoists
+them into `<head>` or leaves them in the content, a `<script>` — whose content is raw text that `Text` would
 escape into meaning something else — and **any HTML5 parse error at all**, each a `ParserException`.
 The last is the one that matters most: `Dom\HTMLDocument` reports a stray `</div>` as a warning and
 then recovers silently, which for a hand-edited legal document would mean the rest of the policy

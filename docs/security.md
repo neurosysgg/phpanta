@@ -353,8 +353,9 @@ discovered rather than read:
   past it for some later action to read unsigned.
 - What `path` binds is `Request::path()`'s output, not the wire target: normalised, so a trailing
   slash is the same signed path. It is compared against that string directly and never against one
-  rebuilt from the router's captures, because `SitePath::to()` `rawurlencode`s each value and is
-  therefore **not** the inverse of `Route::matches()`.
+  rebuilt from the router's captures: `Route::matches()` decodes each capture and `Path::to()`
+  encodes it again, which round-trips the value but not the spelling — `%7E` comes out as `~` and
+  goes back in as `~` — so a rebuilt path is not always the path that was signed.
 - The **query string is not covered**, because nothing under `src/` reads one — no code touches
   `$_GET` or `QUERY_STRING`. An API action must therefore never read a query parameter: it would be
   the one input reaching a verified caller's handler unsigned. A parameter belongs in the manifest

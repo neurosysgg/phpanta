@@ -32,9 +32,9 @@ use Phpanta\Support\Diagnostics;
  * **The refusals are the point, so they are exhaustive rather than illustrative** — the same stance
  * {@link \Phpanta\Support\TarArchive} takes about a member name that came off the network. An
  * unknown element, an unknown attribute, a comment, a CDATA section, an element from another
- * namespace, content hoisted into the document head, and any HTML5 parse error at all are each
- * refused rather than skipped, because a document this class quietly dropped half of is worse than
- * one it would not read.
+ * namespace, a document's own elements wherever they turn up, and any HTML5 parse error at all are
+ * each refused rather than skipped, because a document this class quietly dropped half of is worse
+ * than one it would not read.
  *
  * **What it costs, measured rather than assumed.** Per half of the policy, with no Xdebug loaded:
  * 0.071 ms to parse, 0.242 ms to walk into the tree, 0.262 ms for {@link Element::render()} to write
@@ -55,6 +55,27 @@ use Phpanta\Support\Diagnostics;
  */
 final readonly class MarkupParser
 {
+    /**
+     * The elements that make a document rather than content, refused wherever they appear.
+     *
+     * Not only where the parser hoists them. At the top of a fragment a `<title>` is moved into the
+     * head, which {@link self::parse()} checks for; inside content the parser leaves a `<title>`, a
+     * `<meta>` or a `<link>` where it found it, and a view rendering one would put a document's
+     * metadata in the middle of a page — a second title the browser ignores, or a stylesheet nobody
+     * reviewed. `<html>`, `<head>` and `<body>` inside content are parse errors, which
+     * {@link self::read()} refuses first; they are listed so the set says what it means.
+     *
+     * @var list<HtmlTag>
+     */
+    private const array DOCUMENT_TAGS = [
+        HtmlTag::Html,
+        HtmlTag::Head,
+        HtmlTag::Body,
+        HtmlTag::Title,
+        HtmlTag::Meta,
+        HtmlTag::Link,
+    ];
+
     /**
      * Parses $html into nodes, refusing anything the tree cannot hold.
      *
@@ -95,7 +116,10 @@ final readonly class MarkupParser
         // passed. The document stands in for the null that cannot happen so that it flows into the
         // refusal below rather than needing a branch of its own, the way
         // Element::staysOnThisOrigin() handles a base URL that will not parse.
-        return self::childrenOf($document->body ?? $document);
+        //
+        // The vocabulary is asked for once and handed down the walk: an app builds its vocabulary
+        // when it is asked for one, and the walk used to ask for every element and attribute it met.
+        return self::childrenOf($document->body ?? $document, App::current()->vocabulary());
     }
 
     /**
@@ -140,16 +164,17 @@ final readonly class MarkupParser
     /**
      * $parent's children, in order.
      *
-     * @param DomNode $parent
+     * @param DomNode    $parent
+     * @param Vocabulary $vocabulary What an element or an attribute may be named.
      * @return Collection<Node>
      * @throws ParserException if any descendant is something the tree cannot hold.
      */
-    private static function childrenOf(DomNode $parent): Collection
+    private static function childrenOf(DomNode $parent, Vocabulary $vocabulary): Collection
     {
         $nodes = [];
 
         foreach ($parent->childNodes as $child) {
-            $nodes[] = self::node($child);
+            $nodes[] = self::node($child, $vocabulary);
         }
 
         return new Collection(Node::class)->with(...$nodes);
@@ -166,11 +191,12 @@ final readonly class MarkupParser
      * CDATA section. None of the three has a node here to become, and inventing one is how a tree
      * starts carrying content nothing escapes.
      *
-     * @param DomNode $node
+     * @param DomNode    $node
+     * @param Vocabulary $vocabulary
      * @return Node
      * @throws ParserException if $node is neither an HTML element nor text.
      */
-    private static function node(DomNode $node): Node
+    private static function node(DomNode $node, Vocabulary $vocabulary): Node
     {
         if ($node instanceof DomText) {
             return new Text($node->data);
@@ -185,7 +211,7 @@ final readonly class MarkupParser
             ));
         }
 
-        return self::element($node);
+        return self::element($node, $vocabulary);
     }
 
     /**
@@ -195,16 +221,22 @@ final readonly class MarkupParser
      * the constructor, deliberately: a parsed element is then exactly an element a view could have
      * written, and the void-element guard applies to it without being restated here.
      *
+     * A name is looked up with `tryFrom()` on each of the vocabulary's enums rather than by scanning
+     * for a case whose `tagName()` matches — a shortcut only because a test makes it one: every case
+     * of every enum in both registries is asserted to spell its own name as its backing value.
+     *
      * @param HTMLElement $element
+     * @param Vocabulary  $vocabulary
      * @return Element
-     * @throws ParserException if the element or any of its attributes is outside the vocabulary.
+     * @throws ParserException if the element or any of its attributes is outside the vocabulary, or
+     *                         the element belongs to the document rather than to its content.
      */
-    private static function element(HTMLElement $element): Element
+    private static function element(HTMLElement $element, Vocabulary $vocabulary): Element
     {
-        $tag = self::tagNamed($element->localName) ?? throw new ParserException(sprintf(
+        $tag = $vocabulary->tagNamed($element->localName) ?? throw new ParserException(sprintf(
             '<%s> is not an element this site emits. Add its case to one of: %s.',
             $element->localName,
-            App::current()->vocabulary()->tags()->join(', '),
+            $vocabulary->tags()->join(', '),
         ));
 
         // The one element refused for what it is rather than for being unknown, and the reason is
@@ -220,49 +252,28 @@ final readonly class MarkupParser
             ));
         }
 
+        if (in_array($tag, self::DOCUMENT_TAGS, true)) {
+            throw new ParserException(sprintf(
+                '<%s> belongs to the document around a page, not to content a view parses.',
+                $tag->tagName(),
+            ));
+        }
+
         $built = new Element($tag);
 
         foreach ($element->attributes as $attribute) {
             $built = $built->attr(
-                self::attributeNamed($attribute->localName) ?? throw new ParserException(sprintf(
+                $vocabulary->attributeNamed($attribute->localName) ?? throw new ParserException(sprintf(
                     '<%s %s> is not an attribute this site emits. This is what refuses an event '
                     . 'handler. Add its case to one of: %s.',
                     $element->localName,
                     $attribute->localName,
-                    App::current()->vocabulary()->attributes()->join(', '),
+                    $vocabulary->attributes()->join(', '),
                 )),
                 $attribute->value,
             );
         }
 
-        return $built->containing(...self::childrenOf($element)->toValues());
-    }
-
-    /**
-     * The {@link TagName} case $name spells, or null.
-     *
-     * **Asked with `tryFrom()` rather than by looking for a case whose `tagName()` matches**, which
-     * is a shortcut only because a test makes it one: every case of every enum in both registries is
-     * asserted to spell its own name as its backing value, so the two questions have one answer.
-     * That buys a native O(1) lookup instead of a scan over some seventy cases per element — which
-     * is worth having, since the walk is most of what this class costs.
-     *
-     * @param string $name
-     * @return TagName|null
-     */
-    private static function tagNamed(string $name): ?TagName
-    {
-        return App::current()->vocabulary()->tagNamed($name);
-    }
-
-    /**
-     * The {@link AttributeName} case $name spells, or null. See {@link self::tagNamed()}.
-     *
-     * @param string $name
-     * @return AttributeName|null
-     */
-    private static function attributeNamed(string $name): ?AttributeName
-    {
-        return App::current()->vocabulary()->attributeNamed($name);
+        return $built->containing(...self::childrenOf($element, $vocabulary)->toValues());
     }
 }

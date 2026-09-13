@@ -105,6 +105,12 @@ keep the subclass, because none of them changes what is held.
 `SearchableCollection` cannot be spread into a call, because string keys are named arguments, so
 every spreading call site asks `toValues()` and says so.
 
+**A key comes back as the string it went in as.** PHP stores a decimal-integer string key as an int
+in every array, so a slug of `2024` was handed to a callback as the int `2024` — and a callback
+declaring a string key threw on it. `SearchableCollection::with()` notes when a key has been turned
+into an int, and only then do the iterator, the steps, `first()` and `toKeys()` put the string back;
+a map of names pays nothing. `toArray()` cannot: an array is where the int came from.
+
 **A step that does work runs where it is asked for.** Every callback here is pure except one —
 `DemoStage::write()` filters on a predicate that *transcodes with ffmpeg* and reports whether that
 worked. Left pending, `write()` would write nothing: its caller's `isEmpty()` would stop at the first
@@ -143,7 +149,11 @@ know before reaching for either. `array_unique()` compares its items as strings,
 collection declared `float`, which accepts an `int` — the single widening the language itself makes.
 An object is the same item only when it is the same object: a value object here declares no
 equality, and inventing one inside a collection would be the container deciding what its elements
-mean. Both callers map to a scalar first, which is what makes the question not arise.
+mean. Both callers map to a scalar first, which is what makes the question not arise. An object is
+**held** while it is compared rather than numbered, because `spl_object_id()` hands a freed object's
+id to the next one made — and a stream of fresh objects, each let go after its step, would drop a new
+one as a repeat of one already gone. The two floats where `===` surprises are kept as it has them:
+`-0.0` is `0.0`, and every NAN is its own.
 
 ## What a collection may hold
 
@@ -234,7 +244,7 @@ reason again — both are written to in a loop, and `with()` copies; see
 `json_decode` (5), `glob`, `range` — about ninety points across `src/` and `tools/` where a builtin
 answers with an array and no amount of typing on this side changes that. The target is therefore
 **all-collection in the interior with an adapter at each door**, not zero arrays anywhere:
-`Directory::files()` is the model, where `glob()` is the door and the `Collection<File>` is what
+`Directory::files()` is the model, where `scandir()` is the door and the `Collection<File>` is what
 crosses the boundary.
 
 ## What deliberately did not go in

@@ -65,8 +65,13 @@ final class RequirementInitialization
      */
     private const int PUSH_SECONDS = 30;
 
-    /** @return Collection<Requirement> */
-    public static function requirements(): Collection
+    /**
+     * @param App $app The app whose deployment the data-file and log requirements are about —
+     *                 handed in by {@link App::requirements()} rather than read off
+     *                 {@link App::current()}, so the floor of one app never quietly checks another's.
+     * @return Collection<Requirement>
+     */
+    public static function requirements(App $app): Collection
     {
         return new Collection(Requirement::class)
             ->with(new VersionRequirement(self::PHP))
@@ -98,11 +103,11 @@ final class RequirementInitialization
                 new SettingRequirement(PhpSetting::RegisterArgcArgv->value, Toggle::Off, Level::Optional),
             )
             ->with(new WebrootRequirement())
-            ->with(...App::current()->dataFiles()
+            ->with(...$app->dataFiles()
                 ->where(static fn(DataFileName $file): bool => $file->isTracked())
                 ->map(static fn(DataFileName $file): Requirement => new DataFileRequirement($file))
                 ->toValues())
             // Optional: without it the site is correct and its diagnostics go where nobody reads.
-            ->with(new LogDirectoryRequirement(App::current()->logs()));
+            ->with(new LogDirectoryRequirement($app->logs()));
     }
 }

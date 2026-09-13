@@ -27,6 +27,9 @@ use Traversable;
  * {@link Collection}'s throws away, and iteration yields that key alongside the item — which is the
  * whole reason `ReleasesView` can name each release by its slug while listing it.
  *
+ * **A key comes out as the string it went in as**, including one PHP stores as an integer — see
+ * {@link TypedItems::$castsKeys}.
+ *
  * @template T
  * @implements IteratorAggregate<string, T>
  */
@@ -57,6 +60,11 @@ class SearchableCollection implements Countable, IteratorAggregate
         $copy->steps       = [];
         $copy->items[$key] = $item;
 
+        // Asked of the store rather than of $key: whether a key becomes an integer is PHP's rule,
+        // and the array it has just been put into is the one thing that applies it exactly. The
+        // last key is this one unless $key was already held — and then this was settled when it was.
+        $copy->castsKeys = $this->castsKeys || !is_string(array_key_last($copy->items));
+
         return $copy;
     }
 
@@ -66,6 +74,7 @@ class SearchableCollection implements Countable, IteratorAggregate
      * @param string $key
      * @return T|null
      */
+    #[NoDiscard('find() answers with an item and changes nothing, so a call whose result goes nowhere does nothing')]
     public function find(string $key): mixed
     {
         return $this->toArray()[$key] ?? null;
@@ -105,6 +114,6 @@ class SearchableCollection implements Countable, IteratorAggregate
      */
     public function getIterator(): Traversable
     {
-        return $this->steps === [] ? new ArrayIterator($this->items) : $this->stream();
+        return $this->steps === [] && !$this->castsKeys ? new ArrayIterator($this->items) : $this->stream();
     }
 }

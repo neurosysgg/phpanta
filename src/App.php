@@ -453,7 +453,7 @@ abstract class App
      */
     final public function requirements(): Collection
     {
-        return RequirementInitialization::requirements()->with(...$this->ownRequirements()->toValues());
+        return RequirementInitialization::requirements($this)->with(...$this->ownRequirements()->toValues());
     }
 
     /**

@@ -6,6 +6,7 @@ namespace Phpanta\View\Html;
 
 use BackedEnum;
 use NoDiscard;
+use Phpanta\App;
 use Phpanta\Exception\ElementException;
 use Phpanta\Exception\MarkupException;
 use Phpanta\Support\BareCall;
@@ -32,12 +33,15 @@ use Uri\WhatWg\Url;
  * this class the trust boundary it claims to be: `render()` is the only code on the site that turns
  * a node into markup, so a guarantee enforced there holds for *any* element however it was built —
  * including one assembled by handing the constructor its attributes outright, which the builders
- * would otherwise be the only thing standing in front of. Two are enforced:
+ * would otherwise be the only thing standing in front of. Three are enforced:
  *
  * - **escaping**, by rendering each value as a {@link Text}, which is the site's single
  *   call to `htmlspecialchars`;
  * - **scheme**, for the attributes {@link AttributeName::isUrl()} marks, because escaping is the
- *   wrong tool for a URL and always was — `javascript:alert(1)` contains nothing to escape.
+ *   wrong tool for a URL and always was — `javascript:alert(1)` contains nothing to escape;
+ * - **shape**: an attribute is written under its own name, whatever key it was stored under, and a
+ *   void element holds nothing. The builders keep both, and the constructor, which takes a map and
+ *   a list outright, is the way round them that `render()` closes.
  *
  * Rendering pretty-prints. An element whose children are all elements puts each on its own line;
  * one with any {@link Text} among them stays on a single line, because whitespace between inline
@@ -118,9 +122,11 @@ final readonly class Element implements Node
      *
      * @param TagName $tag The element to build.
      * @param SearchableCollection<Attribute>|null $attributes Normally left null and built with
-     *                                         {@link self::attr()}. Keyed by the attribute's name.
+     *                                         {@link self::attr()}. Keyed by the attribute's name,
+     *                                         which {@link self::render()} holds it to.
      * @param Collection<Node>|null $children The element's content. Normally left null and built
-     *                                        with {@link self::containing()}.
+     *                                        with {@link self::containing()}. None for a void tag,
+     *                                        which {@link self::render()} holds it to.
      */
     public function __construct(
         private TagName $tag,
@@ -233,10 +239,7 @@ final readonly class Element implements Node
     public function containing(Node|string|Translatable ...$children): self
     {
         if ($this->tag->isVoid() && $children !== []) {
-            throw new ElementException(sprintf(
-                '<%s> is a void element and cannot contain anything.',
-                $this->tag->tagName(),
-            ));
+            throw $this->voidRefusal();
         }
 
         return new self($this->tag, $this->attributes, $this->children->with(
@@ -294,9 +297,11 @@ final readonly class Element implements Node
      *                                to the text this tree translates.
      * @return string
      * @throws ElementException if a URL attribute names a scheme {@link self::URL_SCHEMES} does not
-     *                         allow. Loud on purpose, and at the boundary on purpose: a link the
-     *                         site refuses to draw is a missing link, which somebody notices, and a
-     *                         `javascript:` href that renders is one nobody does.
+     *                         allow, if an attribute is stored under a key other than its name, or
+     *                         if a void element holds children. Loud on purpose, and at the boundary
+     *                         on purpose: a link the site refuses to draw is a missing link, which
+     *                         somebody notices, and a `javascript:` href that renders is one nobody
+     *                         does.
      */
     public function render(int $depth = 0, ?Language $language = null): string
     {
@@ -305,6 +310,13 @@ final readonly class Element implements Node
         $open = '<' . $this->tag->tagName() . $this->renderAttributes($language) . '>';
 
         if ($this->tag->isVoid()) {
+            // containing() refuses this already. The constructor takes its children outright, and a
+            // void element has no closing tag to put them before — so they would be written after
+            // it, as siblings nobody placed there.
+            if (!$this->children->isEmpty()) {
+                throw $this->voidRefusal();
+            }
+
             return $open;
         }
 
@@ -318,10 +330,13 @@ final readonly class Element implements Node
     }
 
     /**
-     * The language this element's own `lang` names, or null where it names none of ours.
+     * The language this element's own `lang` names, or null where it names none this app offers.
      *
-     * A `lang` this site is not written in — `fr` on a quotation, say — leaves the language in scope
-     * as it was, rather than taking every translation under it away.
+     * Asked of the app's {@link \Phpanta\Text\Languages} rather than of {@link Language} itself,
+     * because the framework knows languages an app may not be written in. A `lang` this app does not
+     * offer — `fr` on a quotation, or a language the framework has and this site does not write —
+     * leaves the language in scope as it was, rather than switching every translation under it into
+     * a language whose half this app never wrote.
      *
      * @return Language|null
      */
@@ -329,20 +344,35 @@ final readonly class Element implements Node
     {
         $lang = $this->attributes->find(HtmlAttribute::Lang->attribute())?->value;
 
-        return is_string($lang) ? Language::tryFrom($lang) : null;
+        return is_string($lang) ? App::current()->languages()->tryFrom($lang) : null;
     }
 
     /**
      *
      * @param Language|null $language
      * @return string
-     * @throws ElementException if a URL attribute carries a scheme that is not allowed.
+     * @throws ElementException if a URL attribute carries a scheme that is not allowed, or an
+     *                          attribute is stored under a key other than its own name.
      */
     private function renderAttributes(?Language $language): string
     {
         $rendered = '';
 
-        foreach ($this->attributes as $name => $attribute) {
+        foreach ($this->attributes as $key => $attribute) {
+            $name = $attribute->name->attribute();
+
+            // What is written is the attribute's own name, and the key has to be it: the key is how
+            // the map keeps one attribute per name, so a map built with the two disagreeing is an
+            // element that writes one attribute twice, and the browser keeps whichever came first.
+            if ($key !== $name) {
+                throw new ElementException(sprintf(
+                    "<%s> holds its %s attribute under the key '%s'. An attribute is keyed by its own name.",
+                    $this->tag->tagName(),
+                    $name,
+                    $key,
+                ));
+            }
+
             if ($attribute->isBoolean()) {
                 $rendered .= ' ' . $name;
                 continue;
@@ -396,6 +426,19 @@ final readonly class Element implements Node
     }
 
     /**
+     * The refusal a void element with children earns, from whichever door it came in by.
+     *
+     * @return ElementException
+     */
+    private function voidRefusal(): ElementException
+    {
+        return new ElementException(sprintf(
+            '<%s> is a void element and cannot contain anything.',
+            $this->tag->tagName(),
+        ));
+    }
+
+    /**
      * True if $value is a site-relative path or names an allowed scheme.
      *
      * @param string $value
@@ -430,6 +473,14 @@ final readonly class Element implements Node
      * is resolved the way a browser would resolve it, and the answer is whether it landed where it
      * started. `Navigation.ts` runs the same check on the client. See docs/history/markup.md.
      *
+     * **The one thing the parse cannot tell is a value that names the base's own host.**
+     * `//relative.invalid/x` lands exactly where it started — on the base's host — and is still a
+     * protocol-relative URL, which a browser sends to that host rather than to whichever one served
+     * the page. So the value is first put through the parser's own preprocessing — tab, CR and LF
+     * removed, leading C0 controls and spaces trimmed — and refused if two slashes of either kind
+     * then open it, which is the parser's own rule for where an authority begins, not a list of
+     * spellings. Everything else is still the parser's to answer.
+     *
      * **Public**, because a redirect asks the same question of the path it sends a visitor to —
      * {@link \Phpanta\Http\Location} and the language switch — and two answers to it would be two
      * chances to get the one hazard above wrong.
@@ -439,6 +490,12 @@ final readonly class Element implements Node
      */
     public static function staysOnThisOrigin(string $value): bool
     {
+        $preprocessed = ltrim(str_replace(["\t", "\n", "\r"], '', $value), "\x00..\x20");
+
+        if (strspn($preprocessed, '/\\') >= 2) {
+            return false;
+        }
+
         // A null base makes a relative reference unparseable, so the null this returns fails the
         // comparison below rather than needing a branch of its own. The constant is a literal
         // origin; it parses.
@@ -452,7 +509,10 @@ final readonly class Element implements Node
      *
      * Any {@link Text} among them forces one line: a newline before or after inline content is a
      * space the browser renders, so breaking `<p>E-Mail: <a>…</a></p>` across lines would change
-     * the page rather than just its source. A {@link TranslatedText} is text too, and counts.
+     * the page rather than just its source. A {@link TranslatedText} is text too, and so is a
+     * {@link Fragment} holding either — see {@link Fragment::writesText()}. And a fragment among
+     * children on one line is rendered on it, rather than breaking its own nodes onto lines of their
+     * own.
      *
      * @param int           $depth
      * @param Language|null $language
@@ -460,13 +520,13 @@ final readonly class Element implements Node
      */
     private function renderChildren(int $depth, ?Language $language): string
     {
-        $inline = $this->children->first(
-            static fn(Node $child): bool => $child instanceof Text || $child instanceof TranslatedText,
-        );
+        $inline = $this->children->first(Fragment::writesText(...));
 
         if ($inline !== null) {
             return $this->children
-                ->map(static fn(Node $child): string => $child->render($depth, $language))
+                ->map(static fn(Node $child): string => $child instanceof Fragment
+                    ? $child->renderInline($depth, $language)
+                    : $child->render($depth, $language))
                 ->join('');
         }
 

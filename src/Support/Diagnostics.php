@@ -54,9 +54,12 @@ final readonly class Diagnostics
      * program is wrong. `E_USER_ERROR` is deliberately absent beside its two twins, and so is
      * `E_RECOVERABLE_ERROR`: those are not a return value being explained, and swallowing one
      * would be the indiscriminate half of `@` reintroduced under a better name.
+     *
+     * **Nor a deprecation, or its user twin.** One says that a call will stop working, not that this
+     * one did not — it explains no return value — and it is exactly what the class docblock says `@`
+     * swallows by accident when it arrives with a PHP upgrade. Handed back, it reaches the log.
      */
-    private const int MUTED = E_WARNING | E_NOTICE | E_DEPRECATED
-        | E_USER_WARNING | E_USER_NOTICE | E_USER_DEPRECATED;
+    private const int MUTED = E_WARNING | E_NOTICE | E_USER_WARNING | E_USER_NOTICE;
 
     /**
      * Constructs an instance of {@link self}.

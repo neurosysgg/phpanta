@@ -9,6 +9,7 @@ use NoDiscard;
 use Phpanta\Exception\CollectionException;
 use ReflectionFunction;
 use ReflectionNamedType;
+use SplObjectStorage;
 
 /**
  * The TypedItems trait. The store and the pipeline {@link Collection} and
@@ -140,6 +141,18 @@ trait TypedItems
         . 'collection would cost a construction per with().',
     )]
     private array $steps = [];
+
+    /**
+     * Whether a key this map holds reads as an integer, and so is stored as one.
+     *
+     * PHP turns a decimal-integer string key into an int in every array, and a map may not: a slug
+     * of `2024` would come back out as the int `2024`, and a callback declaring a string key would
+     * throw on it. Set by {@link SearchableCollection::with()}, the one place a key goes in, so the
+     * reads — {@link self::source()}, {@link self::first()}, {@link self::toKeys()} and the map's
+     * iterator — put the string back only where there is one to put back, and a map of names pays
+     * nothing. {@link self::toArray()} cannot: an array is where the int came from.
+     */
+    private bool $castsKeys = false;
 
     /**
      * The scalar types a collection may be declared to hold, spelled as
@@ -290,21 +303,34 @@ trait TypedItems
         $copy->steps = [
             ...$this->steps,
             static function (iterable $stream): Generator {
-                $seen = [];
+                $objects = new SplObjectStorage();
+                $marks   = [];
 
                 foreach ($stream as $key => $item) {
-                    // The type is part of the mark, so `1` and `'1'` do not collide the way they
-                    // would as bare array keys — and a float cannot be an array key at all without
-                    // being truncated first, which would call 1.5 and 1.9 the same number.
-                    $mark = is_object($item)
-                        ? spl_object_id($item)
-                        : get_debug_type($item) . "\0" . var_export($item, true);
+                    if (is_object($item)) {
+                        // Held rather than numbered. spl_object_id() hands a freed object's id to the
+                        // next object made, and a map() step makes a fresh object per element and
+                        // lets the last one go — so a new object could arrive under a seen id and be
+                        // dropped as a repeat of one that no longer exists.
+                        if (isset($objects[$item])) {
+                            continue;
+                        }
 
-                    if (isset($seen[$mark])) {
-                        continue;
+                        $objects[$item] = true;
+                    } elseif (!is_float($item) || !is_nan($item)) {
+                        // The type is part of the mark, so `1` and `'1'` do not collide the way they
+                        // would as bare array keys — and a float cannot be an array key at all without
+                        // being truncated first, which would call 1.5 and 1.9 the same number. `-0.0`
+                        // is `=== 0.0`, so it is marked as 0.0; NAN is `===` to nothing, itself
+                        // included, so it is never a repeat and never marked.
+                        $mark = get_debug_type($item) . "\0" . var_export($item === 0.0 ? 0.0 : $item, true);
+
+                        if (isset($marks[$mark])) {
+                            continue;
+                        }
+
+                        $marks[$mark] = true;
                     }
-
-                    $seen[$mark] = true;
 
                     yield $key => $item;
                 }
@@ -358,8 +384,9 @@ trait TypedItems
     public function map(callable $callback): self
     {
         $copy        = $this->ofType(self::mappedType($callback));
-        $copy->items = $this->items;
-        $copy->steps = [
+        $copy->items     = $this->items;
+        $copy->castsKeys = $this->castsKeys;
+        $copy->steps     = [
             ...$this->steps,
             static function (iterable $stream) use ($callback): Generator {
                 foreach ($stream as $key => $item) {
@@ -416,7 +443,7 @@ trait TypedItems
     #[NoDiscard('first() answers with an item and changes nothing, so a call whose result goes nowhere does nothing')]
     public function first(?callable $predicate = null): mixed
     {
-        if ($this->steps === []) {
+        if ($this->steps === [] && !$this->castsKeys) {
             return array_find($this->items, $predicate ?? static fn(): bool => true);
         }
 
@@ -544,7 +571,19 @@ trait TypedItems
     #[BareArray('the door itself, named for what it hands over')]
     public function toKeys(): array
     {
-        return array_keys($this->toArray());
+        if (!$this->castsKeys) {
+            return array_keys($this->toArray());
+        }
+
+        // Read off the stream, which hands each key back as the string it went in as; the store's
+        // own keys are the ints PHP made of them.
+        $keys = [];
+
+        foreach ($this->stream() as $key => $item) {
+            $keys[] = $key;
+        }
+
+        return $keys;
     }
 
     /**
@@ -568,13 +607,38 @@ trait TypedItems
      */
     private function stream(): Generator
     {
-        $stream = $this->items;
+        $stream = $this->source();
 
         foreach ($this->steps as $step) {
             $stream = $step($stream);
         }
 
         return $stream;
+    }
+
+    /**
+     * The store as a pass reads it: the array itself, or — for a map holding a key PHP made an
+     * integer — the same items with each key put back into a string. See {@link self::$castsKeys}.
+     *
+     * @return iterable<array-key, T>
+     */
+    private function source(): iterable
+    {
+        return $this->castsKeys ? self::stringKeyed($this->items) : $this->items;
+    }
+
+    /**
+     * $items, with every key a string.
+     *
+     * @param array<array-key, T> $items
+     * @return Generator<string, T>
+     */
+    #[BareArray('the store itself, handed over by source() to be re-keyed on the way out')]
+    private static function stringKeyed(array $items): Generator
+    {
+        foreach ($items as $key => $item) {
+            yield (string) $key => $item;
+        }
     }
 
     /**
