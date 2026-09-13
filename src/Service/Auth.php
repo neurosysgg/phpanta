@@ -10,18 +10,23 @@ use Phpanta\CredentialFile;
 use Phpanta\Http\BasicChallenge;
 use Phpanta\Http\Header;
 use Phpanta\Http\HttpStatusCode;
+use Phpanta\Http\PlainTextResponse;
 use Phpanta\Http\Request;
+use Phpanta\Http\Response;
 use Phpanta\Http\ResponseHeader;
+use Phpanta\Support\Collection;
 use Phpanta\Support\File;
 use Phpanta\Support\PasswordHash;
 
 /**
  * The Auth class. Provides HTTP Basic Authentication gates for an app.
  *
- * The decision and the 401 are separate, the same way {@link \Phpanta\Http\SecurityHeaders}
- * separates `headers()` from `send()`, and for the same reason: a gate that ends the request
- * cannot be asserted against in-process, so everything worth asserting lives in
- * {@link self::accepts()}, and the two `require*` methods are only the challenge around it.
+ * **A gate returns its refusal; it never ends the request.** {@link self::siteGate()} and
+ * {@link self::adminGate()} answer the 401 as a {@link Response}, or null to let the request
+ * through, and the caller returns it — so a refusal is a value a test can hold, and nothing but
+ * {@link \Phpanta\App::run()} sends anything. Both carry `#[\NoDiscard]`, because the one way to
+ * get this wrong is a call whose result goes nowhere, and that is a door left open. The decision
+ * itself is {@link self::accepts()}, and the gates are only the challenge around it.
  *
  * That split is what lets a test reach the comparison at all. A repository's `data/admin.php`
  * ships with an empty `pass_hash`, so the guard short-circuits and neither `hash_equals()` nor
@@ -111,60 +116,67 @@ class Auth
     }
 
     /**
-     * Enforces site-wide pre-launch authentication if a credentials file exists.
+     * The site-wide pre-launch gate: the 401 a request is refused with, or null to let it through.
      *
-     * Exits with a 401 if the credentials are wrong. Does nothing at all if the credentials file
-     * is absent — that absence is how pre-launch auth is switched off, and `data/site_auth.php`
+     * Null for the right credentials, and null — without reading anything — when the credentials
+     * file is absent: that absence is how pre-launch auth is switched off, and `data/site_auth.php`
      * is gitignored precisely so the repo copy cannot switch it on.
      *
      * @param Request   $request The incoming request.
      * @param File|null $file    The credentials file; defaults to `data/site_auth.php`.
-     * @return void
+     * @return Response|null
      */
-    public static function requireSiteAuth(Request $request, ?File $file = null): void
+    #[NoDiscard('the refusal is only sent if it is returned; dropping it is a door left open')]
+    public static function siteGate(Request $request, ?File $file = null): ?Response
     {
         $file ??= App::current()->dataFile(CredentialFile::SiteAuth);
 
         if (!$file->exists()) {
-            return;
+            return null;
         }
 
-        if (!self::accepts($request, $file)) {
-            self::challenge(self::challengeValue());
-        }
+        return self::accepts($request, $file) ? null : self::challenge(self::challengeValue());
     }
 
     /**
-     * Enforces admin authentication for protected routes (e.g. an admin page).
+     * The admin gate: the 401 a request is refused with, or null to let it through.
      *
-     * Exits with a 401 if the credentials do not match. Unlike the site gate there is no absent-file
-     * case: a missing `data/admin.php` is a broken deployment, and `require` says so loudly rather
-     * than leaving the admin routes open.
+     * Unlike the site gate there is no absent-file case: a missing `data/admin.php` is a broken
+     * deployment, and `require` says so loudly rather than leaving the admin routes open.
+     *
+     * A controller behind it returns the refusal as its own response —
+     * `if (($refusal = Auth::adminGate($request)) !== null) { return $refusal; }` — and nothing
+     * else stands between a dropped one and the page, which is what the attribute is for.
      *
      * @param Request   $request The incoming request.
      * @param File|null $file    The credentials file; defaults to `data/admin.php`.
-     * @return void
+     * @return Response|null
      */
-    public static function requireAdminAuth(Request $request, ?File $file = null): void
+    #[NoDiscard('the refusal is only sent if it is returned; dropping it is a door left open')]
+    public static function adminGate(Request $request, ?File $file = null): ?Response
     {
-        if (!self::accepts($request, $file ?? App::current()->dataFile(CredentialFile::Admin))) {
-            self::challenge(self::challengeValue());
-        }
+        return self::accepts($request, $file ?? App::current()->dataFile(CredentialFile::Admin))
+            ? null
+            : self::challenge(self::challengeValue());
     }
 
     /**
-     * Sends the Basic Auth challenge and ends the request.
+     * The Basic Auth challenge: a 401 asking for credentials in $challenge's realm.
      *
      * Public for the reason {@link self::matches()} is: a site's own gate answers its 401 here, so
-     * there is one way a challenge goes out.
+     * there is one way a challenge goes out. It has no body — the browser's prompt is the whole of
+     * what a visitor sees.
      *
      * @param BasicChallenge $challenge The realm to prompt in — the site's, or one a site's own gate names.
-     * @return never
+     * @return Response
      */
-    public static function challenge(BasicChallenge $challenge): never
+    #[NoDiscard('the 401 is only sent if it is returned; dropping it is a door left open')]
+    public static function challenge(BasicChallenge $challenge): Response
     {
-        header(new Header(ResponseHeader::WwwAuthenticate, $challenge)->line());
-        http_response_code(HttpStatusCode::Unauthorized->value);
-        exit;
+        return new PlainTextResponse(
+            HttpStatusCode::Unauthorized,
+            '',
+            new Collection(Header::class)->with(new Header(ResponseHeader::WwwAuthenticate, $challenge)),
+        );
     }
 }

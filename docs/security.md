@@ -38,7 +38,7 @@ not yet checked.
 ## 2. Response headers — typed, and sent before anything can fail
 
 `SecurityHeaders::send()` is the first statement of `App::run()` after the error log, so the policy
-covers **every** response, including the `401` the auth gate exits with, the `303` a redirect sends,
+covers **every** response, including the `401` the auth gate answers with, the `303` a redirect sends,
 and the `405` the method gate refuses with. Every header is a typed object on both halves — a
 `HeaderName` and a `HeaderValue`, so neither the name nor the grammar of the value is assembled as a
 string at a call site. On the value side that is `CspDirective`, `CspKeyword`/`CspScheme`/`CspHost`

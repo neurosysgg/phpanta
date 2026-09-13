@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace Phpanta\Http;
 
+use NoDiscard;
 use Phpanta\Support\Collection;
 
 /**
- * The RedirectResponse class. Issues an HTTP redirect to the given location and terminates.
+ * The RedirectResponse class. Sends the visitor somewhere else.
  */
 readonly class RedirectResponse implements Response
 {
@@ -17,7 +18,7 @@ readonly class RedirectResponse implements Response
      * @param Location           $location Where to send the visitor. A {@link Location} rather than
      *                                     the string it was, so an address that type refuses throws
      *                                     where it is written — in the controller that chose it —
-     *                                     and not in send(), after the controller has returned.
+     *                                     and not after the controller has returned.
      * @param HttpStatusCode     $status   The HTTP status code; defaults to 303 See Other.
      * @param Collection<Header> $headers  Extra headers, sent ahead of the redirect — the language
      *                                     switch's cookie. The same parameter
@@ -30,24 +31,20 @@ readonly class RedirectResponse implements Response
     ) {}
 
     /**
-     * Sends the redirect and ends the request.
-     *
-     * `never` rather than `void`, and that is the whole declaration: the caller cannot have code
-     * after this, and the engine knows it. It carried a `#[JetBrains\PhpStorm\NoReturn]` alongside
-     * for a while, from a package this project does not require and does not have — so it was an
-     * undefined class in the one place a reader looks for a type, restating what the native return
-     * type already says. {@link \Phpanta\Service\Auth::challenge()} has always been plain `never`.
+     * The status, the extra headers, then `Location`, and no body.
      *
      * @param Request $request
-     * @return never
+     * @return Answer
      */
-    public function send(Request $request): never
+    #[NoDiscard(
+        'answer() works out what would be sent and sends nothing; a call whose result goes nowhere '
+        . 'answered no one',
+    )]
+    public function answer(Request $request): Answer
     {
-        foreach ($this->headers as $header) {
-            header($header->line());
-        }
-
-        header(new Header(ResponseHeader::Location, $this->location)->line(), true, $this->status->value);
-        exit;
+        return new Answer(
+            $this->status,
+            $this->headers->with(new Header(ResponseHeader::Location, $this->location)),
+        );
     }
 }

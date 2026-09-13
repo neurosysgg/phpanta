@@ -10,9 +10,11 @@
        ├─ ErrorLog::install(…)        every diagnostic into data/logs/
        ├─ SecurityHeaders::send()     CSP, HSTS, Permissions-Policy — before anything can fail
        ├─ Request::fromGlobals()      $_SERVER → a typed, readonly Request
-       ├─ Auth::requireSiteAuth()     an optional pre-launch gate
-       ├─ Router::dispatch()          the path → a route → the method gate → a controller
-       └─ Response::send()            the headers and the body</pre>
+       ├─ App::handle()               the request → an Answer, sending nothing
+       │    ├─ Auth::siteGate()         an optional pre-launch gate, answering 401 or standing aside
+       │    ├─ Router::dispatch()       the path → a route → the method gate → a controller
+       │    └─ Response::answer()       status, headers and body — the security headers first
+       └─ Answer::send()              the one place anything is sent</pre>
 
 <p>The exception handler is installed first because it has to work when nothing else did: it logs, sends a bare 500 if the headers have not gone out, and tells the visitor nothing else.</p>
 

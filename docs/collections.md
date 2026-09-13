@@ -224,7 +224,7 @@ What is a collection, each because it crosses a public boundary with nothing els
 - In `tools/lib/`, `Call::$arguments`.
 
 **Ask a collection whether it is empty with `isEmpty()`, never `!== []`.** `!== []` is true of
-*every* `Collection`, so it reads as a guard and is not one. `ViewResponse::send()`'s 304 depends on
+*every* `Collection`, so it reads as a guard and is not one. `ViewResponse::answer()`'s 304 depends on
 the right question, and a test is named for the hazard.
 
 **What deliberately stays a plain array.** A value that crosses no public boundary — a finding list

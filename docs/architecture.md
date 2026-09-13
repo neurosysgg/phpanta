@@ -89,9 +89,12 @@ host's own log **without a word**. `health v1` warns about it; see [health.md](h
 ### ① Security headers, before anything can fail
 
 [`SecurityHeaders::send()`](../src/Http/SecurityHeaders.php) runs *before* the request is
-even parsed. That ordering is the whole design: the 401 that `Auth` exits with, the 405 the router
-refuses a POST with, and a 303 a redirect answers with all get the full header set, because none of
-them can run before this line. The CSP's third-party hosts, the HSTS policy and the
+even parsed, so nothing goes out without them — not even the site's last-resort 500, which is the one
+response that is not an answer. Every answer then carries the same five again, first:
+`App::handle()` puts them ahead of whatever the route answered, so the 401 a gate refuses with, the
+405 the router refuses a POST with and a 303 a redirect answers with carry them as a value a test
+can read. Sending them replaces the ones already out rather than doubling them; see
+[`Answer::send()`](../src/Http/Answer.php). The CSP's third-party hosts, the HSTS policy and the
 `Permissions-Policy` are the app's to state — `TestApp` states none, so it sends the strict defaults.
 
 It also *removes* one header — `X-Powered-By`, which PHP appends with its exact patch version before
@@ -100,7 +103,8 @@ any of the framework's code runs. See [security.md](security.md) for the policie
 ### ② `$_SERVER` becomes a `Request`
 
 [`Request::fromGlobals()`](../src/Http/Request.php) is the only place a request is built
-from the superglobals. What comes out is `readonly` and typed — here, method `HttpMethod::Get` and
+from the superglobals: it hands [`ServerParameters`](../src/Http/ServerParameters.php) — the one
+reader of `$_SERVER` — to `Request::from()`, which is also how a test builds any other request. What comes out is `readonly` and typed — here, method `HttpMethod::Get` and
 path `/api/update/v1/version` — and three of its decisions are deliberate:
 
 | Member | Decision |
@@ -128,8 +132,9 @@ construction, since everything it may act on is signed.
 
 ### ③ The pre-launch gate
 
-[`Auth::requireSiteAuth()`](../src/Service/Auth.php) checks for `data/site_auth.php`. If
-the file is absent it returns immediately — *that absence is how the gate is switched off*, and a
+[`Auth::siteGate()`](../src/Service/Auth.php) checks for `data/site_auth.php`. Refusing, it
+returns the `401` as a response, which `App::handle()` answers in the route's place. If
+the file is absent it returns null immediately — *that absence is how the gate is switched off*, and a
 site gitignores the file precisely so the repository's copy cannot switch it on. It is also why a
 misspelled `DataFileName` case there would not fail but stand the gate down. `TestApp`'s deployment
 holds no `data/` at all, so the request walks through.
@@ -200,8 +205,10 @@ so the request's method is the action's; its handler is `UpdateVersion`, which i
 the last serial accepted (a dash where there is none), `App::buildId()` — `test` for `TestApp` — and
 `PHP_VERSION`. See [security.md](security.md#the-api) for everything the gate proves.
 
-`PlainTextResponse::send()` sets the status, `Content-Type: text/plain; charset=utf-8` and any extra
-headers, echoes the body, and **exits** — see [the wire](#http--the-wire) for why most responses do.
+`PlainTextResponse::answer()` comes to the status, `Content-Type: text/plain; charset=utf-8`, any
+extra headers and the body, as an [`Answer`](../src/Http/Answer.php). `App::handle()` puts the
+security headers ahead of them and hands the answer back, and `App::run()` sends it — the one place
+anything is sent. See [the wire](#http--the-wire).
 
 ### A page instead
 
@@ -222,7 +229,7 @@ a `Content-Language`. The fragment is why the charset is in the header: a page c
 rendered **before** any header goes out, because the `ETag` is a hash of it: a success answers a
 matching `If-None-Match` with a bare 304, a caller that supplied its own `Cache-Control` gets no
 validator, and every page says `Vary: X-Requested-With, Accept-Language, Cookie` plus whatever its
-view declares in `varyOn()`. `ViewResponse` is the one response that returns rather than exiting.
+view declares in `varyOn()`.
 
 ---
 
@@ -232,22 +239,25 @@ Everything about a request or a response is a typed value here, not a string.
 
 | Type | Is |
 |---|---|
-| `Request` | readonly, built once from `$_SERVER` — or `synthetic()`, for a static export |
-| `Response` | an interface with one method: `send(Request): void` |
-| `ViewResponse` | renders a `View`; returns rather than exiting |
-| `FileResponse` | a file under `data/`, whole or as a byte range; returns too |
-| `RedirectResponse` | `Location` + status, then `exit` |
-| `PlainTextResponse` | body + status + extra headers, then `exit` |
+| `Request` | readonly, read out of `ServerParameters` — `$_SERVER`'s, or a test's — or `synthetic()`, for a static export |
+| `Response` | an interface with one method: `answer(Request): Answer` |
+| `Answer` | what goes on the wire: a status, the headers in order, a `Body`; `send()` is the one emitter |
+| `Body` | `TextBody`, a string, or `FileBody`, a file read a chunk at a time |
+| `ViewResponse` | renders a `View`, with its validator, its 304 and its cache headers |
+| `FileResponse` | a file under `data/`, whole or as a byte range |
+| `RedirectResponse` | `Location` + status, no body |
+| `PlainTextResponse` | body + status + extra headers |
 | `Header` | a `HeaderName` and a `HeaderValue`; formats `Name: value` in one place |
 | `MimeType` | a `TopLevelType`, a validated subtype, and a `Charset` |
 | `HttpStatusCode` | every standard status code, backed by its number |
 | `HttpMethod` | the eight methods, and which of them only read |
 
-Two responses `exit` and two do not. That is not an inconsistency: a redirect and a plain-text
-refusal are terminal, and a `ViewResponse` returns so that `echo` is the last thing that happens —
-as does a `FileResponse`, which streams a file rather than echoing a string, and reads none of it
-for a `HEAD`. The consequence is that **PHPUnit cannot observe the exiting ones**, which is why a
-site built on this needs a suite that makes real HTTP requests; see [testing.md](testing.md).
+**Nothing is sent until `App::run()` sends the answer.** A response says what it is, and
+`answer()` works out what that comes to for one request — a page is a 200 for one visitor and a 304
+for the next — while the router, the gates and the controllers all return. So a test sees every
+answer, a 401 and a 303 included, through `App::handle()`. What it cannot see is the server around
+it — `header()` is a no-op under the CLI, and nothing compresses or drops a `HEAD`'s body — which is
+what a site's end-to-end suite is still for; see [testing.md](testing.md).
 
 **Header names live in two enums on purpose.** `SecurityHeader` is exhaustive and tested as such —
 `SecurityHeaders::headers()` sends exactly its cases. `ResponseHeader` is everything else. Folding

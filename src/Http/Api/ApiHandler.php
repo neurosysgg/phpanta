@@ -51,7 +51,7 @@ interface ApiHandler
      * No `#[\NoDiscard]`, and its absence is the codebase's rule rather than an oversight: PHP
      * resolves the attribute at the *implementation*, so one here would warn about nothing, and
      * neither {@link \Phpanta\Controller\Controller::handle()} nor
-     * {@link \Phpanta\Http\Response::send()} carries one either. Every carrier under `src/` is a
+     * {@link \Phpanta\Http\Response::answer()} carries one either. Every carrier under `src/` is a
      * concrete builder or a gate's decision — see {@link \Phpanta\Service\ApiGate::accepts()},
      * which is one.
      *

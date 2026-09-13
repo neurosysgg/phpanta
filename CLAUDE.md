@@ -77,8 +77,10 @@ Each of these replaces a habit that fails silently with one that fails loudly.
 - **Every address is a `Path` case**, and a link is `->to(…)`, never a concatenation.
 - **A data file is `App::current()->dataFile(X)`, a `File`**, named by a `DataFileName` case. A
   suppressed diagnostic is `Diagnostics::muted()`, never `@`.
-- **A method that ends the request has a public twin that decides it** — `Auth::accepts()`,
-  `SecurityHeaders::headers()` — so the decision can be asserted.
+- **Nothing ends the request but `App::run()`; every decision returns.** A response's `answer()`
+  is an `Answer`, `App::handle()` answers a whole request without sending it, and a gate's refusal
+  is a value it returns, `#[\NoDiscard]` — `Auth::siteGate()`, `Auth::adminGate()` — which the
+  caller returns in turn. A test builds the request with `Phpanta\Test\TestRequest`. Never `exit`.
 
 ## Traps
 

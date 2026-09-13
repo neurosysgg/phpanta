@@ -25,14 +25,14 @@ an app:
   paths the framework derives from an app then have somewhere real to land, and never land in a
   repository.
 
-`test/unit/` holds twenty-five test classes, grouped by area:
+`test/unit/` holds twenty-six test classes, grouped by area:
 
 | Area | Tests |
 |---|---|
 | the API | `ApiTest` (the endpoint, its gate and its three services), `ApiClientTest` (signing against the real gate), `ApiCallTest`, `ApiTargetTest` |
 | the push | `PushUpdateTest`, `FrameworkCheckoutTest`, `TarWriterTest`, `UpdateTest` |
 | health and capability | `HealthTest`, `RequirementTest`, `CapabilityTest` |
-| HTTP | `RequestTest`, `RevalidationTest`, `SecurityHeadersTest`, `SecurityPolicyTest`, `SyntheticPageTest` |
+| HTTP | `AnswerTest` (every answer, end to end, through `TestRequest`), `RequestTest`, `RevalidationTest`, `SecurityHeadersTest`, `SecurityPolicyTest`, `SyntheticPageTest` |
 | routing | `RouteTest`, `RouteExportTest` |
 | the export | `ExportTest`, `BasePathTest` |
 | text | `TextTest`, `LanguagesTest` |
@@ -42,8 +42,24 @@ an app:
 
 Six fixtures sit beside the tests: `UpdateFixture`, `TextFixture`, `RoutePatternFixture`,
 `ExportFixturePath`, `ReadonlyFixture` and `CliOptionFixture`, with `PhpInputStream` standing in for
-`php://input`. `test/fixture/export-exits.php` runs an export whose controller ends the process, so
-`ExportTest` can watch that happen from outside instead of dying with it.
+`php://input`.
+
+**[`TestRequest`](../test/TestRequest.php) is the in-process client.** It builds the server
+variables a real server would hand PHP — keyed through `ServerVariable` and
+`RequestHeader::serverKey()`, never retyped — reads a `Request` out of them the way a real request
+is read, and `->answer()` is `App::handle()`: the gate, the router, the controller and the security
+headers, with nothing sent.
+
+```php
+$answer = TestRequest::to(HttpMethod::Post, '/')->answer();
+
+self::assertSame(HttpStatusCode::MethodNotAllowed, $answer->status());
+self::assertSame('GET, HEAD', $answer->header(ResponseHeader::Allow)?->value->render());
+```
+
+`->request()` hands the request itself to a gate or a controller, `->withBody()` gives it a body
+that `Request::body()` answers instead of `php://input`, and nothing touches `$_SERVER`. A site's
+suite uses it the same way against its own app.
 
 `test/bootstrap.php` loads composer's autoloader: the framework's own when it is checked out alone,
 the enclosing project's when it is vendored. It then loads the framework, its tooling, and
@@ -93,13 +109,14 @@ Two rules, the same as in any suite built on this one:
 - **Uncovered lines are a decision, not a budget.** A change that adds a guard covers it in the same
   commit. A guard no test can reach is deleted rather than covered by reflection.
 
-**The framework's suite alone covers about four fifths of `src/`'s lines.** The figure was 78.93%
-(1607 of 2036) when last derived on 2026-09-13. Re-derive it
+**The framework's suite alone covers about four fifths of `src/`'s lines.** The figure was 82.55%
+(1708 of 2069) when last derived on 2026-09-13. Re-derive it
 with `XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-text` rather than trusting this.
 
-The rest is honest too. What this suite does not reach — the markup tree, the responses, the router,
-the app — a vendoring site's tests still exercise, because they are written against that site's
-views, controllers and route table. Merge that site's suite and the HTTP requests its end-to-end
+The rest is honest too. Every response, the router, the gate and `App::handle()` are reached here
+now, through `TestRequest`; what this suite still reaches less of — the markup tree above all — a
+vendoring site's tests exercise, because they are written against that site's views, controllers
+and route table. Merge that site's suite and the HTTP requests its end-to-end
 script makes, through `tools/coverage-prepend.php` and `MergeCoverage`, and the same code is covered
 almost entirely. Until those tests are rewritten against `TestApp`, the merged number is the one that
 measures the framework.

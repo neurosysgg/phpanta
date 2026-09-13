@@ -18,17 +18,18 @@ use Phpanta\Tool\Cli\Output;
 use Phpanta\Tool\Cli\UsageException;
 use Phpanta\Tool\Export\Anchors;
 use Phpanta\Tool\Export\BasePath;
+use ReflectionClass;
 
 /**
  * The Export command. Renders an app's pages, and the assets they load, into a static site.
  *
  * **Every page is the one the running site would send**: the route's own controller answers a
- * {@link Request::synthetic()} request, and {@link ViewResponse::render()} writes what
- * {@link ViewResponse::send()} would have — so there is no second renderer to drift. Which routes
+ * {@link Request::synthetic()} request, and {@link ViewResponse::render()} writes the body
+ * {@link ViewResponse::answer()} would have — so there is no second renderer to drift. Which routes
  * are pages is the route's to say, see {@link \Phpanta\Support\Route::exportedPaths()}; the rest —
  * the API, a download's redirect, anything behind a password — has no business on a static host,
- * and a route that claims to be a page and answers with something else fails the export — as does
- * one whose controller ends the process, which a route behind a password does.
+ * and a route that claims to be a page and answers with something else fails the export by name —
+ * a route behind a password among them, which answers the export's anonymous request with its 401.
  *
  * What it writes, for a host that can only serve files:
  *
@@ -178,23 +179,6 @@ final readonly class Export implements Command
 
         // ── the pages ──
 
-        // A controller that ends the process — one behind a password does, under the CLI — would take
-        // the export down with it, half written and with status 0. So the path being answered is
-        // kept while it is, and if the process ends there, the export says which and fails.
-        $answering = null;
-
-        register_shutdown_function(static function () use (&$answering, $output): void {
-            if ($answering !== null) {
-                $output->error(sprintf(
-                    "export: the controller for %s ended the process, so nothing after it was written."
-                    . " Keep the route out of the export with an \$exports closure answering [].\n",
-                    $answering,
-                ));
-
-                exit(ExitCode::Failure->value);
-            }
-        });
-
         $language = $this->app->languages()->default();
         $pages    = [];
 
@@ -210,21 +194,19 @@ final readonly class Export implements Command
                     );
                 }
 
-                $request   = Request::synthetic($path, $language);
-                $answering = $path;
+                $request  = Request::synthetic($path, $language);
+                $response = $route->createController($params)->handle($request);
 
-                try {
-                    $response = $route->createController($params)->handle($request);
-                } finally {
-                    $answering = null;
-                }
-
+                // A route behind a password lands here too: the export's request carries no
+                // credential, so its answer is the 401, and a refusal written to a file would be
+                // served to everyone as the page.
                 if (!$response instanceof ViewResponse || $response->status() !== HttpStatusCode::Ok) {
                     return sprintf(
-                        '%s is exported, and answers with %s rather than a page with a 200 — a static host'
-                        . ' would serve whatever it wrote as one.',
+                        '%s is exported, and answers with a %d (%s) rather than a page with a 200 — a'
+                        . ' static host would serve whatever it wrote as one.',
                         $path,
-                        $response instanceof ViewResponse ? 'a ' . $response->status()->value : $response::class,
+                        $response->answer($request)->status()->value,
+                        new ReflectionClass($response)->getShortName(),
                     );
                 }
 

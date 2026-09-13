@@ -12,7 +12,9 @@ use Uri\Rfc3986\Uri;
 /**
  * The Request class. Represents an incoming HTTP request.
  *
- * Constructed from PHP's global server variables via {@link self::fromGlobals()}.
+ * Read out of the server variables it arrived with — {@link self::from()}, which
+ * {@link self::fromGlobals()} hands the process's own — or made up for a static export with
+ * {@link self::synthetic()}.
  */
 readonly class Request
 {
@@ -30,6 +32,8 @@ readonly class Request
      * @param string $authorization
      * @param string $cookie
      * @param string $referer
+     * @param string|null $body The body, where the request was built with one; null to read
+     *                          `php://input` — see {@link self::body()}.
      */
     private function __construct(
         private ?HttpMethod $method,
@@ -43,31 +47,46 @@ readonly class Request
         private string $authorization = '',
         private string $cookie = '',
         private string $referer = '',
+        private ?string $body = null,
     ) {}
 
     /**
-     * Creates an instance from PHP's global server variables.
-     *
-     * Handles the Authorization header fallback required on some shared hosts
-     * where Apache strips PHP_AUTH_* variables before they reach PHP.
+     * The request this process was started for, read out of PHP's own server variables.
      *
      * @return static
      */
     public static function fromGlobals(): static
     {
+        return static::from(ServerParameters::fromGlobals());
+    }
+
+    /**
+     * The request $server describes.
+     *
+     * Handles the Authorization header fallback required on some shared hosts
+     * where Apache strips PHP_AUTH_* variables before they reach PHP.
+     *
+     * @param ServerParameters $server The server variables it arrived with.
+     * @param string|null      $body   Its body, or null for the one `php://input` holds — which is
+     *                                 the only body a request from a real server has, and why only
+     *                                 a request built some other way passes one.
+     * @return static
+     */
+    public static function from(ServerParameters $server, ?string $body = null): static
+    {
         // tryFrom, not from: REQUEST_METHOD is whatever the client sent, and an unrecognised one
         // has to be refused rather than throw. Null is not read-only, which is the safe default.
         $method   = HttpMethod::tryFrom(strtoupper(
-            ServerVariable::RequestMethod->string() ?? HttpMethod::Get->value,
+            $server->string(ServerVariable::RequestMethod) ?? HttpMethod::Get->value,
         ));
-        $path     = self::normalisePath(ServerVariable::RequestUri->string() ?? '/');
+        $path     = self::normalisePath($server->string(ServerVariable::RequestUri) ?? '/');
 
-        $ajax = RequestedWith::XmlHttpRequest->matches(self::header(RequestHeader::RequestedWith));
+        $ajax = RequestedWith::XmlHttpRequest->matches($server->header(RequestHeader::RequestedWith));
 
-        $user = ServerVariable::AuthUser->string()     ?? '';
-        $pass = ServerVariable::AuthPassword->string() ?? '';
+        $user = $server->string(ServerVariable::AuthUser)     ?? '';
+        $pass = $server->string(ServerVariable::AuthPassword) ?? '';
 
-        $authorization = self::rawAuthorization();
+        $authorization = self::rawAuthorization($server);
 
         // Authorization header fallback for hosts that strip PHP_AUTH_* vars. The scheme and the
         // grammar under it are AuthScheme's, so the token this matches on is the same case
@@ -82,12 +101,13 @@ readonly class Request
             $ajax,
             $user,
             $pass,
-            self::header(RequestHeader::IfNoneMatch),
-            self::header(RequestHeader::Range),
-            self::header(RequestHeader::AcceptLanguage),
+            $server->header(RequestHeader::IfNoneMatch),
+            $server->header(RequestHeader::Range),
+            $server->header(RequestHeader::AcceptLanguage),
             $authorization,
-            self::header(RequestHeader::Cookie),
-            self::header(RequestHeader::Referer),
+            $server->header(RequestHeader::Cookie),
+            $server->header(RequestHeader::Referer),
+            $body,
         );
     }
 
@@ -117,27 +137,9 @@ readonly class Request
     }
 
     /**
-     * One request header's value, or `''` if it did not arrive.
-     *
-     * The `$_SERVER` key is derived from the {@link RequestHeader} case rather than retyped —
-     * `HTTP_` plus the name upper-cased with dashes as underscores, which is PHP's transform and
-     * not ours. That is the whole reason the header names are an enum: the client sends
-     * `X-Requested-With` and this reads the same string, put through the same rule.
-     *
-     * @param RequestHeader $header
-     * @return string
-     */
-    private static function header(RequestHeader $header): string
-    {
-        $key = 'HTTP_' . str_replace('-', '_', strtoupper($header->value));
-
-        return isset($_SERVER[$key]) && is_string($_SERVER[$key]) ? $_SERVER[$key] : '';
-    }
-
-    /**
      * The `Authorization` header, under either of the two names it can arrive as.
      *
-     * Not {@link self::header()}, because this one is not passed through: Apache deliberately keeps
+     * Not {@link ServerParameters::header()}, because this one is not passed through: Apache deliberately keeps
      * `Authorization` out of the CGI environment, so `public/.htaccess` puts it back with
      * `RewriteRule ^ - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]`. An environment variable set
      * before an internal redirect arrives on the other side renamed with a `REDIRECT_` prefix, and
@@ -152,14 +154,15 @@ readonly class Request
      * Both are {@link ServerVariable} cases rather than the string pair they were, because a name
      * Apache invents is one nothing can derive and so one nothing can check — see that enum.
      *
+     * @param ServerParameters $server
      * @return string
      */
-    private static function rawAuthorization(): string
+    private static function rawAuthorization(ServerParameters $server): string
     {
         $names = [ServerVariable::Authorization, ServerVariable::RedirectAuthorization];
 
         foreach ($names as $variable) {
-            if (($value = $variable->string()) !== null && $value !== '') {
+            if (($value = $server->string($variable)) !== null && $value !== '') {
                 return $value;
             }
         }
@@ -271,7 +274,7 @@ readonly class Request
      * The credential this request carries in $scheme, or null if it carries one in another scheme
      * or none at all.
      *
-     * **Read once, in {@link self::fromGlobals()}, and kept.** The two spellings `Authorization`
+     * **Read once, in {@link self::from()}, and kept.** The two spellings `Authorization`
      * arrives under — Apache keeps it out of the CGI environment and `public/.htaccess` puts it
      * back, where an internal redirect renames it — are dealt with in one place, by
      * {@link self::rawAuthorization()}. A second reader going to {@link ServerVariable} for itself
@@ -305,7 +308,7 @@ readonly class Request
     /**
      * The raw request body, or `''` where there is none.
      *
-     * **Read here rather than in {@link self::fromGlobals()}, and that placement is the whole of
+     * **Read here rather than in {@link self::from()}, and that placement is the whole of
      * the care.** Every route but the API's is a read that carries no body; parsing one into every
      * `Request` would make all of them pay for the one that does, and would quietly turn a class
      * that describes a request into one that has consumed it. So this is a method, not a property,
@@ -325,11 +328,18 @@ readonly class Request
      * reads no further. `php://input` is a stream `File` reads like any other path — under CLI it is
      * STDIN, which is empty, which is why this is a method and not a property.
      *
+     * A request built with a body of its own — by a test, which has no `php://input` to fill —
+     * answers that instead, cut to the same limit.
+     *
      * @param int|null $limit The most bytes to read, or null for all of them.
      * @return string
      */
     public function body(?int $limit = null): string
     {
+        if ($this->body !== null) {
+            return $limit === null ? $this->body : substr($this->body, 0, $limit);
+        }
+
         return (string) new File('php://input')->read($limit);
     }
 

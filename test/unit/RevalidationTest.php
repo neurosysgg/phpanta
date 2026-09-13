@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Phpanta\Test\Unit;
 
+use Phpanta\Http\Answer;
 use Phpanta\Http\ETag;
 use Phpanta\Http\HttpStatusCode;
-use Phpanta\Http\Request;
+use Phpanta\Http\RequestHeader;
+use Phpanta\Http\ResponseHeader;
 use Phpanta\Http\ViewResponse;
+use Phpanta\Test\TestRequest;
 use Phpanta\Text\Translatable;
 use Phpanta\Text\Verbatim;
 use Phpanta\View\Html\Element;
@@ -25,25 +28,6 @@ final class RevalidationTest extends TestCase
 {
     /** The body the validators below are for. */
     private const string BODY = 'the page';
-
-    /** @var array<string, mixed> */
-    private array $server;
-
-    /**
-     * @return void
-     */
-    protected function setUp(): void
-    {
-        $this->server = $_SERVER;
-    }
-
-    /**
-     * @return void
-     */
-    protected function tearDown(): void
-    {
-        $_SERVER = $this->server;
-    }
 
     /**
      * `If-None-Match` is a list, compared weakly, and what a browser holds is the tag as the server
@@ -95,11 +79,18 @@ final class RevalidationTest extends TestCase
     public function testASuccessIsNotModifiedForItsOwnValidator(): void
     {
         $response = new ViewResponse(self::view());
-        $body     = $this->send($response, '');
+        $whole    = self::answer($response, '');
 
-        self::assertStringContainsString('<p>hello</p>', $body);
-        self::assertSame('', $this->send($response, ETag::forBody($body)->render()));
-        self::assertSame('', $this->send($response, '*'));
+        self::assertSame(HttpStatusCode::Ok, $whole->status());
+        self::assertStringContainsString('<p>hello</p>', $whole->body());
+
+        foreach ([ETag::forBody($whole->body())->render(), '*'] as $validator) {
+            $answer = self::answer($response, $validator);
+
+            self::assertSame(HttpStatusCode::NotModified, $answer->status());
+            self::assertSame('', $answer->body());
+            self::assertNull($answer->header(ResponseHeader::ContentType), 'a 304 describes no content');
+        }
     }
 
     /**
@@ -111,27 +102,26 @@ final class RevalidationTest extends TestCase
     public function testAnythingButASuccessIsSentWhole(): void
     {
         $response = new ViewResponse(self::view(), HttpStatusCode::NotFound);
-        $body     = $this->send($response, '');
+        $body     = self::answer($response, '')->body();
 
-        self::assertSame($body, $this->send($response, ETag::forBody($body)->render()));
-        self::assertSame($body, $this->send($response, '*'));
+        foreach ([ETag::forBody($body)->render(), '*'] as $validator) {
+            $answer = self::answer($response, $validator);
+
+            self::assertSame(HttpStatusCode::NotFound, $answer->status());
+            self::assertSame($body, $answer->body());
+        }
     }
 
     /**
-     * What $response sends to a `GET /` carrying $ifNoneMatch.
+     * What $response answers a `GET /` carrying $ifNoneMatch with.
      *
      * @param ViewResponse $response
      * @param string       $ifNoneMatch
-     * @return string
+     * @return Answer
      */
-    private function send(ViewResponse $response, string $ifNoneMatch): string
+    private static function answer(ViewResponse $response, string $ifNoneMatch): Answer
     {
-        $_SERVER = ['REQUEST_URI' => '/', 'HTTP_IF_NONE_MATCH' => $ifNoneMatch];
-
-        ob_start();
-        $response->send(Request::fromGlobals());
-
-        return (string) ob_get_clean();
+        return $response->answer(TestRequest::get('/')->with(RequestHeader::IfNoneMatch, $ifNoneMatch)->request());
     }
 
     /**

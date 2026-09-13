@@ -15,7 +15,7 @@ namespace Phpanta\Http;
  *
  * **Not every `$_SERVER` key belongs here, and the rule is which name is ours.** A request header
  * arrives under `HTTP_` plus the name upper-cased with dashes as underscores; that is PHP's
- * transform, so {@link Request::header()} applies it to a {@link RequestHeader} case rather than
+ * transform, so {@link RequestHeader::serverKey()} applies it to a {@link RequestHeader} case rather than
  * anybody retyping the result. A case earns a place here when that derivation cannot reach the
  * name ({@link self::RedirectAuthorization}) or when the reader has no {@link Request} to ask
  * ({@link self::Referer}).
@@ -126,19 +126,15 @@ enum ServerVariable: string
     case DocumentRoot = 'DOCUMENT_ROOT';
 
     /**
-     * This variable's value, or null if it did not arrive.
+     * This variable's value in the process's own server variables, or null if it did not arrive.
      *
-     * Null for a key that is absent *and* for one holding something other than a string, which is
-     * the same collapse {@link Request} made in its own words at three call sites. Callers supply
-     * their own default, because the right one differs: a missing method reads as `GET`, a missing
-     * target as `/`, and a missing header as `''`.
+     * For a reader with no {@link Request} to ask — see the class docblock. It asks
+     * {@link ServerParameters}, which is the one reader of the map and says what null means.
      *
      * @return string|null
      */
     public function string(): ?string
     {
-        return isset($_SERVER[$this->value]) && is_string($_SERVER[$this->value])
-            ? $_SERVER[$this->value]
-            : null;
+        return ServerParameters::fromGlobals()->string($this);
     }
 }

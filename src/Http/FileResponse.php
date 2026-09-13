@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Phpanta\Http;
 
+use NoDiscard;
 use Phpanta\Support\Collection;
-use Phpanta\Support\Diagnostics;
 use Phpanta\Support\File;
 
 /**
@@ -21,7 +21,8 @@ use Phpanta\Support\File;
  * for a byte range, so a server that answers every request with the whole file gives you a player
  * that plays and will not skip — a control that looks broken, with nothing anywhere saying why.
  * {@link ByteRange} reads the ask, {@link ContentRange} states the answer, and
- * {@link ResponseHeader::AcceptRanges} is what tells the element to offer the scrubber at all.
+ * {@link ResponseHeader::AcceptRanges} is what tells the element to offer the scrubber at all. The
+ * bytes themselves are a {@link FileBody}, read a chunk at a time.
  *
  * **It never sends a validator and never answers a 304**, the same decision any page behind a
  * password takes for the same reason: this is reached by
@@ -32,15 +33,6 @@ use Phpanta\Support\File;
  */
 readonly class FileResponse implements Response
 {
-    /**
-     * How much is read from disk and flushed at a time.
-     *
-     * The whole point of a chunk is that a 6 MB body never exists in PHP's memory as a string; 256
-     * KB is small enough for that to hold on a shared host and large enough that
-     * a full file is a couple of dozen reads rather than thousands.
-     */
-    private const int CHUNK = 262144;
-
     /**
      * Constructs an instance of {@link self}.
      *
@@ -59,7 +51,7 @@ readonly class FileResponse implements Response
     ) {}
 
     /**
-     * Sends the file, or the part of it the request asked for.
+     * The file, or the part of it the request asked for.
      *
      * Three answers, and which one is sent is entirely {@link ByteRange}'s to decide:
      *
@@ -74,49 +66,47 @@ readonly class FileResponse implements Response
      * would be — see {@link Request::range()}.
      *
      * @param Request $request
-     * @return void
+     * @return Answer
      */
-    public function send(Request $request): void
+    #[NoDiscard(
+        'answer() works out what would be sent and sends nothing; a call whose result goes nowhere '
+        . 'answered no one',
+    )]
+    public function answer(Request $request): Answer
     {
         $size  = $this->file->size();
         $range = $request->range($size);
 
         if ($range !== null && !$range->isSatisfiable()) {
-            $this->sendHeaders(HttpStatusCode::RangeNotSatisfiable, 0, ContentRange::unsatisfiable($size));
-
-            return;
+            return new Answer(
+                HttpStatusCode::RangeNotSatisfiable,
+                $this->headers(0, ContentRange::unsatisfiable($size)),
+            );
         }
 
         $length = $range?->length() ?? $size;
 
-        $this->sendHeaders(
+        return new Answer(
             $range === null ? HttpStatusCode::Ok : HttpStatusCode::PartialContent,
-            $length,
-            $range === null ? null : ContentRange::of($range),
+            $this->headers($length, $range === null ? null : ContentRange::of($range)),
+            // A HEAD asks what a GET would answer, not for the answer. The other responses keep
+            // their body and let the server drop it; here the body is a file read off disk, so not
+            // reading it is worth the one condition.
+            $request->method() === HttpMethod::Head
+                ? new TextBody()
+                : new FileBody($this->file, $range?->first ?? 0, $length),
         );
-
-        // A HEAD asks what a GET would answer, not for the answer. The site's other responses echo
-        // regardless and let the server drop the body; here the body is a file read off disk, so
-        // not reading it is worth the one condition.
-        if ($request->method() === HttpMethod::Head) {
-            return;
-        }
-
-        $this->stream($range?->first ?? 0, $length);
     }
 
     /**
      * Everything that goes out before the first byte of body.
      *
-     * @param HttpStatusCode    $status
      * @param int               $length The length of what is about to be sent, not of the file.
      * @param ContentRange|null $range  Which part that is, where it is a part.
-     * @return void
+     * @return Collection<Header>
      */
-    private function sendHeaders(HttpStatusCode $status, int $length, ?ContentRange $range): void
+    private function headers(int $length, ?ContentRange $range): Collection
     {
-        http_response_code($status->value);
-
         $headers = new Collection(Header::class)->with(
             new Header(ResponseHeader::ContentType, $this->type),
             new Header(ResponseHeader::ContentLength, new ContentLength($length)),
@@ -128,50 +118,6 @@ readonly class FileResponse implements Response
             $headers = $headers->with(new Header(ResponseHeader::ContentRange, $range));
         }
 
-        foreach ($headers->with(...$this->headers) as $header) {
-            header($header->line());
-        }
-    }
-
-    /**
-     * Reads $length bytes from $offset and writes them out, a chunk at a time.
-     *
-     * `fread` is asked for the smaller of the chunk and what is left, so the last read does not
-     * overshoot a range's end — the difference between a 206 whose body matches its
-     * `Content-Length` and one that does not, which a browser treats as a broken response rather
-     * than as extra.
-     *
-     * @param int $offset
-     * @param int $length
-     * @return void
-     */
-    private function stream(int $offset, int $length): void
-    {
-        // Muted, and for the reason File::read() is: a caller has already asked `exists()`, which
-        // is `is_file()` and says nothing about whether the file can be *read*. An unreadable one
-        // makes fopen() warn, and by the time this runs the headers have gone out — so the warning
-        // would be printed into the audio, which is the same trap that once put an E_WARNING ahead
-        // of a page's doctype. Failing to open is answered with no body at all.
-        $handle = Diagnostics::muted(fn(): mixed => fopen($this->file->path, 'rb'));
-
-        if ($handle === false) {
-            return;
-        }
-
-        fseek($handle, $offset);
-
-        while ($length > 0 && !feof($handle)) {
-            $chunk = fread($handle, min(self::CHUNK, $length));
-
-            if ($chunk === false || $chunk === '') {
-                break;
-            }
-
-            echo $chunk;
-            $length -= strlen($chunk);
-            flush();
-        }
-
-        fclose($handle);
+        return $headers->with(...$this->headers);
     }
 }

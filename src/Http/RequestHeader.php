@@ -102,4 +102,19 @@ enum RequestHeader: string implements HeaderName
     {
         return $this->value;
     }
+
+    /**
+     * The key this header arrives under in the server variables.
+     *
+     * `HTTP_` plus the name upper-cased with dashes as underscores, which is PHP's transform and
+     * not ours — derived here rather than retyped at each reader, which is the whole reason the
+     * header names are an enum: the client sends `X-Requested-With`, and the server reads the same
+     * string put through the same rule.
+     *
+     * @return string
+     */
+    public function serverKey(): string
+    {
+        return 'HTTP_' . str_replace('-', '_', strtoupper($this->value));
+    }
 }

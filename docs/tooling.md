@@ -106,12 +106,12 @@ point for, because the booted app is all it needs.
   address is a page. A route with placeholders is one page per value its `$exports` closure answers,
   and no page at all without such a closure; see `Route::exportedPaths()`. Each page is answered by
   its own controller for a `Request::synthetic()` in the app's default language, and written with
-  `ViewResponse::render()`, the public twin of `send()`, so there is no second renderer to drift.
+  `ViewResponse::render()`, the body `answer()` would send, so there is no second renderer to drift.
   - **A route that claims to be a page but answers with anything other than a `ViewResponse` and a
     200 fails the export.** A static host would serve whatever was written there as a 200.
-  - **A route behind a password has to say `fn() => []`**, because its controller ends the process
-    under the CLI. The export notices, names the path and exits 1, where it would otherwise stop half
-    written with status 0.
+  - **A route behind a password says `fn() => []`.** The export's request carries no credential, so
+    the controller answers its 401, and the export fails naming the path and the status rather than
+    writing the refusal to a file a static host would serve as the page.
 - **Files are named the way a static host looks for them**: `x.html` for `/x`, `index.html` for `/`,
   and `404.html` for the app's not-found page. GitHub Pages in particular looks for those names.
   - **A page is written under its path decoded**, because a host decodes the address before it looks

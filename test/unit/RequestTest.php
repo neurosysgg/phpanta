@@ -444,8 +444,8 @@ final class RequestTest extends TestCase
     /**
      * The two spellings of one header, and why only one of them can be derived.
      *
-     * `HTTP_AUTHORIZATION` is what the derivation in {@link Request::header()} would produce for a
-     * header named `Authorization`; `REDIRECT_HTTP_AUTHORIZATION` is Apache's own name for the same
+     * `HTTP_AUTHORIZATION` is what the derivation in {@link \Phpanta\Http\RequestHeader::serverKey()}
+     * would produce for a header named `Authorization`; `REDIRECT_HTTP_AUTHORIZATION` is Apache's own name for the same
      * value seen from the far side of an internal rewrite, and no transform of a header name
      * reaches it. That asymmetry is the rule for what belongs on this enum rather than on
      * {@link RequestHeader}, so it is asserted rather than described.

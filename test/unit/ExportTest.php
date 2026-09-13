@@ -7,10 +7,12 @@ namespace Phpanta\Test\Unit;
 use Phpanta\App;
 use Phpanta\Controller\Controller;
 use Phpanta\DataFileName;
+use Phpanta\Http\BasicChallenge;
 use Phpanta\Http\HttpStatusCode;
 use Phpanta\Http\Request;
 use Phpanta\Http\Response;
 use Phpanta\Http\ViewResponse;
+use Phpanta\Service\Auth;
 use Phpanta\Support\Collection;
 use Phpanta\Support\Directory;
 use Phpanta\Support\Route;
@@ -236,47 +238,37 @@ final class ExportTest extends TestCase
     }
 
     /**
-     * A controller behind a password ends the process under the CLI, and would end the export with
-     * it — half written, and with status 0. The export names the path and fails instead. Run in a
-     * process of its own, since the `exit` is the thing being tested.
+     * A route behind a password answers the export's anonymous request with its 401, and a 401 is
+     * not a page — so the export names the path and fails, rather than writing the refusal to a
+     * file a static host would serve to everyone as the page.
      *
      * @return void
      */
-    public function testAControllerThatEndsTheProcessFailsTheExportByName(): void
+    public function testARouteBehindAPasswordFailsTheExportByName(): void
     {
-        exec(
-            sprintf(
-                '%s %s %s %s 2>&1',
-                escapeshellarg(PHP_BINARY),
-                escapeshellarg(PHPANTA_ROOT . '/test/fixture/export-exits.php'),
-                escapeshellarg($this->scratch),
-                escapeshellarg("$this->scratch/out"),
-            ),
-            $lines,
-            $status,
-        );
+        [$code, $error] = $this->export([self::gated()]);
 
-        self::assertSame(ExitCode::Failure->value, $status, implode("\n", $lines));
-        self::assertStringContainsString('the controller for / ended the process', implode("\n", $lines));
+        self::assertSame(ExitCode::Failure, $code);
+        self::assertStringContainsString('/ is exported, and answers with a 401 (PlainTextResponse)', $error);
     }
 
     /**
-     * `/`, answered by a controller that ends the process — for `fixture/export-exits.php`.
+     * `/`, behind a password nobody has.
      *
      * @return Route
      */
-    public static function exiting(): Route
+    private static function gated(): Route
     {
         return new Route(
             ExportFixturePath::Home,
             static fn(): Controller => new class () implements Controller {
                 /**
                  * @param Request $request
-                 * @return never
+                 * @return Response
                  */
-                public function handle(Request $request): never
+                public function handle(Request $request): Response
                 {
-                    exit;
+                    return Auth::challenge(new BasicChallenge('gated'));
                 }
             },
         );

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Phpanta\Http;
 
+use NoDiscard;
 use Phpanta\App;
 use Phpanta\Support\Collection;
 use Phpanta\View\Html\Element;
@@ -50,17 +51,19 @@ readonly class ViewResponse implements Response
     ) {}
 
     /**
-     * Sends the response; emits headers and rendered HTML.
+     * The page, rendered, with the headers that describe it — or a bare 304.
      *
-     * The body is rendered **before** any header goes out, which is what makes an `ETag` possible
-     * at all: the validator is a hash of the bytes, so the bytes have to exist first. Nothing is
-     * echoed until every header is sent, so that order costs one string held in memory and nothing
-     * else.
+     * The body is rendered **before** a single header is decided, which is what makes an `ETag`
+     * possible at all: the validator is a hash of the bytes, so the bytes have to exist first.
      *
      * @param Request $request
-     * @return void
+     * @return Answer
      */
-    public function send(Request $request): void
+    #[NoDiscard(
+        'answer() works out what would be sent and sends nothing; a call whose result goes nowhere '
+        . 'answered no one',
+    )]
+    public function answer(Request $request): Answer
     {
         $language = $request->language();
         $markup   = $this->render($request);
@@ -75,25 +78,24 @@ readonly class ViewResponse implements Response
         // A validator the browser already holds means the copy it already holds is current. 304 and
         // nothing else — no Content-Type, because there is no content to describe.
         if ($this->validates() && $etag->matches($request->ifNoneMatch())) {
-            http_response_code(HttpStatusCode::NotModified->value);
-            self::sendAll($cache);
-
-            return;
+            return new Answer(HttpStatusCode::NotModified, $cache);
         }
 
-        http_response_code($this->status->value);
-        header(new Header(ResponseHeader::ContentType, MimeType::html())->line());
-        header(new Header(ResponseHeader::ContentLanguage, new ContentLanguage($language))->line());
-
-        self::sendAll($cache);
-        self::sendAll($this->headers);
-
-        echo $markup;
+        return new Answer(
+            $this->status,
+            new Collection(Header::class)->with(
+                new Header(ResponseHeader::ContentType, MimeType::html()),
+                new Header(ResponseHeader::ContentLanguage, new ContentLanguage($language)),
+                ...$cache,
+                ...$this->headers,
+            ),
+            new TextBody($markup),
+        );
     }
 
     /**
-     * The markup this response answers $request with, without sending it — {@link self::send()}'s
-     * public twin.
+     * The markup this response answers $request with, and nothing else — what a static export
+     * writes, and the body of {@link self::answer()}.
      *
      * A fragment led by its `<title>` for a request {@link RequestedWith} marks as Navigation's, the
      * whole document in the app's shell otherwise, and in the language the request is answered in
@@ -181,9 +183,8 @@ readonly class ViewResponse implements Response
      * keep one for a page that has since been published.
      *
      * The other responses are not this class's to answer for and deliberately carry nothing: a
-     * {@link RedirectResponse} is re-asked every time, the 401
-     * {@link \Phpanta\Service\Auth} exits with never becomes a `Response` at all, and the 405 and
-     * 503 are {@link PlainTextResponse}.
+     * {@link RedirectResponse} is re-asked every time, and the 401 {@link \Phpanta\Service\Auth}
+     * answers with, the 405 and the 503 are {@link PlainTextResponse}.
      *
      * @param ETag $etag The validator for this body, hashed by the caller — which is also what the
      *                   caller compares against `If-None-Match`, so the two cannot be a hash apart.
@@ -237,16 +238,5 @@ readonly class ViewResponse implements Response
         return $this->headers->first(
             static fn(Header $header): bool => $header->name === ResponseHeader::CacheControl,
         ) !== null;
-    }
-
-    /**
-     * @param Collection<Header> $headers
-     * @return void
-     */
-    private static function sendAll(Collection $headers): void
-    {
-        foreach ($headers as $header) {
-            header($header->line());
-        }
     }
 }

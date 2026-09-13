@@ -220,7 +220,7 @@ trait TypedItems
      * Here because the three call sites that asked were each spelling it differently — `count() > 0`,
      * `count() === 0`, `all() === []` — and the last of those had to unwrap the collection to ask a
      * question about the collection. It is also the one that caught a live bug rather than a latent
-     * one: {@link \Phpanta\Http\ViewResponse::send()} guarded its 304 with `$cache !== []`, which
+     * one: {@link \Phpanta\Http\ViewResponse::answer()} guarded its 304 with `$cache !== []`, which
      * is true of *every* collection object, so a gated page answered 304 to a guessed validator.
      *
      * Stops at the first element a pending pipeline produces rather than running it out, which is

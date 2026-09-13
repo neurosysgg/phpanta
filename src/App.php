@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Phpanta;
 
 use DateTimeImmutable;
+use NoDiscard;
 use Phpanta\Controller\ApiController;
 use Phpanta\Exception\AppException;
 use Phpanta\Exception\UpdateException;
+use Phpanta\Http\Answer;
 use Phpanta\Http\Request;
 use Phpanta\Http\Response;
 use Phpanta\Http\Security\CspDirective;
@@ -505,12 +507,32 @@ abstract class App
     }
 
     /**
+     * What this app answers $request with, sending nothing.
+     *
+     * The pre-launch gate's refusal if it has one, and the route's answer otherwise, with the
+     * security headers ahead of everything — the whole of a request but the process around it.
+     * {@link self::run()} is this and a `send()`; a test is this and an assertion.
+     *
+     * @param Request $request
+     * @return Answer
+     */
+    #[NoDiscard('handle() works out the answer and sends nothing; a call whose result goes nowhere answered no one')]
+    final public function handle(Request $request): Answer
+    {
+        $response = Auth::siteGate($request) ?? new Router($this->routeTable())->dispatch($request);
+
+        return $response->answer($request)->withHeadersFirst(SecurityHeaders::all($this));
+    }
+
+    /**
      * Answers the request this process was started for.
      *
      * The order is the one `public/index.php` has always had, minus the handler it installs before
      * calling this: the error log, so every diagnostic from here on lands in `data/logs/`; the
-     * security headers, before anything could be sent; the request; the pre-launch gate, which ends
-     * the request when it refuses; and the route that answers.
+     * security headers, before anything could fail, so that even the site's last-resort 500 carries
+     * them; then the request, answered by {@link self::handle()} and sent. The answer carries the
+     * same five headers again, first, and sending them replaces the ones already out — see
+     * {@link Answer::send()}.
      *
      * @return void
      */
@@ -520,10 +542,6 @@ abstract class App
 
         SecurityHeaders::send();
 
-        $request = Request::fromGlobals();
-
-        Auth::requireSiteAuth($request);
-
-        new Router($this->routeTable())->dispatch($request)->send($request);
+        $this->handle(Request::fromGlobals())->send();
     }
 }
