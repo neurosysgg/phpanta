@@ -2,8 +2,8 @@
 
 A small full-stack web framework for plain PHP 8.5 and browser-native TypeScript, extracted from
 [neuro.SYS](https://github.com/neurosysgg/neurosys-webspace) and still used by it. No runtime
-dependencies, no template language, no composer on the server: a site vendors Phpanta as a
-directory, requires one autoloader, and deploys plain files.
+dependencies, no template language, no composer on the server: a site vendors Phpanta as a git
+submodule, requires one autoloader, and deploys plain files.
 
 It is opinionated in one direction throughout. Each rule replaces a habit that fails silently with
 one that fails loudly:
@@ -69,6 +69,26 @@ require_once __DIR__ . '/phpanta/autoload.php';
 // … the site's own spl_autoload_register for its namespace …
 Acme\Site::boot();
 ```
+
+### Working in a vendored copy
+
+The point of a submodule over a package is editing the framework where the site uses it. A change is
+two commits — one in `phpanta/`, then `git add phpanta` in the site to record it — and three settings
+make the pair behave like one repository:
+
+```bash
+git config submodule.recurse true              # checkout and pull move the framework with the site
+git config push.recurseSubmodules on-demand    # a push sends the framework commit the site records
+git config status.submoduleSummary true        # status says what moved in phpanta/
+```
+
+`push-update` refuses a framework that is not checked out, has changes that are not committed, or is
+not the commit the site's `HEAD` records — each would put code on a server that no checkout of the
+site reproduces. `--any-framework` is the deliberate way past.
+
+Two things the settings cannot do: checking out or bisecting across the commit where a directory
+became the submodule needs `--no-recurse-submodules`, and after a remote's URL changes,
+`git submodule sync` carries it into the submodule.
 
 ### The app
 
