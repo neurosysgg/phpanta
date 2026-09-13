@@ -143,7 +143,8 @@ php phpanta/tools/export.php --out build/pages --base /phpanta/
 Every route that only reads and is one address is rendered by its own controller — a route with
 placeholders says which values to export — and written as `x.html`, with the app's not-found page as
 `404.html` and the stamped asset directories as directories. `--base` moves every address under the
-path the host serves the site at, and the export fails on any link it did not write.
+path the host serves the site at, and the export fails on any link it did not write — a page, or
+an anchor on one.
 [This framework's own site](https://neurosysgg.github.io/phpanta/) is that command's output: its
 source is [`site/`](site/), and `.github/workflows/pages.yml` builds and publishes it on every push.
 

@@ -83,6 +83,60 @@ final class ExportTest extends TestCase
     }
 
     /**
+     * A link to an anchor lands on one: on the same page, on another page, and through a fragment
+     * written encoded that names an id written decoded, which is the order a browser looks in. A
+     * bare `#` names no anchor at all.
+     *
+     * @return void
+     */
+    public function testALinkToAnAnchorThatIsThereResolves(): void
+    {
+        [$code, $error] = $this->export([
+            self::holding(
+                ExportFixturePath::Home,
+                self::anchor('top'),
+                self::link('#top'),
+                self::link('#'),
+                self::link('/guide#caf%C3%A9'),
+            ),
+            self::holding(ExportFixturePath::Guide, self::anchor('café')),
+        ]);
+
+        self::assertSame(ExitCode::Success, $code, $error);
+    }
+
+    /**
+     * The page is there and the id is not, so a browser would show its top without a word.
+     *
+     * @return void
+     */
+    public function testALinkToAnAnchorItsOwnPageLacksFailsTheExport(): void
+    {
+        [$code, $error] = $this->export([
+            self::holding(ExportFixturePath::Home, self::anchor('top'), self::link('#nope')),
+        ]);
+
+        self::assertSame(ExitCode::Failure, $code);
+        self::assertStringContainsString('index.html links to #nope, and that page has no id "nope"', $error);
+    }
+
+    /**
+     * The same, across pages: the file resolves, which is all the address check asks.
+     *
+     * @return void
+     */
+    public function testALinkToAnAnchorAnotherPageLacksFailsTheExport(): void
+    {
+        [$code, $error] = $this->export([
+            self::holding(ExportFixturePath::Home, self::link('/guide#nope')),
+            self::holding(ExportFixturePath::Guide, self::anchor('there')),
+        ]);
+
+        self::assertSame(ExitCode::Failure, $code);
+        self::assertStringContainsString('index.html links to /guide#nope, and that page has no id "nope"', $error);
+    }
+
+    /**
      * `a%2Fb` is one segment to the site and two directories to a file system, so the page would
      * land somewhere its address does not lead.
      *
@@ -381,6 +435,42 @@ final class ExportTest extends TestCase
             ExportFixturePath::Home,
             static fn(): Controller => self::controller(self::view('Home', $link)),
         );
+    }
+
+    /**
+     * A page at $path whose content is $nodes.
+     *
+     * @param ExportFixturePath $path
+     * @param Node              ...$nodes
+     * @return Route
+     */
+    private static function holding(ExportFixturePath $path, Node ...$nodes): Route
+    {
+        $content = new Element(HtmlTag::Section)->containing(...$nodes);
+
+        return new Route($path, static fn(): Controller => self::controller(self::view('page', $content)));
+    }
+
+    /**
+     * An element a fragment can name.
+     *
+     * @param string $id
+     * @return Element
+     */
+    private static function anchor(string $id): Element
+    {
+        return new Element(HtmlTag::P)->attr(HtmlAttribute::Id, $id)->containing($id);
+    }
+
+    /**
+     * A link to $href.
+     *
+     * @param string $href
+     * @return Element
+     */
+    private static function link(string $href): Element
+    {
+        return new Element(HtmlTag::A)->attr(HtmlAttribute::Href, $href)->containing($href);
     }
 
     /**

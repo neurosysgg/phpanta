@@ -3,7 +3,8 @@
 # The framework's suite runs first, so a push that breaks the framework does not publish a site
 # built on it. Then the site is built the way any site is — tsc, the stylesheet, the manifest, the
 # bundled prod tree — and exported: every page rendered by its own controller into a static file,
-# every address moved under /phpanta/, and the export fails on any link it did not write.
+# every address moved under /phpanta/, and the export fails on any link it did not write — a page
+# or an anchor on one.
 
 name: Pages
 

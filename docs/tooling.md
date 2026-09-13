@@ -134,7 +134,9 @@ point for, because the booted app is all it needs.
   - every stylesheet `url()`, `@import` string and `image-set()` string.
 
   Then it reads every page back with a real HTML parser. An address still without the base, in any
-  attribute, fails the export, and so does one naming a file the export did not write. Scripts are
+  attribute, fails the export, and so does one naming a file the export did not write, and so does
+  a link to an anchor — `#x` on the same page, `/page#x` on another — whose page has no element
+  with that id (`Anchors`), looked up as written and then percent-decoded. Scripts are
   not rewritten, so a script that builds an address from the root has to build it from a link on the
   page instead.
 - **It empties `--out` only if an export wrote it**, which is what `.phpanta-export` marks. That is a

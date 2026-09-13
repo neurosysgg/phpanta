@@ -142,7 +142,8 @@ These fail silently — no error, no log, a page that looks fine.
 - **An export's base path is applied to files, not at runtime**: HTML attributes and stylesheet
   `url()`s are rewritten, scripts are not. A script that builds an address from the root breaks
   under `--base`; build it from a link on the page instead. The export fails on any address it
-  finds without the base, and on any link to a file it did not write.
+  finds without the base, on any link to a file it did not write, and on any link to an anchor
+  that page does not have.
 - A static host answers `Navigation`'s fetch with the whole page, not a fragment; `Navigation` takes
   `#content` and the title out of it, and hands a page with no `#content` back to the browser.
 - `Navigation` owns the scroll: it sets `history.scrollRestoration = 'manual'` and scrolls after the

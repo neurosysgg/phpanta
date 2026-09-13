@@ -516,7 +516,9 @@ the only thing standing in front of.
   touches. `AttributeName::isUrl()` says which attributes those are, case by case and not enum by
   enum, since `href` and `class` live in the same one.
 
-  The allowlist is site-relative, `https:` and `mailto:` — `UrlScheme` cases, since a scheme is a
+  The allowlist is site-relative, a `#fragment` of the page, `https:` and `mailto:`. A fragment is
+  resolved like a leading slash, and lands on the page it is on. The two schemes are
+  `UrlScheme` cases, since a scheme is a
   fact about a URL and not about markup, which is why the enum sits in `Support/` beside `Charset`
   and why a view builds a `mailto:` link through it. The *list* stays its own constant,
   `Element::URL_SCHEMES`, rather than collapsing to `UrlScheme::cases()`: the enum is the vocabulary

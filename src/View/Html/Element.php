@@ -413,7 +413,8 @@ final readonly class Element implements Node
         }
 
         throw new ElementException(sprintf(
-            '<%s %s="%s"> is not a URL this site may emit. Allowed: a site-relative path, or %s.',
+            '<%s %s="%s"> is not a URL this site may emit. Allowed: a site-relative path, a #fragment'
+            . ' of the page, or %s.',
             $this->tag->tagName(),
             $name,
             $value,
@@ -438,7 +439,7 @@ final readonly class Element implements Node
     }
 
     /**
-     * True if $value is a site-relative path or names an allowed scheme.
+     * True if $value is a site-relative path, a fragment of this page, or names an allowed scheme.
      *
      * @param string $value
      * @return bool
@@ -446,8 +447,10 @@ final readonly class Element implements Node
     private static function isAllowedUrl(string $value): bool
     {
         // A leading slash is not the same claim as "somewhere on this site", so it is asked rather
-        // than assumed — see staysOnThisOrigin(). Everything else has to name a scheme we allow.
-        if (str_starts_with($value, '/')) {
+        // than assumed — see staysOnThisOrigin(). A leading `#` is a fragment of the page it is on,
+        // which the parser resolves to the page itself; it is asked the same way rather than trusted
+        // for its first character. Everything else has to name a scheme we allow.
+        if (str_starts_with($value, '/') || str_starts_with($value, '#')) {
             return self::staysOnThisOrigin($value);
         }
 

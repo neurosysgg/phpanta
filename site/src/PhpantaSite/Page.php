@@ -13,6 +13,10 @@ use Phpanta\DataFileName;
  * through `Element::containingHtml()`, which parses it against the site's vocabulary and refuses
  * anything else — so a page that uses a tag the site does not know fails to render rather than
  * shipping it.
+ *
+ * Every `h2` and `h3` carries a hand-written `id` and is a link to it —
+ * `<h2 id="five-habits"><a href="#five-habits">…</a></h2>` — so an anchor survives a reworded
+ * heading. `SitePagesTest` holds the convention; the export fails on a link to an id a page lacks.
  */
 enum Page: string implements DataFileName
 {

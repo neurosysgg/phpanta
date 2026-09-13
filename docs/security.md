@@ -195,7 +195,8 @@ however it was built, including one assembled from an array:
   stated set of flags.
 - **A URL attribute is asked what scheme it names**, because escaping is the wrong tool for a URL and
   always was — `javascript:alert(1)` contains nothing `htmlspecialchars` touches. The allowlist is
-  `Element::URL_SCHEMES` — `https:` and `mailto:` — and site-relative. `http:` is absent because HSTS
+  `Element::URL_SCHEMES` — `https:` and `mailto:` — site-relative, and a `#fragment` of the page,
+  which is resolved the same way and cannot leave it. `http:` is absent because HSTS
   means a site on the framework does not emit one; `data:` is absent because a `data:text/html`
   document runs script in the origin that navigated to it. A leading slash is **resolved**, not
   assumed to be local: PHP 8.5's WHATWG URL parser strips tab, CR and LF from a URL before parsing,

@@ -16,6 +16,7 @@ use Phpanta\Tool\Cli\Input;
 use Phpanta\Tool\Cli\Option;
 use Phpanta\Tool\Cli\Output;
 use Phpanta\Tool\Cli\UsageException;
+use Phpanta\Tool\Export\Anchors;
 use Phpanta\Tool\Export\BasePath;
 
 /**
@@ -43,8 +44,9 @@ use Phpanta\Tool\Export\BasePath;
  *   {@link self::MARKER}, which is how a later export knows the directory is one it may empty.
  *
  * Then {@link BasePath} moves every address under `--base`, and **the export fails** on any
- * root-absolute address that still lacks the base, and on any that names a file it did not write —
- * a broken link found here rather than by a visitor.
+ * root-absolute address that still lacks the base, on any that names a file it did not write, and on
+ * any link to an anchor its page does not have ({@link Anchors}) — a broken link found here rather
+ * than by a visitor.
  */
 final readonly class Export implements Command
 {
@@ -294,6 +296,7 @@ final readonly class Export implements Command
         // ── the check ──
 
         $problems = [];
+        $ids      = [];
 
         foreach (self::files($out, '') as $file) {
             $addresses = match (true) {
@@ -305,8 +308,26 @@ final readonly class Export implements Command
             foreach ($addresses ?? [] as $address) {
                 if ($base->lacksBase($address)) {
                     $problems[] = "$file names $address, which is not under {$base->path}";
-                } elseif (!self::resolves($out, $base->withinExport($address))) {
+                } elseif (self::resolvedFile($out, $base->withinExport($address)) === null) {
                     $problems[] = "$file links to $address, which the export did not write";
+                }
+            }
+
+            if (!str_ends_with($file, '.html')) {
+                continue;
+            }
+
+            foreach (Anchors::fragmentLinks((string) $out->file($file)->read()) as [$address, $fragment]) {
+                $page = $address === '' ? $file : self::anchoredPage($out, $base, $address);
+
+                if ($page === null) {
+                    continue;
+                }
+
+                $ids[$page] ??= Anchors::idsIn((string) $out->file($page)->read());
+
+                if (!Anchors::names($ids[$page], $fragment)) {
+                    $problems[] = "$file links to $address#$fragment, and that page has no id \"$fragment\"";
                 }
             }
         }
@@ -552,23 +573,51 @@ final readonly class Export implements Command
     }
 
     /**
-     * Whether an address under the export names a file it wrote — `x` as `x.html`, `` as
-     * `index.html`, anything with an extension as itself — ignoring a query or a fragment, and
-     * decoded, the way the host will decode it.
+     * The file an address under the export names, if the export wrote it — `x` as `x.html` or
+     * `x/index.html`, `` as `index.html`, anything with an extension as itself — ignoring a query or a
+     * fragment, and decoded, the way the host will decode it. Null for a file it did not write.
      *
      * @param Directory $out
      * @param string    $address
-     * @return bool
+     * @return string|null
      */
-    private static function resolves(Directory $out, string $address): bool
+    private static function resolvedFile(Directory $out, string $address): ?string
     {
         $path = rawurldecode(rtrim(substr($address, 0, strcspn($address, '?#')), '/'));
 
-        return match (true) {
-            $path === ''                               => $out->file('index.html')->exists(),
-            pathinfo($path, PATHINFO_EXTENSION) !== '' => $out->file($path)->exists(),
-            default                                    => $out->file("$path.html")->exists()
-                || $out->file("$path/index.html")->exists(),
+        $candidates = match (true) {
+            $path === ''                               => ['index.html'],
+            pathinfo($path, PATHINFO_EXTENSION) !== '' => [$path],
+            default                                    => ["$path.html", "$path/index.html"],
         };
+
+        foreach ($candidates as $candidate) {
+            if ($out->file($candidate)->exists()) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The page a link to another page's anchor lands on, as a file under $out — or null for an
+     * address that is not one of the export's pages: another host, one written relative, or one the
+     * address check has already reported.
+     *
+     * @param Directory $out
+     * @param BasePath  $base
+     * @param string    $address The link without its fragment.
+     * @return string|null
+     */
+    private static function anchoredPage(Directory $out, BasePath $base, string $address): ?string
+    {
+        if (!str_starts_with($address, '/') || str_starts_with($address, '//') || $base->lacksBase($address)) {
+            return null;
+        }
+
+        $file = self::resolvedFile($out, $base->withinExport($address));
+
+        return $file !== null && str_ends_with($file, '.html') ? $file : null;
     }
 }
