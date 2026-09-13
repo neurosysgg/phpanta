@@ -9,17 +9,20 @@ use Phpanta\App;
 use Phpanta\Controller\ApiController;
 use Phpanta\Controller\UnroutedController;
 use Phpanta\Http\Allow;
+use Phpanta\Http\Answer;
 use Phpanta\Http\Api\ApiService;
 use Phpanta\Http\Api\ApiVersion;
 use Phpanta\Http\Api\CapabilityAction;
 use Phpanta\Http\Api\HealthAction;
 use Phpanta\Http\Api\UpdateAction;
 use Phpanta\Http\AuthScheme;
+use Phpanta\Http\Header;
 use Phpanta\Http\HttpMethod;
 use Phpanta\Http\HttpStatusCode;
 use Phpanta\Http\PlainTextResponse;
 use Phpanta\Http\Request;
-use Phpanta\Http\ViewResponse;
+use Phpanta\Http\ServerVariable;
+use Phpanta\Http\TextBody;
 use Phpanta\Model\Api\ApiCredential;
 use Phpanta\Model\Api\ApiEnvelope;
 use Phpanta\Model\Api\SerialRefusal;
@@ -40,6 +43,7 @@ use Phpanta\Support\MethodPolicy;
 use Phpanta\Support\PublicKey;
 use Phpanta\Support\RequirementInitialization;
 use Phpanta\Support\Route;
+use Phpanta\Test\TestRequest;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -87,6 +91,9 @@ use stdClass;
 #[CoversClass(PublicKey::class)]
 #[CoversClass(FileLock::class)]
 #[CoversClass(SerialRefusal::class)]
+#[CoversClass(PlainTextResponse::class)]
+#[CoversClass(Answer::class)]
+#[CoversClass(TextBody::class)]
 final class ApiTest extends TestCase
 {
     private const string PATCH      = '/api/update/v1/patch';
@@ -152,8 +159,9 @@ final class ApiTest extends TestCase
     #[DataProvider('everyMethodProvider')]
     public function testEveryDepthUnderApiAnswersExactlyLikeAnUnroutedPath(string $method): void
     {
-        $router = new Router(App::current()->routeTable());
-        $absent = $router->dispatch(self::request($method, '/no-such-page'));
+        $router  = new Router(App::current()->routeTable());
+        $nowhere = self::request($method, '/no-such-page');
+        $absent  = $router->dispatch($nowhere);
 
         $depths = [
             '/api',
@@ -176,12 +184,13 @@ final class ApiTest extends TestCase
         ];
 
         foreach ($depths as $path) {
-            $answer = $router->dispatch(self::request($method, $path));
+            $request  = self::request($method, $path);
+            $response = $router->dispatch($request);
 
-            self::assertSame($absent::class, $answer::class, "$method $path answered a different class");
+            self::assertSame($absent::class, $response::class, "$method $path answered a different class");
             self::assertSame(
-                self::statusOf($absent),
-                self::statusOf($answer),
+                $absent->answer($nowhere)->status(),
+                $response->answer($request)->status(),
                 "$method $path answered a different status, so the endpoint announces itself",
             );
         }
@@ -218,16 +227,13 @@ final class ApiTest extends TestCase
      */
     public function testTheRefusalNeverNamesPost(): void
     {
-        $response = new Router(App::current()->routeTable())
-            ->dispatch(self::request('PUT', self::PATCH));
+        $request  = self::request('PUT', self::PATCH);
+        $response = new Router(App::current()->routeTable())->dispatch($request);
 
         self::assertInstanceOf(PlainTextResponse::class, $response);
         self::assertSame(
-            ['Allow: GET, HEAD'],
-            array_map(
-                static fn(object $header): string => $header->line(),
-                new ReflectionProperty($response, 'headers')->getValue($response)->toValues(),
-            ),
+            ['Content-Type: text/plain; charset=utf-8', 'Allow: GET, HEAD'],
+            self::lines($response->answer($request)),
         );
     }
 
@@ -552,8 +558,8 @@ final class ApiTest extends TestCase
                 UpdateFixture::archive(['public/written.txt' => 'x']),
             );
 
-            self::assertSame(HttpStatusCode::Conflict, self::statusOf($response));
-            self::assertStringContainsString('another write is in progress', self::bodyOf($response));
+            self::assertSame(HttpStatusCode::Conflict, $response->status());
+            self::assertStringContainsString('another write is in progress', $response->body());
             self::assertNull($this->serialFile->read(), 'a refused write spent its serial');
             self::assertNull(new File($this->sandbox . '/public/written.txt')->read(), 'a refused write wrote');
         } finally {
@@ -684,8 +690,8 @@ final class ApiTest extends TestCase
     {
         $version = $this->respond(self::VERSION, HttpMethod::Get, '');
 
-        self::assertSame(HttpStatusCode::Ok, self::statusOf($version));
-        self::assertStringContainsString(PHP_VERSION, self::bodyOf($version));
+        self::assertSame(HttpStatusCode::Ok, $version->status());
+        self::assertStringContainsString(PHP_VERSION, $version->body());
 
         // The other services through the same controller, which is what says the delegation is the
         // address's rather than the update service's. What each answers is HealthTest's and
@@ -697,13 +703,13 @@ final class ApiTest extends TestCase
         $health = $this->respond(self::HEALTH, HttpMethod::Get, '');
         $direct = new HealthCheck(RequirementInitialization::requirements(App::current()))->handle();
 
-        self::assertSame(self::statusOf($direct), self::statusOf($health));
-        self::assertStringContainsString("extensions\n", self::bodyOf($health));
+        self::assertSame(UpdateFixture::statusOf($direct), $health->status());
+        self::assertStringContainsString("extensions\n", $health->body());
 
         $capability = $this->respond(self::CAPABILITY, HttpMethod::Get, '');
 
-        self::assertSame(HttpStatusCode::Ok, self::statusOf($capability));
-        self::assertStringContainsString("zend extensions\n", self::bodyOf($capability));
+        self::assertSame(HttpStatusCode::Ok, $capability->status());
+        self::assertStringContainsString("zend extensions\n", $capability->body());
     }
 
     /**
@@ -754,8 +760,8 @@ final class ApiTest extends TestCase
             serialFile: new File($blocked->path),
         );
 
-        self::assertSame(HttpStatusCode::InternalServerError, self::statusOf($response));
-        self::assertStringContainsString('could not be recorded', self::bodyOf($response));
+        self::assertSame(HttpStatusCode::InternalServerError, $response->status());
+        self::assertStringContainsString('could not be recorded', $response->body());
         self::assertNull(
             new File($this->sandbox . '/public/written.txt')->read(),
             'the push wrote even though the replay guard could not be armed',
@@ -782,9 +788,9 @@ final class ApiTest extends TestCase
         $serial   = time();
         $response = $this->respond(self::PATCH, HttpMethod::Post, 'this is not gzip at all', serial: $serial);
 
-        self::assertSame(HttpStatusCode::UnprocessableContent, self::statusOf($response));
-        self::assertStringContainsString('refused:', self::bodyOf($response));
-        self::assertStringContainsString('not gzip', self::bodyOf($response));
+        self::assertSame(HttpStatusCode::UnprocessableContent, $response->status());
+        self::assertStringContainsString('refused:', $response->body());
+        self::assertStringContainsString('not gzip', $response->body());
         self::assertSame(
             $serial,
             (int) trim((string) $this->serialFile->read()),
@@ -807,8 +813,8 @@ final class ApiTest extends TestCase
     {
         $response = $this->respond($path, HttpMethod::Get, '');
 
-        self::assertSame(HttpStatusCode::NotFound, self::statusOf($response));
-        self::assertStringContainsString('no such API action', self::bodyOf($response));
+        self::assertSame(HttpStatusCode::NotFound, $response->status());
+        self::assertStringContainsString('no such API action', $response->body());
     }
 
     /**
@@ -845,15 +851,9 @@ final class ApiTest extends TestCase
     {
         $response = $this->respond(self::PATCH, HttpMethod::Get, '');
 
-        self::assertSame(HttpStatusCode::MethodNotAllowed, self::statusOf($response));
-        self::assertStringContainsString('patch answers POST', self::bodyOf($response));
-        self::assertSame(
-            ['Allow: POST'],
-            array_map(
-                static fn(object $header): string => $header->line(),
-                new ReflectionProperty($response, 'headers')->getValue($response)->toValues(),
-            ),
-        );
+        self::assertSame(HttpStatusCode::MethodNotAllowed, $response->status());
+        self::assertStringContainsString('patch answers POST', $response->body());
+        self::assertSame(['Content-Type: text/plain; charset=utf-8', 'Allow: POST'], self::lines($response));
     }
 
     /**
@@ -870,7 +870,7 @@ final class ApiTest extends TestCase
     {
         self::assertTrue($this->serialFile->write("1757000000\n"));
 
-        $body = self::bodyOf(new UpdateVersion($this->serialFile)->handle());
+        $body = UpdateFixture::bodyOf(new UpdateVersion($this->serialFile)->handle());
 
         self::assertStringContainsString('1757000000', $body);
         self::assertStringContainsString("entry  " . App::current()->buildId() . "\n", $body);
@@ -884,7 +884,7 @@ final class ApiTest extends TestCase
      */
     public function testAnUnpushedDeploymentReportsNoSerial(): void
     {
-        $body = self::bodyOf(new UpdateVersion(new File($this->sandbox . '/nothing-here'))->handle());
+        $body = UpdateFixture::bodyOf(new UpdateVersion(new File($this->sandbox . '/nothing-here'))->handle());
 
         self::assertStringContainsString('serial -', $body);
         self::assertStringNotContainsString('serial 0', $body);
@@ -1093,9 +1093,7 @@ final class ApiTest extends TestCase
             $size,
         );
 
-        $request = self::request($verb, $path, $credential);
-
-        return PhpInputStream::around($body, fn(): ?VerifiedRequest => $this->gate()->accepts($request));
+        return $this->gate()->accepts(self::request($verb, $path, $credential, $body));
     }
 
     /**
@@ -1108,7 +1106,7 @@ final class ApiTest extends TestCase
      * @param bool $apply
      * @param int|null $serial
      * @param File|null $serialFile
-     * @return PlainTextResponse
+     * @return Answer What the controller's response answers the request with.
      */
     private function respond(
         string $path,
@@ -1117,7 +1115,7 @@ final class ApiTest extends TestCase
         bool $apply = true,
         ?int $serial = null,
         ?File $serialFile = null,
-    ): PlainTextResponse {
+    ): Answer {
         $segments = explode('/', ltrim($path, '/'));
 
         $controller = new ApiController(
@@ -1133,52 +1131,54 @@ final class ApiTest extends TestCase
             $body,
             serial: $serial,
             fields: $method === HttpMethod::Post ? ['apply' => $apply, 'mirror' => false] : [],
-        ));
+        ), $body);
 
-        $response = PhpInputStream::around($body, static fn(): object => $controller->handle($request));
+        $response = $controller->handle($request);
 
         self::assertInstanceOf(PlainTextResponse::class, $response);
 
-        return $response;
+        return $response->answer($request);
     }
 
     /**
-     * A request for $path, arrived by $method, carrying $credential.
+     * A request for $path, arrived by $method, carrying $credential and $body.
      *
-     * @param string $method
-     * @param string $path
-     * @param string $credential
+     * Built by {@link TestRequest}, so the credential arrives the way a server hands it over and the
+     * body is the one {@link Request::body()} answers — nothing written into `$_SERVER`, and no
+     * stream wrapper standing in for `php://input`.
+     *
+     * @param string      $method
+     * @param string      $path
+     * @param string      $credential An `Authorization` value; empty sends none.
+     * @param string|null $body       Null sends none.
      * @return Request
      */
-    private static function request(string $method, string $path, string $credential = ''): Request
-    {
-        $_SERVER = ['REQUEST_METHOD' => $method, 'REQUEST_URI' => $path];
+    private static function request(
+        string $method,
+        string $path,
+        string $credential = '',
+        ?string $body = null,
+    ): Request {
+        $request = TestRequest::to($method, $path);
 
         if ($credential !== '') {
-            $_SERVER['HTTP_AUTHORIZATION'] = $credential;
+            $request = $request->withServer(ServerVariable::Authorization, $credential);
         }
 
-        return Request::fromGlobals();
+        if ($body !== null) {
+            $request = $request->withBody($body);
+        }
+
+        return $request->request();
     }
 
     /**
-     * @param object $response
-     * @return HttpStatusCode
+     * @param Answer $answer
+     * @return list<string>
      */
-    private static function statusOf(object $response): HttpStatusCode
+    private static function lines(Answer $answer): array
     {
-        return $response instanceof ViewResponse
-            ? new ReflectionProperty($response, 'status')->getValue($response)
-            : UpdateFixture::statusOf($response);
-    }
-
-    /**
-     * @param object $response
-     * @return string
-     */
-    private static function bodyOf(object $response): string
-    {
-        return UpdateFixture::bodyOf($response);
+        return $answer->headers()->map(static fn(Header $header): string => $header->line())->toValues();
     }
 
     /**

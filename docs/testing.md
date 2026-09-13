@@ -1,7 +1,8 @@
 # Testing — the framework
 
 Phpanta has a suite of its own, and a site that vendors it has one too. The two suites answer
-different questions, and for now the second still carries some of the framework's weight.
+different questions: this one whether the framework works, the site's whether the site does — on
+the framework, over real HTTP.
 
 ## The framework's suite
 
@@ -25,24 +26,29 @@ an app:
   paths the framework derives from an app then have somewhere real to land, and never land in a
   repository.
 
-`test/unit/` holds twenty-six test classes, grouped by area:
+`test/unit/` holds thirty-six test classes, grouped by area:
 
 | Area | Tests |
 |---|---|
+| the app | `AppTest` (booting, what it derives, every `webroot()` refusal) |
 | the API | `ApiTest` (the endpoint, its gate and its three services), `ApiClientTest` (signing against the real gate), `ApiCallTest`, `ApiTargetTest` |
 | the push | `PushUpdateTest`, `FrameworkCheckoutTest`, `TarWriterTest`, `UpdateTest` |
 | health and capability | `HealthTest`, `RequirementTest`, `CapabilityTest` |
-| HTTP | `AnswerTest` (every answer, end to end, through `TestRequest`), `RequestTest`, `RevalidationTest`, `SecurityHeadersTest`, `SecurityPolicyTest`, `SyntheticPageTest` |
-| routing | `RouteTest`, `RouteExportTest` |
+| HTTP | `AnswerTest` (every answer, end to end, through `TestRequest`), `ResponseTest`, `RevalidationTest`, `FileResponseTest` (ranges and their headers), `MimeTypeTest`, `RequestTest`, `SecurityHeadersTest`, `SecurityPolicyTest`, `SyntheticPageTest` |
+| auth | `AuthTest` (the comparison, its timing, the gates, `PasswordHash`) |
+| routing | `RouterTest`, `RouteTest`, `RouteExportTest` |
+| the markup tree | `MarkupTest` (building, escaping, the URL checks, parsing against a vocabulary) |
 | the export | `ExportTest`, `BasePathTest` |
 | text | `TextTest`, `LanguagesTest` |
 | collections, files and diagnostics | `SupportTest` |
 | the CLI layer | `CliTest` |
+| the rules | `BoundaryTest`, `GuidelineTest`, `NoDiscardTest` — see [below](#the-rules-the-framework-holds-itself-to) |
 | the framework's own site | `SitePagesTest`: every subheading in `site/data/` carries an anchor and links to it |
 
-Six fixtures sit beside the tests: `UpdateFixture`, `TextFixture`, `RoutePatternFixture`,
-`ExportFixturePath`, `ReadonlyFixture` and `CliOptionFixture`, with `PhpInputStream` standing in for
-`php://input`.
+Ten fixtures sit beside the tests — `UpdateFixture`, `TextFixture`, `RoutePatternFixture`,
+`ExportFixturePath`, `ReadonlyFixture`, `CliOptionFixture`, `TagFixture`, `AttributeFixture`,
+`ClassFixture` and `EchoController` — with `PhpInputStream` standing in for `php://input`, which
+`RequestTest` still reads through when it tests a request that was not built with a body.
 
 **[`TestRequest`](../test/TestRequest.php) is the in-process client.** It builds the server
 variables a real server would hand PHP — keyed through `ServerVariable` and
@@ -73,31 +79,30 @@ The suite is as strict as any suite built on it: `failOnWarning`, `failOnNotice`
 workflow (`.github/workflows/pages.yml`) runs the suite and `npm run check` before it builds and
 publishes the framework's own site.
 
-## What still lives in a vendoring site
+## The rules the framework holds itself to
 
-Phpanta grew inside a site, and the checks that watched it there moved only as far as they had to.
-These still run in that site's suite and read **both** source trees, the site's and `phpanta/`. The
-framework is held to them whether or not it is checked out on its own:
+Three tests read the framework's code rather than running it, each over this tree alone, through
+[`SourceTree`](../test/SourceTree.php) — a root directory and a namespace — and
+[`SourceNames`](../test/SourceNames.php), which resolves every name a file writes the way PHP would:
 
-- **a boundary check**: nothing under `phpanta/src/` names a site class, by any kind of name;
-- **a grep over everything under `phpanta/`** for the site's namespace, comments and docs included;
-  that every framework class loads; and no markup from a string, no outbound request, one `openssl_`
-  caller;
-- **the five habits**, see [guidelines.md](guidelines.md);
-- **every builder and query that must not be discarded** carries `#[\NoDiscard]`, and the reason
-  why;
-- **every translated enum** is reachable from the site's index and written in every language.
+- **`BoundaryTest`**: every class `src/` names is the framework's or PHP's own, and `tools/` and
+  `test/` may add only what composer installed; every `{@link}` under `src/`, `tools/` and `test/`
+  lands inside the framework. A site's class named anywhere here fails it, checked out alone or
+  vendored.
+- **`GuidelineTest`**: the five habits, see [guidelines.md](guidelines.md), with this tree's excuses
+  pinned. The bare-string rule's word-in-two-classes clause is a question about a whole program, so
+  the excuses the framework carries only because a site writes the same word are pinned apart, in a
+  test of their own.
+- **`NoDiscardTest`**: every builder, query and gate whose result must not be dropped carries
+  `#[\NoDiscard]`, and says why.
 
-That every header value is a typed object, and every one covered, is `SecurityPolicyTest`'s here: it
-reads `src/` alone.
+A site that vendors the framework runs the same three rules over its own tree, with `SourceTree`
+pointed at it, and keeps what only it can check: a grep over everything under `phpanta/` for its own
+namespace, comments and docs included, and the links in the framework's documents staying inside it.
 
 **The framework has no client tests of its own.** Its modules are compiled into a site's tree and
 tested there, through that site's `main.js`, alongside the site's own elements. Here, `npm run check`
 type-checks them.
-
-Moving the checks above into the framework is deliberate future work rather than an oversight. Each
-needs a way to be pointed at a tree it does not own, and until then the site that vendors the
-framework is the better test of it.
 
 ## Coverage
 
@@ -109,14 +114,12 @@ Two rules, the same as in any suite built on this one:
 - **Uncovered lines are a decision, not a budget.** A change that adds a guard covers it in the same
   commit. A guard no test can reach is deleted rather than covered by reflection.
 
-**The framework's suite alone covers about four fifths of `src/`'s lines.** The figure was 82.55%
-(1708 of 2069) when last derived on 2026-09-13. Re-derive it
+**The framework's suite alone covers nearly all of `src/`'s lines.** The figure was 98.88%
+(2046 of 2069) when last derived on 2026-09-13. Re-derive it
 with `XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-text` rather than trusting this.
 
-The rest is honest too. Every response, the router, the gate and `App::handle()` are reached here
-now, through `TestRequest`; what this suite still reaches less of — the markup tree above all — a
-vendoring site's tests exercise, because they are written against that site's views, controllers
-and route table. Merge that site's suite and the HTTP requests its end-to-end
-script makes, through `tools/coverage-prepend.php` and `MergeCoverage`, and the same code is covered
-almost entirely. Until those tests are rewritten against `TestApp`, the merged number is the one that
-measures the framework.
+What it does not reach is what only a server reaches: `App::run()`, `Answer::send()` and
+`SecurityHeaders::send()`, whose `header()` calls are a no-op under the CLI, and the branches behind
+a failure no test can arrange. A vendoring site's end-to-end script covers the first kind over real
+HTTP; merged through `tools/coverage-prepend.php` and `MergeCoverage`, the framework is covered but
+for the second.

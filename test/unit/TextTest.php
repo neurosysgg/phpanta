@@ -4,21 +4,28 @@ declare(strict_types=1);
 
 namespace Phpanta\Test\Unit;
 
+use MessageFormatter;
 use Phpanta\Exception\TranslationException;
+use Phpanta\Test\SourceTree;
+use Phpanta\Text\FrameworkText;
 use Phpanta\Text\Joined;
 use Phpanta\Text\Language;
 use Phpanta\Text\Phrase;
+use Phpanta\Text\Translatable;
 use Phpanta\Text\Translated;
 use Phpanta\Text\Translation;
 use Phpanta\Text\Verbatim;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversTrait;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use UnitEnum;
 
 /**
- * The text layer: a translation, a catalog case, and a phrase with its arguments bound.
+ * The text layer: a translation, a catalog case, a phrase with its arguments bound — and the
+ * framework's own catalogs, written in every language it offers.
  *
- * How the markup tree decides which language one renders in is the markup tree's tests' to say.
+ * How the markup tree decides which language one renders in is {@link MarkupTest}'s to say.
  */
 #[CoversClass(Translation::class)]
 #[CoversClass(Phrase::class)]
@@ -140,5 +147,98 @@ final class TextTest extends TestCase
 
         self::assertSame('downloads — Example', $title->in(Language::English));
         self::assertSame('Downloads — Example', $title->in(Language::German));
+    }
+
+    // ─────────────────────────── the framework's own words ───────────────────────────
+
+    /**
+     * Every case of every catalog under the framework's `src/`.
+     *
+     * Found by walking the tree rather than listed, so a catalog nobody added here is one this
+     * checks anyway. A site's suite checks its own catalogs the same way, through its own index.
+     *
+     * @return iterable<string, array{UnitEnum&Translatable}>
+     */
+    public static function frameworkCaseProvider(): iterable
+    {
+        foreach (self::frameworkCatalogs() as $catalog) {
+            foreach ($catalog::cases() as $case) {
+                yield $case::class . '::' . $case->name => [$case];
+            }
+        }
+    }
+
+    /**
+     * Every word the framework says is written in every language it offers, as a message ICU can
+     * read, naming the same arguments in each — so a word the framework never translated is this
+     * test failing, not an English word on some site's German page.
+     *
+     * @param UnitEnum&Translatable $case
+     * @return void
+     */
+    #[DataProvider('frameworkCaseProvider')]
+    public function testEveryFrameworkCaseIsWrittenInEveryLanguageAsAMessageIcuCanRead(
+        UnitEnum&Translatable $case,
+    ): void {
+        $translation = $case->translation();
+
+        self::assertTrue($translation->has(Language::German), 'no German: it would fall back to English');
+
+        foreach (Language::cases() as $language) {
+            self::assertNotNull(
+                MessageFormatter::create($language->value, $translation->pattern($language)),
+                "not a message ICU can read in {$language->name}",
+            );
+        }
+
+        self::assertSame(
+            self::arguments($translation->pattern(Language::English)),
+            self::arguments($translation->pattern(Language::German)),
+            'the two languages name different arguments',
+        );
+    }
+
+    /**
+     * The walk above finds something, so an empty provider cannot pass for a clean one.
+     *
+     * @return void
+     */
+    public function testTheFrameworkHasCatalogsToCheck(): void
+    {
+        self::assertContains(FrameworkText::class, self::frameworkCatalogs());
+    }
+
+    /**
+     * The enums under the framework's `src/` that use {@link Translated}, sorted.
+     *
+     * @return list<class-string<UnitEnum&Translatable>>
+     */
+    private static function frameworkCatalogs(): array
+    {
+        $found = array_values(array_filter(
+            SourceTree::framework()->classes(),
+            static fn(string $class): bool => enum_exists($class)
+                && in_array(Translated::class, class_uses($class), true),
+        ));
+
+        sort($found);
+
+        return $found;
+    }
+
+    /**
+     * The argument names a message uses, sorted — `{title}`, and `{count, plural, …}`'s `count`.
+     *
+     * @param string $pattern
+     * @return list<string>
+     */
+    private static function arguments(string $pattern): array
+    {
+        preg_match_all('/\{\s*(\w+)\s*[,}]/', $pattern, $matches);
+
+        $names = array_values(array_unique($matches[1]));
+        sort($names);
+
+        return $names;
     }
 }

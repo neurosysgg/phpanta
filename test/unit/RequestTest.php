@@ -8,11 +8,14 @@ use Phpanta\Http\AcceptedLanguages;
 use Phpanta\Http\AuthScheme;
 use Phpanta\Http\BasicChallenge;
 use Phpanta\Http\CookieName;
+use Phpanta\Http\HttpMethod;
 use Phpanta\Http\Request;
 use Phpanta\Http\RequestCookies;
 use Phpanta\Http\RequestedWith;
 use Phpanta\Http\RequestHeader;
+use Phpanta\Http\ServerParameters;
 use Phpanta\Http\ServerVariable;
+use Phpanta\Test\TestRequest;
 use Phpanta\Text\Language;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -25,6 +28,8 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(RequestHeader::class)]
 #[CoversClass(RequestedWith::class)]
 #[CoversClass(ServerVariable::class)]
+#[CoversClass(HttpMethod::class)]
+#[CoversClass(ServerParameters::class)]
 final class RequestTest extends TestCase
 {
     /** @var array<string, mixed> */
@@ -54,6 +59,65 @@ final class RequestTest extends TestCase
     {
         $_SERVER = $server;
         return Request::fromGlobals();
+    }
+
+    // ───────────────────────── the method ─────────────────────────
+
+    /**
+     * @return iterable<array{string, bool}>
+     */
+    public static function readOnlyProvider(): iterable
+    {
+        yield ['GET', true];
+        yield ['HEAD', true];
+        yield ['get', true];  // normalised to upper case
+        yield ['POST', false];
+        yield ['PUT', false];
+        yield ['DELETE', false];
+        yield ['PATCH', false];
+        yield ['TRACE', false];
+    }
+
+    /**
+     * @param string $method
+     * @param bool   $expected
+     * @return void
+     */
+    #[DataProvider('readOnlyProvider')]
+    public function testOnlyReadMethodsAreTreatedAsReadOnly(string $method, bool $expected): void
+    {
+        self::assertSame($expected, TestRequest::to($method, '/')->request()->isReadOnly());
+    }
+
+    /**
+     * @return void
+     */
+    public function testTheMethodIsUpperCased(): void
+    {
+        self::assertSame(HttpMethod::Get, TestRequest::to('get', '/')->request()->method());
+    }
+
+    /**
+     * An unrecognised method is null rather than a guess, and null is not read-only.
+     *
+     * @return void
+     */
+    public function testAnUnknownMethodIsNotAMethod(): void
+    {
+        $request = TestRequest::to('WHATEVER', '/')->request();
+
+        self::assertNull($request->method());
+        self::assertFalse($request->isReadOnly());
+    }
+
+    /**
+     * @return void
+     */
+    public function testAMissingRequestMethodDefaultsToGet(): void
+    {
+        $request = Request::from(new ServerParameters([ServerVariable::RequestUri->value => '/']));
+
+        self::assertSame(HttpMethod::Get, $request->method());
     }
 
     /**

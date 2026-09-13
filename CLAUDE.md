@@ -16,10 +16,11 @@ exists because of a story, the current document states the rule in one sentence 
 
 **Nothing under this directory names a site.** A second site built on Phpanta has none of the first
 one's classes, so a framework file that reaches one — by an import, a qualified name, or an
-unqualified name its namespace resolves — breaks the moment it is used anywhere else. A vendoring
-site holds that line from outside: a boundary test resolves every name the framework's code writes
-and fails on any site class, and a verify script fails on any mention of the site's namespace
-anywhere under `phpanta/`, comments and docs included. Every `{@link}` lands on a framework class
+unqualified name its namespace resolves — breaks the moment it is used anywhere else. `test/unit/BoundaryTest.php`
+holds that line from inside: it resolves every name the framework's code writes, and fails on
+anything that is neither the framework's, PHP's own nor (in tools and tests) composer's. A vendoring
+site holds it from outside too, with a verify script that fails on any mention of the site's
+namespace anywhere under `phpanta/`, comments and docs included. Every `{@link}` lands on a framework class
 or PHP's own, and every link in these documents stays inside this directory, so an example borrowed
 from a site fails instead of dangling. A site's facts reach the framework through the app, never
 the other way round.

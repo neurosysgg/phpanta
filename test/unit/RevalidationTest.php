@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Phpanta\Test\Unit;
 
 use Phpanta\Http\Answer;
+use Phpanta\Http\CacheControl;
 use Phpanta\Http\ETag;
+use Phpanta\Http\Header;
 use Phpanta\Http\HttpStatusCode;
 use Phpanta\Http\RequestHeader;
 use Phpanta\Http\ResponseHeader;
 use Phpanta\Http\ViewResponse;
+use Phpanta\Support\Collection;
 use Phpanta\Test\TestRequest;
 use Phpanta\Text\Translatable;
 use Phpanta\Text\Verbatim;
@@ -84,12 +87,50 @@ final class RevalidationTest extends TestCase
         self::assertSame(HttpStatusCode::Ok, $whole->status());
         self::assertStringContainsString('<p>hello</p>', $whole->body());
 
-        foreach ([ETag::forBody($whole->body())->render(), '*'] as $validator) {
+        // The second is what a browser holds behind mod_deflate, `-gzip` inside the quotes: compared
+        // verbatim, no compressed page was ever answered with a 304.
+        $etag = ETag::forBody($whole->body())->render();
+
+        foreach ([$etag, substr($etag, 0, -1) . '-gzip"', '*'] as $validator) {
             $answer = self::answer($response, $validator);
 
-            self::assertSame(HttpStatusCode::NotModified, $answer->status());
+            self::assertSame(HttpStatusCode::NotModified, $answer->status(), $validator);
             self::assertSame('', $answer->body());
             self::assertNull($answer->header(ResponseHeader::ContentType), 'a 304 describes no content');
+        }
+    }
+
+    /**
+     * A validator for another page, or for a previous build, is not this response.
+     *
+     * @return void
+     */
+    public function testAStaleValidatorGetsTheWholePageBack(): void
+    {
+        $answer = self::answer(new ViewResponse(self::view()), '"0123456789abcdef"');
+
+        self::assertSame(HttpStatusCode::Ok, $answer->status());
+        self::assertStringStartsWith('<!DOCTYPE html>', $answer->body());
+    }
+
+    /**
+     * A response whose caller said how it may be kept — a page behind a password, `no-store` —
+     * carries no validator, and so cannot be short-circuited into a 304 by a guessed one either.
+     *
+     * @return void
+     */
+    public function testAResponseThatSaidHowItMayBeKeptIsNeverNotModified(): void
+    {
+        $response = new ViewResponse(self::view(), HttpStatusCode::Ok, new Collection(Header::class)->with(
+            new Header(ResponseHeader::CacheControl, CacheControl::doNotStore()),
+        ));
+        $body     = self::answer($response, '')->body();
+
+        foreach ([ETag::forBody($body)->render(), '*'] as $validator) {
+            $answer = self::answer($response, $validator);
+
+            self::assertSame(HttpStatusCode::Ok, $answer->status(), $validator);
+            self::assertSame($body, $answer->body());
         }
     }
 

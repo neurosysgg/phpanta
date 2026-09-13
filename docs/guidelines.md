@@ -7,9 +7,9 @@ written the long way; an **`@`** hides whatever it happens to be in front of; an
 exception** names the condition "something".
 
 None of those arguments is worth anything if it only holds for as long as whoever writes the next
-method remembers it. `GuidelineTest` is what holds it, over both source trees — the framework's and
-the vendoring site's; it still runs in the site's suite, see
-[testing.md](testing.md#what-still-lives-in-a-vendoring-site). How the rules arrived, and what they found on
+method remembers it. `GuidelineTest` is what holds it — the framework's over this tree, and a
+vendoring site's, with the same rules, over its own; see
+[testing.md](testing.md#the-rules-the-framework-holds-itself-to). How the rules arrived, and what they found on
 their first run, is in [history/types.md](history/types.md).
 
 ---

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Phpanta\Test\Unit;
 
+use Phpanta\Http\Answer;
 use Phpanta\Http\HttpStatusCode;
-use ReflectionProperty;
+use Phpanta\Http\Response;
+use Phpanta\Test\TestRequest;
 
 /**
  * What {@link UpdateTest} and a site's own API suite both have to be able to do, in one place.
@@ -20,9 +22,9 @@ use ReflectionProperty;
  * - **Build archives `TarWriter` will not.** That writer — deliberately — cannot produce a symlink,
  *   a device node, or a name with `..` in it, so a fixture built by it could only ever exercise the
  *   refusals that do not matter. These are raw ustar bytes, assembled by hand.
- * - **Read a response's status and body.** Both are private on {@link \Phpanta\Http\PlainTextResponse},
- *   because `send()` ends the request and there is nothing to assert against afterwards. That is
- *   the same split {@link \Phpanta\Service\Auth::accepts()} makes, seen from the test's side.
+ * - **Read a response's status and body** for a handler that returns one without a request to
+ *   answer — {@link \Phpanta\Http\Response::answer()} needs one, and these hand it a plain GET, so
+ *   a test asks for the status or the body in one call rather than building a request it never uses.
  */
 final class UpdateFixture
 {
@@ -104,21 +106,38 @@ final class UpdateFixture
     }
 
     /**
-     * @param object $response
+     * The status $response answers a plain GET with.
+     *
+     * @param Response $response
      * @return HttpStatusCode
      */
-    public static function statusOf(object $response): HttpStatusCode
+    public static function statusOf(Response $response): HttpStatusCode
     {
-        return new ReflectionProperty($response, 'status')->getValue($response);
+        return self::answerOf($response)->status();
     }
 
     /**
-     * @param object $response
+     * The body $response answers a plain GET with.
+     *
+     * @param Response $response
      * @return string
      */
-    public static function bodyOf(object $response): string
+    public static function bodyOf(Response $response): string
     {
-        return new ReflectionProperty($response, 'body')->getValue($response);
+        return self::answerOf($response)->body();
+    }
+
+    /**
+     * What $response answers a plain GET with. A handler's response does not depend on the request
+     * it is answered for — the request it depends on was the one handed to the handler — so any
+     * request will do, and the plainest is the one that says so.
+     *
+     * @param Response $response
+     * @return Answer
+     */
+    private static function answerOf(Response $response): Answer
+    {
+        return $response->answer(TestRequest::get('/')->request());
     }
 
     /**

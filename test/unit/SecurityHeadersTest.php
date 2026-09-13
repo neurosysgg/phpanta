@@ -10,11 +10,13 @@ use Phpanta\Http\HttpStatusCode;
 use Phpanta\Http\PlainTextResponse;
 use Phpanta\Http\Request;
 use Phpanta\Http\Response;
+use Phpanta\Http\Security\ContentTypeOptions;
 use Phpanta\Http\Security\CspDirective;
 use Phpanta\Http\Security\CspHost;
 use Phpanta\Http\Security\CspSource;
 use Phpanta\Http\Security\PermissionsPolicy;
 use Phpanta\Http\Security\PermissionsPolicyFeature;
+use Phpanta\Http\Security\ReferrerPolicy;
 use Phpanta\Http\Security\StrictTransportSecurity;
 use Phpanta\Http\SecurityHeader;
 use Phpanta\Http\SecurityHeaders;
@@ -55,6 +57,91 @@ final class SecurityHeadersTest extends TestCase
             'geolocation=(), camera=(), microphone=(), payment=(), usb=(), midi=()',
             $headers[SecurityHeader::PermissionsPolicy->value],
         );
+    }
+
+    /**
+     * What an app names is hosts, and hosts widen nothing but where bytes may come from. Whatever an
+     * app names, nothing runs inline — no `'unsafe-inline'` or `'unsafe-eval'` in `script-src` or
+     * `style-src`, which is the directive that actually stops XSS — no image is a `data:` URI,
+     * everything else is `'self'` first, and no page is framed by anyone.
+     *
+     * No view emits an inline style or handler, so the allowances would cover nothing; `data:` in
+     * `img-src` is a documented exfiltration channel for an attacker who has already found an
+     * injection. Both are asserted as absences because that is the whole claim, and because each is
+     * exactly what gets pasted back in by someone debugging a style or an image that will not load.
+     *
+     * @return void
+     */
+    public function testNoAppIsSentAnInlineAllowanceADataUriOrAFrame(): void
+    {
+        foreach (['the test app' => App::current(), 'a widened app' => self::widened()] as $which => $app) {
+            $policy = SecurityHeaders::contentSecurityPolicy($app)->render();
+
+            self::assertStringStartsWith("default-src 'self'", $policy, $which);
+            self::assertMatchesRegularExpression("/script-src 'self'[ ;]/", $policy, $which);
+            self::assertMatchesRegularExpression("/style-src 'self'[ ;]/", $policy, $which);
+            self::assertStringNotContainsString("'unsafe-", $policy, $which);
+            self::assertStringNotContainsString('data:', $policy, $which);
+            self::assertStringContainsString("frame-ancestors 'none'", $policy, $which);
+        }
+    }
+
+    /**
+     * Every header is sent, once, under the name its enum case gives it — and never empty.
+     *
+     * @return void
+     */
+    public function testEveryHeaderIsSentNamedByTheEnumAndNoneEmpty(): void
+    {
+        $headers = SecurityHeaders::headers();
+
+        self::assertSame(
+            array_map(static fn(SecurityHeader $h): string => $h->value, SecurityHeader::cases()),
+            array_keys($headers),
+        );
+
+        foreach ($headers as $name => $value) {
+            self::assertNotSame('', $value, "$name is sent with an empty value");
+        }
+    }
+
+    /**
+     * A redirect to another host or a framed embed would otherwise be handed the page's full URL.
+     *
+     * @return void
+     */
+    public function testTheReferrerPolicyKeepsThePathOffCrossOriginRequests(): void
+    {
+        self::assertSame(
+            ReferrerPolicy::StrictOriginWhenCrossOrigin->value,
+            SecurityHeaders::headers()[SecurityHeader::ReferrerPolicy->value],
+        );
+    }
+
+    /**
+     * @return void
+     */
+    public function testContentTypeOptionsIsNosniff(): void
+    {
+        self::assertSame(
+            ContentTypeOptions::NoSniff->value,
+            SecurityHeaders::headers()[SecurityHeader::ContentTypeOptions->value],
+        );
+    }
+
+    /**
+     * An app that loosens nothing is denied every feature the enum knows, including one added to it
+     * later — which a site that embeds a player asking for a feature has to know, and check.
+     *
+     * @return void
+     */
+    public function testEveryKnownFeatureIsDeniedByDefault(): void
+    {
+        $policy = SecurityHeaders::headers()[SecurityHeader::PermissionsPolicy->value];
+
+        foreach (PermissionsPolicyFeature::cases() as $feature) {
+            self::assertStringContainsString($feature->denied(), $policy);
+        }
     }
 
     /**

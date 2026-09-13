@@ -2,10 +2,7 @@
 
 How a request travels through Phpanta, the layers it passes, and the disciplines every layer keeps.
 A site's own layers — its controllers, models and views — are described in its own documents.
-
-Several tests named below are not in `test/unit/`: they still run in the suite of the site the
-framework came out of, reading both trees. [testing.md](testing.md#what-still-lives-in-a-vendoring-site)
-lists which, and why they have not moved yet.
+Every test named below is in `test/unit/`; [testing.md](testing.md) says what each area holds.
 
 ## The app
 
@@ -507,7 +504,7 @@ a decimal comma and a comma is this grammar's own separator.
 contradiction of the rule in the next section: unwrapping is *normalisation* — shorthand for the
 string a call site would otherwise have typed — where escaping and the scheme check are guarantees,
 which have to hold for an element built any way at all. `Attribute` holds a `?string`, so what a
-hostile `AttributeValue` returned is escaped exactly like anything else. `HtmlTest` builds one to
+hostile `AttributeValue` returned is escaped exactly like anything else. `MarkupTest` builds one to
 prove it.
 
 ### The two guarantees, and where they live
@@ -520,7 +517,7 @@ the only thing standing in front of.
 - **Escaping.** `Element` escapes an attribute value by rendering it as a `Text`, so
   `htmlspecialchars` is called in exactly one place, `Text::render()`, with
   `ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401` written out as `Text::FLAGS` rather than inherited
-  from the runtime. `HtmlTest` pins that call site the same way it pins `containingHtml()`'s.
+  from the runtime. `MarkupTest` pins that call site the same way it pins `containingHtml()`'s.
 - **Scheme.** An attribute the browser dereferences is asked what scheme it names, because escaping
   is the wrong tool for a URL — `javascript:alert(1)` contains not one character `htmlspecialchars`
   touches. `AttributeName::isUrl()` says which attributes those are, case by case and not enum by
@@ -541,7 +538,7 @@ the only thing standing in front of.
   started. Never test for "starts with a slash", and never list the prefixes an authority can open
   with: the parser strips tab, CR and LF *before* parsing, so `/\r\n/host` is `//host` is
   `https://host`. `Navigation.ts` makes the same check on the client, and `Location` asks the same
-  method of a redirect. `HtmlTest` pins every spelling, the two whitespace ones included, along with
+  method of a redirect. `MarkupTest` pins every spelling, the two whitespace ones included, along with
   the marked attribute set in both directions.
 
 ### Pretty-printing is not cosmetic
@@ -596,7 +593,7 @@ Four details are worth knowing before touching it:
   literal at all, so `Element` and `Doctype` stay the only two files that write one.
 - **A name is resolved with `tryFrom()`** on each of the vocabulary's enums, where the honest
   question is which case has this `tagName()`. The two are one question only because every case of
-  every vocabulary enum spells its name as its backing value, which `HtmlTest` pins. An enum missing
+  every vocabulary enum spells its name as its backing value, which `MarkupTest` pins. An enum missing
   from the vocabulary does not break the parser, it makes every one of that enum's names
   unparseable, which reads as the *markup* being wrong.
 - **The parsed nodes become children of the wrapping element rather than a `Fragment`**, and that is
@@ -613,7 +610,7 @@ a page few visitors load; it would not be on one anyone loads twice. Under Xdebu
 times that and the parse is unchanged, because the parse happens in C — worth knowing before a figure
 taken under one is quoted at the other.
 
-`HtmlTest` pins the call sites, so a second one has to be argued for in a test named for the fact.
+`MarkupTest` pins the call sites, so a second one has to be argued for in a test named for the fact.
 **Never parse anything a request can influence** — not because it would be an injection, which is
 what the refusals are for, but because the vocabulary is the site's own, so a visitor would
 otherwise get to choose which of its elements to build.

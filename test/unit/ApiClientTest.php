@@ -14,11 +14,12 @@ use Phpanta\Http\Api\HealthAction;
 use Phpanta\Http\Api\UpdateAction;
 use Phpanta\Http\AuthScheme;
 use Phpanta\Http\HttpMethod;
-use Phpanta\Http\Request as SiteRequest;
+use Phpanta\Http\ServerVariable;
 use Phpanta\Model\Api\VerifiedRequest;
 use Phpanta\Service\ApiGate;
 use Phpanta\Support\Directory;
 use Phpanta\Support\File;
+use Phpanta\Test\TestRequest;
 use Phpanta\Tool\Api\PrivateKey;
 use Phpanta\Tool\Api\SignedRequest;
 use Phpanta\Tool\Http\OutboundHeader;
@@ -28,6 +29,7 @@ use Phpanta\Tool\Http\Transport;
 use Phpanta\Tool\Http\Url;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Uri\Rfc3986\Uri;
 
 /**
  * The two halves of the signed handshake, checked against each other.
@@ -357,9 +359,10 @@ final class ApiClientTest extends TestCase
     /**
      * What the real gate makes of a request the real client built.
      *
-     * The outbound request is turned back into an inbound one by hand — that translation is what an
-     * HTTP round trip would do, and doing it here is what lets this run without a server. What is
-     * *not* restated is the format: the header value and the body go across untouched.
+     * The outbound request is turned back into an inbound one through {@link TestRequest} — that
+     * translation is what an HTTP round trip would do, and doing it here is what lets this run
+     * without a server. What is *not* restated is the format: the header value and the body go
+     * across untouched.
      *
      * @param Request $request
      * @return VerifiedRequest|null
@@ -369,18 +372,11 @@ final class ApiClientTest extends TestCase
         $credential = $request->header(OutboundHeader::Authorization);
         self::assertNotNull($credential);
 
-        $_SERVER = [
-            'REQUEST_METHOD'     => $request->method->value,
-            'REQUEST_URI'        => parse_url($request->url->render(), PHP_URL_PATH),
-            'HTTP_AUTHORIZATION' => $credential->value->render(),
-        ];
+        $inbound = TestRequest::to($request->method, Uri::parse($request->url->render())?->getPath() ?? '')
+            ->withServer(ServerVariable::Authorization, $credential->value->render())
+            ->withBody($request->hasBody() ? $request->body() : '')
+            ->request();
 
-        $inbound = SiteRequest::fromGlobals();
-        $gate    = new ApiGate($this->publicKeyFile, $this->serialFile);
-
-        return PhpInputStream::around(
-            $request->hasBody() ? $request->body() : '',
-            static fn(): ?VerifiedRequest => $gate->accepts($inbound),
-        );
+        return new ApiGate($this->publicKeyFile, $this->serialFile)->accepts($inbound);
     }
 }
