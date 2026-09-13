@@ -23,8 +23,8 @@ use Phpanta\Support\File;
  * what the log says is what a reader goes looking for once something has gone wrong, and no floor
  * applies to it.
  *
- * It exists because the live host's error configuration was once stated as measured fact in five
- * separate docblocks, every one a copy of one measurement taken by hand. This re-takes it.
+ * It exists because a host's error configuration is otherwise stated as fact wherever somebody
+ * wrote it down, every copy of one measurement taken by hand. This re-takes it.
  *
  * A read: it writes nothing and consumes no serial, and opens only the log, only for reading, and
  * never more than its last {@link self::MAX_LOG} bytes.
@@ -37,7 +37,7 @@ final readonly class CapabilityErrors implements ApiHandler
      * A quarter of a megabyte: generous for twenty lines, and small enough that a month of a noisy
      * host cannot be pulled through a response. A log over it is still quoted — from its last
      * quarter-megabyte, which is where the lines worth reading are. It once refused such a log
-     * outright, which was right while the log was the host's and wrong once it became this site's
+     * outright, which was right while the log was the host's and wrong once it became the app's
      * own: the file most worth reading would have been the one it would not open.
      */
     private const int MAX_LOG = 262_144;
@@ -77,7 +77,7 @@ final readonly class CapabilityErrors implements ApiHandler
      * {@link \Phpanta\Support\Diagnostics} rejects it for being process-global and sticky, which
      * is true and is beside the point: that objection is about attributing a diagnostic to one
      * call, and this asks the process-global question on purpose. Better than that — a diagnostic
-     * a userland handler takes never populates it at all, and every `@` in this repository is now
+     * a userland handler takes never populates it at all, and every `@` in the framework is now
      * a `Diagnostics::muted()`. So what this line reports is precisely the diagnostics **nothing
      * here handled**, which is exactly the set worth knowing about.
      *
@@ -108,8 +108,8 @@ final readonly class CapabilityErrors implements ApiHandler
      *
      * Three answers where there is no tail, because "there is no tail" has three quite different
      * causes and the difference is the whole diagnostic: no destination configured at all, a
-     * destination naming nothing, and a file that is there and cannot be read. The first was the
-     * live host's own state before {@link \Phpanta\Support\ErrorLog} — see
+     * destination naming nothing, and a file that is there and cannot be read. The first is a
+     * shared host's usual state without {@link \Phpanta\Support\ErrorLog} — see
      * {@link PhpSetting::ErrorLog} — and the section is simply absent for it, since the `errors`
      * section above has already said the destination is empty.
      *

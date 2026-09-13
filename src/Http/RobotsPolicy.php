@@ -14,16 +14,15 @@ use Phpanta\Support\Collection;
  * {@link CacheControl::of()} and {@link Vary::on()} — an empty `X-Robots-Tag` is a malformed
  * header, not a permissive one, and a page with nothing to ask simply omits it.
  *
- * **Note what this is and is not.** It is *not* the thing keeping demos out of search results —
+ * **Note what this is and is not.** It is *not* the thing keeping gated pages out of search results —
  * {@link \Phpanta\Service\Auth} is, because a crawler gets a 401 and there is nothing behind it to
  * index. What this covers is the case the gate cannot: a page that has already been opened with the
  * password, by a browser or an extension that then reports what it saw. That is a narrow gap and
  * this is a cheap thing to put in it.
  *
- * **`robots.txt` is deliberately not the tool for this.** A `Disallow: /demos/` would be a public
- * file naming the private half of the site, which is the opposite of the point — the same reason
- * `/demos` is not a route and `data/demos.php` is gitignored. A header says it only to whoever was
- * already let in.
+ * **`robots.txt` is deliberately not the tool for this.** A `Disallow: /private/` would be a public
+ * file naming the private half of the site, which is the opposite of the point. A header says it
+ * only to whoever was already let in.
  */
 final readonly class RobotsPolicy implements HeaderValue
 {
@@ -35,10 +34,10 @@ final readonly class RobotsPolicy implements HeaderValue
     private function __construct(private Collection $directives) {}
 
     /**
-     * Everything this site knows how to ask for, which is what a demo page asks.
+     * Everything the framework knows how to ask for, which is what a gated page asks.
      *
      * One factory rather than a set of them, because there is one answer here: a page is either
-     * public and says nothing, or it is behind the demo gate and says all three.
+     * public and says nothing, or it is behind a gate and says all three.
      *
      * @return self
      */

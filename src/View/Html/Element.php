@@ -30,12 +30,12 @@ use Uri\WhatWg\Url;
  * Immutable, like the policies and the collections: every builder method returns a new instance.
  *
  * **Every guarantee is applied in {@link self::render()}, not in the builders.** That is what makes
- * this class the trust boundary it claims to be: `render()` is the only code on the site that turns
+ * this class the trust boundary it claims to be: `render()` is the only code in the framework that turns
  * a node into markup, so a guarantee enforced there holds for *any* element however it was built —
  * including one assembled by handing the constructor its attributes outright, which the builders
  * would otherwise be the only thing standing in front of. Three are enforced:
  *
- * - **escaping**, by rendering each value as a {@link Text}, which is the site's single
+ * - **escaping**, by rendering each value as a {@link Text}, which is the framework's single
  *   call to `htmlspecialchars`;
  * - **scheme**, for the attributes {@link AttributeName::isUrl()} marks, because escaping is the
  *   wrong tool for a URL and always was — `javascript:alert(1)` contains nothing to escape;
@@ -45,7 +45,7 @@ use Uri\WhatWg\Url;
  *
  * Rendering pretty-prints. An element whose children are all elements puts each on its own line;
  * one with any {@link Text} among them stays on a single line, because whitespace between inline
- * content is content. That rule is why `<h1>ill<span>.</span></h1>` does not gain a space.
+ * content is content. That rule is why `<h1>name<span>.</span></h1>` does not gain a space.
  */
 final readonly class Element implements Node
 {
@@ -57,8 +57,8 @@ final readonly class Element implements Node
      * a denylist has to catch `jav&#9;ascript:` and every other spelling of the same word, while an
      * allowlist simply never says yes to it.
      *
-     * These two plus site-relative cover every link the site emits — `https:` for HiDrive and the
-     * profiles, `mailto:` for the footer and imprint, `/…` for everything of our own. Note what is
+     * These two plus site-relative cover every link a site needs — `https:` for anywhere else,
+     * `mailto:` for a contact address, `/…` for its own pages. Note what is
      * absent and why: `http:` because {@link \Phpanta\Http\Security\StrictTransportSecurity} means
      * we do not emit one, and `data:` because a `data:text/html` document runs script in the
      * origin that navigated to it.
@@ -66,7 +66,7 @@ final readonly class Element implements Node
      * **A list of cases rather than {@link UrlScheme::cases()}**, which would say the same thing
      * today and stop saying it the moment a scheme is added for one call site. This is what is
      * switched on; the enum is the vocabulary it may be written in — the distinction
-     * {@link \Phpanta\Http\Security\CspScheme::Data} makes on the other side of the site, where
+     * {@link \Phpanta\Http\Security\CspScheme::Data} makes on the other side of the framework, where
      * a case is kept for a source the policy deliberately does not allow.
      *
      * @var list<UrlScheme>
@@ -76,7 +76,7 @@ final readonly class Element implements Node
     /**
      * The host a site-relative URL is resolved against, and that host on its own.
      *
-     * Not this site's origin, and deliberately not: the question a path-shaped value has to answer
+     * Not the app's origin, and deliberately not: the question a path-shaped value has to answer
      * is "does this stay wherever the page is served from?", which no address of ours is needed to
      * ask. `.invalid` is reserved by RFC 2606 and resolves nowhere, so nothing here can be mistaken
      * for somewhere to fetch from, and the class stays uncoupled from where the site is deployed.
@@ -93,8 +93,7 @@ final readonly class Element implements Node
      *
      * Keyed rather than listed, which is what keeps **the last write and the declaration order**:
      * setting `class` twice leaves one attribute, where the first one was written. Not promoted,
-     * for the reason `SoundCloudEmbed::$options` is not — the default
-     * is a `new`, and a parameter default has to be a constant expression.
+     * because the default is a `new`, and a parameter default has to be a constant expression.
      *
      * @var SearchableCollection<Attribute>
      */
@@ -146,16 +145,16 @@ final readonly class Element implements Node
      * | `$value`      | rendered              |
      * |---------------|-----------------------|
      * | `'visual'`, 5 | `player-style="visual"`, `height="5"` |
-     * | `CssClass::Hero`, any backed enum | its value — `class="hero"` |
+     * | `LinkTarget::Blank`, any backed enum | its value — `target="_blank"` |
      * | `new ViewportContent(…)`, any {@link AttributeValue} | what it renders |
-     * | `Texts::Releases::CoverArt`, any {@link Translatable} | its text, in the element's language, at render |
+     * | `Catalog::Caption`, any {@link Translatable} | its text, in the element's language, at render |
      * | `''`          | `options=""` — an empty value, which is not the same as no attribute |
      * | `true`        | `narrow` — a bare boolean attribute |
      * | `false`, null | nothing at all        |
      *
-     * The `''` and `null` rows are the distinction worth keeping straight: a public SoundCloud
-     * track has no secret token, and `secret-token=""` is not the same thing to the client as no
-     * attribute — so an absent value is `null`, and `''` stays a real empty value.
+     * The `''` and `null` rows are the distinction worth keeping straight: a custom element may
+     * read `token=""` differently from no `token` at all — so an absent value is `null`, and `''`
+     * stays a real empty value.
      *
      * This only normalises and stores. Escaping and the URL check both happen in
      * {@link self::render()}, so neither can be got around by building an element another way.
@@ -196,7 +195,7 @@ final readonly class Element implements Node
             );
         }
 
-        // A backed enum stands for its value, so a call site passes CssClass::Hero rather than
+        // A backed enum stands for its value, so a call site passes LinkTarget::Blank rather than
         // remembering ->value — one fewer thing to get right at twenty call sites.
         if ($value instanceof BackedEnum) {
             $value = $value->value;
@@ -259,14 +258,14 @@ final readonly class Element implements Node
      *
      * The safe twin of {@link self::containing()}, and the pair is worth reading together:
      * `containing('<b>x</b>')` puts visible `&lt;b&gt;` on the page, because a string is content;
-     * this parses the same argument into a real `<b>` — after checking that `b` is an element this
-     * site emits, that everything on it is an attribute this site emits, and that the parser had to
+     * this parses the same argument into a real `<b>` — after checking that `b` is an element the
+     * app emits, that everything on it is an attribute the app emits, and that the parser had to
      * repair nothing to read it. See {@link MarkupParser}, which is where all of that lives.
      *
      * **This is the one door for markup authored outside PHP**, and it carries a standing
      * instruction: never hand it anything a request can influence. The refusals mean it would not be an
-     * injection, but the vocabulary being this site's own means a visitor would otherwise get to
-     * choose which of our elements to build.
+     * injection, but the vocabulary being the app's own means a visitor would otherwise get to
+     * choose which of its elements to build.
      *
      * The parsed nodes become children of *this* element rather than being wrapped in a
      * {@link Fragment}, which is what keeps a document coming back out as it went in: a parse keeps
@@ -334,7 +333,7 @@ final readonly class Element implements Node
      *
      * Asked of the app's {@link \Phpanta\Text\Languages} rather than of {@link Language} itself,
      * because the framework knows languages an app may not be written in. A `lang` this app does not
-     * offer — `fr` on a quotation, or a language the framework has and this site does not write —
+     * offer — `fr` on a quotation, or a language the framework has and this app does not write —
      * leaves the language in scope as it was, rather than switching every translation under it into
      * a language whose half this app never wrote.
      *
@@ -386,7 +385,7 @@ final readonly class Element implements Node
                 $this->verifyUrl($name, $value);
             }
 
-            // Escaped by rendering a Text, so the site has one call to htmlspecialchars, not two.
+            // Escaped by rendering a Text, so the framework has one call to htmlspecialchars, not two.
             // Correct here because an attribute value is always emitted inside double quotes.
             $rendered .= ' ' . $name . '="' . new Text($value)->render() . '"';
         }
@@ -403,9 +402,9 @@ final readonly class Element implements Node
      */
     #[BareCall(
         'array_map',
-        'maps a class constant for the reason Layout::modulePreloads() does, and does it on the '
-        . 'throwing branch — the schemes are being listed into a refusal, so this is work done '
-        . 'only on the path where the site is already wrong.',
+        'maps a class constant, which a Collection would be built around only to be read once, and '
+        . 'does it on the throwing branch — the schemes are being listed into a refusal, so this is '
+        . 'work done only on the path where the app is already wrong.',
     )]
     private function verifyUrl(string $name, string $value): void
     {

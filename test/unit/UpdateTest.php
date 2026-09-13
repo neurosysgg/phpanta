@@ -28,7 +28,7 @@ use PHPUnit\Framework\TestCase;
  * The update service: what it will write, what it refuses, and what it says about either.
  *
  * **Everything here is past the signature**, which is the line this file was split on when
- * `/update` became `/api/update/v1/patch`. {@link ApiTest} owns the half that refuses in silence —
+ * `/update` became `/api/update/v1/patch`. The site's own API suite owns the half that refuses in silence —
  * the credential, the envelope, the gate, and the property that an unsigned caller cannot tell any
  * of it from a typo. What is left is the half that refuses *out loud*, so these tests assert the
  * sentence, because past the signature the sentence is the only account of the run that exists.
@@ -59,8 +59,8 @@ final class UpdateTest extends TestCase
     /**
      * A sandbox deployment per test.
      *
-     * No key and no serial file, which is the whole difference between this file and
-     * {@link ApiTest}: nothing here is reached through a signature, so nothing here needs one.
+     * No key and no serial file, which is the whole difference between this file and the site's
+     * own API suite: nothing here is reached through a signature, so nothing here needs one.
      * {@link UpdateApplier} takes its {@link Deployment} as a constructor argument precisely so a
      * test cannot reach the live tree rather than being unlikely to.
      *
@@ -68,7 +68,7 @@ final class UpdateTest extends TestCase
      */
     protected function setUp(): void
     {
-        $this->sandbox = sys_get_temp_dir() . '/neurosys-update-' . bin2hex(random_bytes(6));
+        $this->sandbox = sys_get_temp_dir() . '/phpanta-update-' . bin2hex(random_bytes(6));
         new Directory($this->sandbox)->create();
     }
 
@@ -83,7 +83,7 @@ final class UpdateTest extends TestCase
     }
 
     /**
-     * Every member shape this site will not write, refused by name.
+     * Every member shape the endpoint will not write, refused by name.
      *
      * @param string $name
      * @param string $type
@@ -256,14 +256,14 @@ final class UpdateTest extends TestCase
     }
 
     /**
-     * `data` is not a root, which is the single rule keeping the credentials and the demos safe.
+     * `data` is not a root, which is the single rule keeping the credentials and a site's own data safe.
      *
      * @return void
      */
     public function testDataIsNotARoot(): void
     {
         self::assertNull(UpdateRoot::of('data/admin.php'));
-        self::assertNull(UpdateRoot::of('data/demos.php'));
+        self::assertNull(UpdateRoot::of('data/posts.php'));
         self::assertNull(UpdateRoot::of('data'));
         self::assertSame(
             ['public', 'src', 'autoload.php', 'phpanta'],
@@ -369,7 +369,7 @@ final class UpdateTest extends TestCase
 
         $source = new Directory($this->sandbox . '/src');
         self::assertTrue($source->create());
-        self::assertTrue($source->file('Site.php')->write('<?php // deployed'));
+        self::assertTrue($source->file('Blog.php')->write('<?php // deployed'));
 
         $webroot = new Directory($this->sandbox . '/public');
         self::assertTrue($webroot->create());
@@ -382,7 +382,7 @@ final class UpdateTest extends TestCase
             self::manifest(apply: false, mirror: true),
         );
         self::assertStringNotContainsString('- phpanta/src/App.php', $planned->render());
-        self::assertStringNotContainsString('- src/Site.php', $planned->render());
+        self::assertStringNotContainsString('- src/Blog.php', $planned->render());
         self::assertStringContainsString('- public/stale.js', $planned->render());
         self::assertStringContainsString('note: phpanta/ is not in this push', $planned->render());
 
@@ -394,7 +394,7 @@ final class UpdateTest extends TestCase
             $framework->file('App.php')->read(),
             'the mirror deleted a root the push did not carry',
         );
-        self::assertSame('<?php // deployed', $source->file('Site.php')->read());
+        self::assertSame('<?php // deployed', $source->file('Blog.php')->read());
         self::assertFalse($webroot->file('stale.js')->exists(), 'the root the push did carry was not mirrored');
         self::assertStringContainsString('note: src/ is not in this push', $report->render());
     }
@@ -610,7 +610,7 @@ final class UpdateTest extends TestCase
      * A file the payload does not change is not rewritten, and the dry run says so first.
      *
      * **The assertion that matters is the mtime**, not the count. Rewriting an identical file is
-     * harmless on every filesystem but the one this deploys to: Strato serves off NFS, and
+     * harmless on every filesystem but one a shared host may well serve off — NFS — and
      * {@link File::write()} renames its temp file onto the target, so rewriting `public/index.php`
      * while the request executes out of it silly-renames the open inode aside as `.nfsXXXXXXXX`.
      * The mirror then meets that stray in the same request and cannot delete it — one undeletable
@@ -780,7 +780,7 @@ final class UpdateTest extends TestCase
     // ───────────────────────────── the deployment ─────────────────────────────
 
     /**
-     * The deployment a real request runs in comes from `Config`, and nowhere else.
+     * The deployment a real request runs in comes from the booted app, and nowhere else.
      *
      * Asserted here rather than left to production because {@link Deployment::current()} is the one
      * constructor a test must never reach by accident — it is what resolves the *live* tree, and
@@ -878,7 +878,7 @@ final class UpdateTest extends TestCase
      * The signature is over the *manifest*, and the manifest vouches for the archive by digest —
      * so bytes that are not gzip at all can still be perfectly signed. What the caller then sees is
      * a 422 with this sentence in it, which is {@link \Phpanta\Controller\ApiController}'s to
-     * build and {@link ApiTest}'s to assert; what this file owns is that the handler refuses by
+     * build and the site's own API suite's to assert; what this file owns is that the handler refuses by
      * throwing rather than by answering, since a refusal that came back as a `Response` would be
      * indistinguishable from a push that ran.
      *
@@ -949,7 +949,7 @@ final class UpdateTest extends TestCase
      * **The important word is *only*.** A sandbox supplied through `$_SERVER['DOCUMENT_ROOT']`
      * reaches `App::webroot()`, whose job is to find the *real* deployment, and `src/` is not
      * redirected by it at all. Injecting the whole {@link Deployment} is what makes the live tree
-     * unreachable from a test rather than unlikely. See docs/history/api.md.
+     * unreachable from a test rather than unlikely.
      *
      * @return UpdateApplier
      */
@@ -982,7 +982,7 @@ final class UpdateTest extends TestCase
      * becoming a response — a 422 for an archive that will not expand, a 500 for a run that could
      * not write everything — and none of that has anything to say about signatures. Reaching it
      * through {@link \Phpanta\Controller\ApiController} would mean minting a credential to test
-     * the shape of a sentence. {@link ApiTest} takes the same path end to end, once, which is where
+     * the shape of a sentence. The site's own API suite takes the same path end to end, once, which is where
      * a claim about the wiring belongs.
      *
      * @param string $archive

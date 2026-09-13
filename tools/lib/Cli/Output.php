@@ -7,10 +7,10 @@ namespace Phpanta\Tool\Cli;
 /**
  * The Output class. The two streams a command writes to, and the only `fwrite` in this layer.
  *
- * Which stream carries what is the command's decision rather than this class's: `stage-release`
- * puts its report on stderr and the entry it generates on stdout, so `> entry.php` keeps one and
- * `2>&1 >/dev/null` keeps the other, while `merge-coverage` puts its whole report on stdout because
- * the report *is* what it was run for.
+ * Which stream carries what is the command's decision rather than this class's: a command that
+ * generates a data-file entry puts its report on stderr and the entry on stdout, so `> entry.php`
+ * keeps one and `2>&1 >/dev/null` keeps the other, while `merge-coverage` puts its whole report on
+ * stdout because the report *is* what it was run for.
  *
  * The streams are constructor arguments so a test can hand it memory and read back what a command
  * wrote — which is the same reason `SecurityHeaders::headers()` is public next to `send()`.

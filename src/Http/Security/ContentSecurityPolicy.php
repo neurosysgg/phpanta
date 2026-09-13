@@ -86,10 +86,7 @@ final readonly class ContentSecurityPolicy implements HeaderValue
      */
     #[BareArray(
         'a door, and one only the tests walk through: this exists so a suite can assert which '
-        . 'origins a policy names, and both do it against a plain list. The reason here used to be '
-        . 'that unique() had never been written, on the grounds that this was its only caller — '
-        . 'which stopped being true when Demo::verify() became the second, so it was written and '
-        . 'the array_values(array_unique(…)) under this sentence went with it.',
+        . 'origins a policy names, and it does so against a plain list.',
     )]
     public function hosts(): array
     {

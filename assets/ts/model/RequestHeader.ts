@@ -6,8 +6,8 @@ export enum RequestHeader {
 
   /**
    * Written by no client code — the browser sends it on its own, from the ETag the server gave it.
-   * Named here only so this mirror stays comparable case for case, the way EmbedAttribute.Loaded
-   * has a PHP case it is never emitted from.
+   * Named here only so this mirror stays comparable case for case: a case one side never writes is
+   * still a case both sides have.
    */
   IfNoneMatch = 'If-None-Match',
 
@@ -20,7 +20,7 @@ export enum RequestHeader {
 
   /**
    * Written by no client code either — the browser sends it from the visitor's own language
-   * settings, and the imprint and the privacy policy order their two halves by it. Here for the
+   * settings, and a page written in more than one language picks the one it leads with. Here for the
    * same reason IfNoneMatch and Range are: the mirror is compared case for case.
    */
   AcceptLanguage = 'Accept-Language',

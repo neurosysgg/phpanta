@@ -8,7 +8,7 @@ namespace Phpanta\Exception;
  * The UpdateException class. Thrown when an update payload cannot be read or cannot be applied.
  *
  * **A subclass of {@link ApiException} rather than a sibling of it**, which is the arrangement
- * {@link MarkupException} has with its three: one `catch` at the gate covers every way a signed
+ * {@link MarkupException} has with its two: one `catch` at the gate covers every way a signed
  * request can fail, and neither this class nor a later one has to be listed there. It said
  * `extends RuntimeException` before there was an API around it, and `ApiException` is a
  * `RuntimeException`, so nothing a caller could do changed — only that the throw now says which

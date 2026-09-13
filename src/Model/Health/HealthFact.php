@@ -27,7 +27,7 @@ final readonly class HealthFact
     /**
      * How wide the name column is at least.
      *
-     * Sized for the names a report of this site's own facts has — `max_execution_time`, at
+     * Sized for the names a report of an installation's own facts has — `max_execution_time`, at
      * eighteen, is the longest a health check prints. `capability v1 settings` lists every
      * directive the engine has, and those run to nearly forty, which is why a section may widen
      * this rather than let three hundred lines each overrun by a different amount.
@@ -55,7 +55,7 @@ final readonly class HealthFact
      *
      * @param string $name What is being reported. Wherever the fact has a vocabulary of its own
      *                     this is that vocabulary's backing value rather than a literal — a
-     *                     {@link PhpSetting}, a {@link PhpExtension}, a `DataFile`
+     *                     {@link PhpSetting}, a {@link PhpExtension}, a {@link \Phpanta\DataFileName}
      *                     — so a name in the report is a name in the code.
      * @param string $value Its value, or `''` where there is none to be had. Empty and absent
      *                      collapse the way {@link \Phpanta\Support\File::read()} collapses them:

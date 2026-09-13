@@ -12,7 +12,7 @@ use Phpanta\Support\Collection;
  *
  * Built from {@link RequestHeader} cases rather than from their names, which is the point: `Vary`
  * names *other headers*, so writing it as a string means one header's name spelled twice in two
- * places — exactly the drift `RequestHeader` exists to stop. The one this site sends is
+ * places — exactly the drift `RequestHeader` exists to stop. Every page names
  * `X-Requested-With`, and it is load-bearing: {@link ViewResponse} answers one URL with a whole
  * document or a content fragment depending on that header, so a cache that did not know would be
  * free to hand either to the other.

@@ -4,7 +4,7 @@
  * The framework's PHPUnit bootstrap.
  *
  * Its tests run under {@link \Phpanta\Test\TestApp} rather than any site, so what they prove is
- * true of the framework on its own: a test that only passed with this site's languages, routes or
+ * true of the framework on its own: a test that only passed with a site's languages, routes or
  * data files booted would be a test of the site.
  */
 

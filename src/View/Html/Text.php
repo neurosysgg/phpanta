@@ -14,10 +14,10 @@ use Phpanta\Text\Language;
  * caller can forget — it is the only way text can get in. {@link Element::containing()} wraps bare
  * strings in one automatically, which means the unsafe thing is the thing you cannot type by
  * accident: markup in a string renders as visible `&lt;b&gt;`, and getting real markup in takes
- * {@link Element::containingHtml()}, which parses it against this site's own vocabulary rather
+ * {@link Element::containingHtml()}, which parses it against the app's own vocabulary rather
  * than trusting it.
  *
- * **This is the only `htmlspecialchars()` call on the site, and `HtmlTest` pins it there.**
+ * **This is the only `htmlspecialchars()` call in the framework, and worth a test pinning it there.**
  * {@link Element} escapes its attribute values by rendering one of these rather than calling the
  * function a second time, so the whole document's escaping is one line with one set of flags. That
  * is the point: a guarantee spread over two call sites is a guarantee that can be half-changed.
@@ -52,7 +52,7 @@ final readonly class Text implements Node
     public function __construct(public string $text) {}
 
     /**
-     * The encoding is the site's one {@link Charset} rather than a constant of this class, for the
+     * The encoding is the framework's one {@link Charset} rather than a constant of this class, for the
      * same reason {@link self::FLAGS} is written out rather than inherited: this is the line the
      * whole document's safety rests on, and a second name for the encoding is a second thing that
      * can be changed alone.

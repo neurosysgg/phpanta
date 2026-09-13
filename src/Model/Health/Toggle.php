@@ -14,7 +14,7 @@ namespace Phpanta\Model\Health;
  * **Read the way PHP reads a boolean directive**, with `filter_var()`'s boolean filter: `1`, `On`,
  * `yes` and `true` are on, and `0`, `Off`, `no`, `false` and `''` are off. **Anything else meets
  * neither** — and that is not pedantry. `display_errors` accepts `stderr`, which is neither on nor
- * off in the sense this site means: it is on, somewhere else. A switch that read it as off would
+ * off in the sense a health check means: it is on, somewhere else. A switch that read it as off would
  * pass exactly the host this check is for.
  */
 enum Toggle: string implements SettingConstraint

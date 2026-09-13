@@ -19,10 +19,10 @@ use Phpanta\Support\Collection;
  *
  * Sent from `public/index.php` before anything is dispatched, so they cover every response the
  * application produces — including the 401 {@link \Phpanta\Service\Auth} exits with, the 405
- * {@link \Phpanta\Router} refuses a write method with, and the 303 a download redirects with.
+ * {@link \Phpanta\Router} refuses a write method with, and every redirect.
  *
  * Every value here is a typed object rather than a header string: see {@link CspDirective},
- * {@link CspSource}, {@link ReferrerPolicy} and {@link PermissionsPolicyFeature}. A misspelled
+ * {@link Security\CspSource}, {@link ReferrerPolicy} and {@link PermissionsPolicyFeature}. A misspelled
  * directive or an unquoted `'self'` is a parse error now, not a header the browser drops.
  *
  * Three of the five are the app's to widen — {@link App::contentHosts()},
@@ -64,7 +64,7 @@ final class SecurityHeaders
      * Every header this class sends, as the typed pairs it sends them as.
      *
      * Each is a {@link SecurityHeader} case beside its {@link HeaderValue}, so no case is flattened to
-     * a string and parsed back with `from()` one line later. See docs/history/security.md.
+     * a string and parsed back with `from()` one line later. See docs/security.md.
      *
      * A {@link Collection} rather than a list, because that is already what
      * {@link ViewResponse}, {@link PlainTextResponse} and {@link FileResponse} each take: the
@@ -97,19 +97,19 @@ final class SecurityHeaders
      *
      * Public because it is the honest answer to "what does the site send?" — and it stays a
      * name-to-string map rather than becoming a list of objects, because that is the shape its
-     * readers want: the tests ask it what a named header says, and so does
-     * `test/js/soundcloud-player.test.mjs`, which shells out to PHP for the `Permissions-Policy`
-     * to check the player is not denied something it needs. Rendering {@link self::all()} is a
-     * view over the typed list, not a second statement of it.
+     * readers want: the tests ask it what a named header says, and so can a client test, which
+     * shells out to PHP for the `Permissions-Policy` to check an embedded player is not denied
+     * something it needs. Rendering {@link self::all()} is a view over the typed list, not a
+     * second statement of it.
      *
      * @param App|null $app As for {@link self::all()}.
      * @return array<string, string>
      */
     #[BareArray(
-        'the door: a rendered view of self::all() for readers outside the type, one of them '
-        . 'outside PHP — test/js/soundcloud-player.test.mjs shells out for a single header by '
-        . 'name. A SearchableCollection here would be a second statement of the typed list rather '
-        . 'than a view over it.',
+        'the door: a rendered view of self::all() for readers outside the type, some of them '
+        . 'outside PHP — a client test can shell out for a single header by name. A '
+        . 'SearchableCollection here would be a second statement of the typed list rather than a '
+        . 'view over it.',
     )]
     public static function headers(?App $app = null): array
     {
@@ -128,20 +128,16 @@ final class SecurityHeaders
      * `script-src` is strict — there are no inline handlers or inline scripts left in any view,
      * which is the directive that actually blocks XSS.
      *
-     * `style-src` is strict too. It carried {@link CspKeyword::UnsafeInline} for as long as
-     * SoundCloud's attribution block was reproduced as HTML with inline `style` attributes. That
-     * block is built by `<soundcloud-player>` now, which sets the same properties through the
-     * CSSOM — element.style, which CSP does not govern — so the styling is unchanged and the
-     * allowance has nothing left to cover. Nothing else emits an inline style; a test enforces it.
+     * `style-src` is strict too, with no {@link CspKeyword::UnsafeInline}. No view emits an inline
+     * style, and a test enforces it; an element that has to style itself at run time sets the
+     * properties through the CSSOM — element.style, which CSP does not govern — so the allowance
+     * would have nothing to cover.
      *
-     * `img-src` carried {@link Security\CspScheme::Data} on the same terms, and lost it for the same
-     * reason. The comment on that case said the cover placeholder needed it; the placeholder is a
-     * self-contained SVG that references nothing at all, and no page, stylesheet or element on
-     * this site emits a `data:` image. So the allowance covered nothing while widening the one
-     * directive that governs where bytes may be fetched from — and `data:` in `img-src` is a
-     * documented exfiltration channel for an attacker who has already found an injection.
-     * The site's own images are the placeholder and whatever HiDrive serves, and those are what
-     * it now says.
+     * `img-src` carries no {@link Security\CspScheme::Data}, for the same reason: a placeholder
+     * image can be a file, and nothing else needs one. The allowance would widen the one directive
+     * that governs where bytes may be fetched from — and `data:` in `img-src` is a documented
+     * exfiltration channel for an attacker who has already found an injection. A page's images
+     * are its own and whatever hosts the app names, and those are what it says.
      *
      * **Every fetch directive but two takes the app's hosts** — see {@link App::contentHosts()}.
      * `connect-src`, `media-src` and `font-src` are written only when the app names one, because
@@ -150,27 +146,25 @@ final class SecurityHeaders
      *
      * **There is deliberately no `report-uri` or `report-to`**, and the reason is worth having
      * written down, because on a policy this strict a reporting endpoint is the obvious next
-     * suggestion. It would be a good one on most sites. Here it collides with three things this
-     * one has decided on purpose:
+     * suggestion. It would be a good one on most sites. Here it collides with three things the
+     * framework has decided on purpose:
      *
      * - A report is a **POST**. {@link \Phpanta\Router::dispatch()} answers anything but GET and
      *   HEAD with a 405, the `Allow` header is derived from {@link HttpMethod::isReadOnly()} so it
-     *   cannot claim otherwise, and both suites assert it. A first-party endpoint means carving an
+     *   cannot claim otherwise, and the suites assert it. A first-party endpoint means carving an
      *   exception into the one gate whose whole value is having none.
      * - A third-party collector is a third-party origin, receiving a request from every visitor,
-     *   before any consent. That is the arrangement `docs/branding.md` vendors the brand icons to
-     *   avoid and the arrangement `<soundcloud-player>`'s gate exists to defer.
+     *   before any consent. That is the arrangement a site vendors its third-party assets to avoid,
+     *   and a consent gate in front of an embed exists to defer.
      * - A report carries `document-uri`, `referrer` and `blocked-uri`. Collecting those is a
-     *   privacy-policy decision before it is a code one, on exactly the terms
-     *   {@link Site::DOWNLOAD_LOGGING} is switched off on: the privacy policy makes no such
-     *   claim, so it would have to be amended first.
+     *   privacy-policy decision before it is a code one: a site's privacy policy would have to
+     *   claim that data before a report could carry it.
      *
      * `report-to` also wants a `Reporting-Endpoints` header, which would be a sixth
      * {@link SecurityHeader} case naming an endpoint that does not exist. What stands in for
-     * reporting here is that the policy is asserted rather than observed: `SecurityTest` pins the
-     * hosts it names, `ViewTest` and the verify script both fail on an inline style or handler, and
-     * `HtmlTest` checks every `Tag` case against the stylesheet. A future change that would violate
-     * this policy fails the build instead of a stranger's browser.
+     * reporting here is that the policy is asserted rather than observed: the suites pin the
+     * directive set and the hosts it names, and fail on an inline style or handler in any view. A
+     * future change that would violate this policy fails the build instead of a stranger's browser.
      *
      * @param App|null $app As for {@link self::all()}.
      * @return ContentSecurityPolicy
@@ -211,8 +205,8 @@ final class SecurityHeaders
     }
 
     /**
-     * A download 303 hands the release URL to HiDrive as a `Referer` otherwise, and the framed
-     * player receives the full page URL once it loads. Same-origin navigation keeps the path, so
+     * A redirect to a file host hands it the page's full URL as a `Referer` otherwise, and a framed
+     * embed receives the full page URL once it loads. Same-origin navigation keeps the path, so
      * SPA links still work as expected.
      *
      * @return ReferrerPolicy

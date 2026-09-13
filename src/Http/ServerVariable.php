@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\Http;
 
 /**
- * The ServerVariable enum. The `$_SERVER` keys this site names outright.
+ * The ServerVariable enum. The `$_SERVER` keys the framework names outright.
  *
  * Every reader of `$_SERVER` here ends in a default — `?? 'GET'`, `?? '/'`, `?? ''` — because a
  * key that did not arrive is an ordinary thing rather than an error. That is exactly what makes a
@@ -39,10 +39,10 @@ enum ServerVariable: string
      *
      * **The one place a typo here fails closed.** An empty user is the signal
      * {@link Request::fromGlobals()} uses to fall back to the raw `Authorization` header, and if
-     * that is absent too the value stays `''` — which no stored credential equals. Both gates then
-     * refuse everything, with a 401 that looks precisely like a wrong password. Read the paragraph
-     * on {@link self::RedirectAuthorization}: this site already lost one gate to a name it was
-     * reading under and not checking.
+     * that is absent too the value stays `''` — which no stored credential equals. Every gate then
+     * refuses everything, with a 401 that looks precisely like a wrong password. Read the paragraph
+     * on {@link self::RedirectAuthorization}: a gate is lost exactly this way to a name it reads
+     * under and does not check.
      */
     case AuthUser = 'PHP_AUTH_USER';
 
@@ -65,22 +65,22 @@ enum ServerVariable: string
      * An environment variable set before a rewrite arrives renamed with a `REDIRECT_` prefix, and
      * every request here reaches PHP through exactly such a rewrite. No transform of a header name
      * produces this, which is the whole reason it is a case: it is a name of Apache's rather than
-     * of HTTP's, and {@link Request::authorization()} reads both spellings because getting this
+     * of HTTP's, and {@link Request::rawAuthorization()} reads both spellings because getting this
      * one wrong is a 401 on every page with nothing to distinguish it from a bad password.
      */
     case RedirectAuthorization = 'REDIRECT_HTTP_AUTHORIZATION';
 
     /**
-     * Where a download was clicked from, and the one case that could have been derived.
+     * The page a link was followed from, and the one case that could have been derived.
      *
-     * It is not, because `DownloadLogger` has no {@link Request} and must
-     * not be given one: the read has to stay *behind* the `DOWNLOAD_LOGGING` guard, and a value
-     * passed as an argument is evaluated in front of it. The switch is off, so this reads nothing
-     * at all today — and a test asserts that, which an argument would quietly falsify.
+     * It is not, because its reader is one with no {@link Request} in its hand — a logger a site
+     * switches on behind a guard, whose read has to stay *behind* that guard, where a value passed
+     * as an argument is evaluated in front of it. With the guard off it reads nothing at all, and a
+     * test can assert that, which an argument would quietly falsify.
      *
-     * Note the spelling. The header lost an `r` in 1996 and kept the loss; the property it fills is
-     * `DownloadLogEntry::$referrer`, spelled correctly, three lines away in the same constructor
-     * call. That is the whole argument for naming it here.
+     * Note the spelling. The header lost an `r` in 1996 and kept the loss, and the property it
+     * fills is usually spelled `referrer`, correctly, a few lines away. That is the whole argument
+     * for naming it here.
      */
     case Referer = 'HTTP_REFERER';
 
@@ -103,9 +103,9 @@ enum ServerVariable: string
     /**
      * Which HTTP version the request arrived on, and the second of that pair.
      *
-     * Worth reporting for the reason docs/deployment.md records the live host serves HTTP/2 and no HTTP/3:
-     * it is a fact about a shared host that can change without anybody being told, exactly as the
-     * `mod_deflate` measurement did between two consecutive days.
+     * Worth reporting because whether a host serves HTTP/2, HTTP/3 or neither is a fact about a
+     * shared host that can change without anybody being told, the way a compression module can
+     * come and go between two consecutive days.
      */
     case ServerProtocol = 'SERVER_PROTOCOL';
 
@@ -113,14 +113,15 @@ enum ServerVariable: string
      * The webroot's absolute path, and the only fact here that no derivation can reach.
      *
      * {@link \Phpanta\App::webroot()} needs the webroot's directory *name* — `public/` in the
-     * repository, `neurosys/` on the live host — and nothing under `src/` can know which. Only the
-     * server does, which is exactly the membership rule this enum states: a case belongs when the
-     * `HTTP_` derivation cannot reach the name. It is not an HTTP header and no request can set it.
+     * repository, whatever the host calls it on the live one — and no source file can know which.
+     * Only the server does, which is exactly the membership rule this enum states: a case belongs
+     * when the `HTTP_` derivation cannot reach the name. It is not an HTTP header and no request
+     * can set it.
      *
      * Read for its basename alone. The whole string is *not* interchangeable with a path built from
-     * `__DIR__`: on Strato this reads under `/home/strato/http/premium/…` while `__DIR__` for a file
-     * in the same directory reads under `/mnt/web505/…`. See that method, which is where the
-     * consequence of mixing them is written down.
+     * `__DIR__`: a shared host can reach one directory through two mounts, so this reads under one
+     * prefix while `__DIR__` for a file in the same directory reads under another. See that method,
+     * which is where the consequence of mixing them is written down.
      */
     case DocumentRoot = 'DOCUMENT_ROOT';
 

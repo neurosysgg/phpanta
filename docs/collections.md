@@ -14,33 +14,29 @@ they got this way — the escape hatch `all()` used to be, the chain that used t
 
 A bare `array` with a `foreach`-and-`instanceof` check in a constructor is the thing these replace.
 That check is `TypedItems::guard()`'s, once, and it throws a `CollectionException` — which *is* a
-`TypeError`, see [architecture.md](https://github.com/neurosysgg/neurosys-webspace/blob/master/docs/architecture.md#exceptions). What is left to check by hand is the
-*element type*, the one thing a PHP generic cannot say: `is_a($this->fields->type,
-TerminalField::class, true)`, in seven places.
+`TypeError`, see [architecture.md](architecture.md#exceptions). What is left to check by hand is the
+*element type*, the one thing a PHP generic cannot say: a value object holding a `Collection` it was
+handed asks `is_a($this->posts->type, Post::class, true)` of it, and throws if the answer is no.
 
 **That check asks `is_a()` rather than `!==`, and the difference is covariance.** A collection of
-any subclass of `Format` is a perfectly good `Collection<Format>` for every consumer of
-`Release::$formats`, so refusing it would be invariance imposed on a structure whose immutability is
-exactly what makes covariance sound. The usual reason a container must demand invariance is a write
-path — hand out a `Collection<Format>` that is really a narrower list and somebody inserts a plain
-`Format` into it — and there is none here: `with()` copies rather than appends, and every reader of
-the seven guarded properties across `src/` is a query (`map()`, `first()`, `last()`, `isEmpty()`,
-`count()`, `toValues()`, `type`) with no `with()` among them. It changes behaviour on exactly one of
-the seven today, because `Format` is the only element type they name that is not `final` — the rest
-are `final` classes or an enum, where the two spellings cannot differ. Which makes it a statement of
-what the guard means rather than a fix: it says *at least* this type, which is what a read-only
-collection can honestly promise. The argument lives on `Release::verify()` and the other six point
-at it.
+any subclass of `Post` is a perfectly good `Collection<Post>` for every consumer of it, so refusing
+it would be invariance imposed on a structure whose immutability is exactly what makes covariance
+sound. The usual reason a container must demand invariance is a write path — hand out a
+`Collection<Post>` that is really a narrower list and somebody inserts a plain `Post` into it — and
+there is none here: `with()` copies rather than appends, and a value object's readers are queries
+(`map()`, `first()`, `last()`, `isEmpty()`, `count()`, `toValues()`, `type`). Where the element type
+is `final`, or an enum, the two spellings cannot differ; where it is not, `is_a()` says *at least*
+this type, which is what a read-only collection can honestly promise.
 
-**What they share is a trait, `Support/TypedItems`, and not a base class** — the codebase's only
-trait, and the reason is worth stating. The two are not substitutable and never should be: one is a
-list and one is a map, their `with()` methods take different arguments, and nothing anywhere holds
-"either kind of collection". `extends` would announce a common type that nothing wants; `use`
-announces shared plumbing, which is all it is. Two mechanical consequences follow: `$items` stays
-`private`, because PHP flattens a trait's members into the using class where a parent's private
-member would have had to become `protected`; and `static::class` names the collection rather than
-the trait, so the exception names the class a caller actually built. `SupportTest` asserts that
-message, which is what would catch a later slip to `self::class`.
+**What they share is a trait, `Support/TypedItems`, and not a base class.** The two are not
+substitutable and never should be: one is a list and one is a map, their `with()` methods take
+different arguments, and nothing anywhere holds "either kind of collection". `extends` would
+announce a common type that nothing wants; `use` announces shared plumbing, which is all it is — the
+same reason `FillsPlaceholders` and `Translated` are traits. Two mechanical consequences follow:
+`$items` stays `private`, because PHP flattens a trait's members into the using class where a
+parent's private member would have had to become `protected`; and `static::class` names the
+collection rather than the trait, so the exception names the class a caller actually built.
+`SupportTest` asserts that message, which is what would catch a later slip to `self::class`.
 
 ## The members
 
@@ -111,24 +107,25 @@ declaring a string key threw on it. `SearchableCollection::with()` notes when a 
 into an int, and only then do the iterator, the steps, `first()` and `toKeys()` put the string back;
 a map of names pays nothing. `toArray()` cannot: an array is where the int came from.
 
-**A step that does work runs where it is asked for.** Every callback here is pure except one —
-`DemoStage::write()` filters on a predicate that *transcodes with ffmpeg* and reports whether that
-worked. Left pending, `write()` would write nothing: its caller's `isEmpty()` would stop at the first
-failure with every mix behind it unstaged, and the loop that reports the failures would encode them
-all a second time. So `write()` ends in `settled()`, which runs every pending step once and answers
-with a collection that holds the results. `Directory::files()` ends in one too, for the weaker
-version of the same reason: `exists()` is a `stat()`, and a directory listing is a snapshot rather
-than a live query. Since `settled()` answers with the collection itself when nothing is pending,
-`assertSame($c, $c->settled())` is how a test asks "is there work pending here?" without reaching for
-a private member.
+**A step that does work runs where it is asked for.** Almost every callback is pure, and a pure one
+can be left pending as long as anybody likes. A predicate that *does* something — writes a file,
+runs a transcoder, reports whether that worked — cannot: left pending, the work happens only when a
+materialiser asks, only as far as that materialiser reads, and again each time another asks. An
+`isEmpty()` would stop at the first failure with everything behind it undone, and a loop reporting
+the failures would do the work a second time. So a chain with a working step ends in `settled()`,
+which runs every pending step once and answers with a collection that holds the results.
+`Directory::files()` ends in one too, for the weaker version of the same reason: `exists()` is a
+`stat()`, and a directory listing is a snapshot rather than a live query. Since `settled()` answers
+with the collection itself when nothing is pending, `assertSame($c, $c->settled())` is how a test
+asks "is there work pending here?" without reaching for a private member.
 
 Four decisions are worth knowing before adding a member:
 
 - **The callback takes the value first and the key second.** That is the order PHP's own
-  `array_find`, `array_any` and `array_all` use — `Element::renderChildren()` already calls one —
-  and the order `ARRAY_FILTER_USE_BOTH` passes. It is also what keeps a one-argument callback a
-  first-class callable, since PHP hands a userland callback extra arguments harmlessly:
-  `$links->map(self::profileLink(...))` needs no closure around it. Key-first would break every such
+  `array_find`, `array_any` and `array_all` use — `Element` already calls one — and the order
+  `ARRAY_FILTER_USE_BOTH` passes. It is also what keeps a one-argument callback a first-class
+  callable, since PHP hands a userland callback extra arguments harmlessly:
+  `$posts->map(self::postLink(...))` needs no closure around it. Key-first would break every such
   site.
 - **`sequenced()` is abstract because a filter is the only thing that can put holes in a list.** A
   `Collection` renumbers after a `where()` or a `unique()` — so a `map()` following one sees
@@ -149,11 +146,11 @@ know before reaching for either. `array_unique()` compares its items as strings,
 collection declared `float`, which accepts an `int` — the single widening the language itself makes.
 An object is the same item only when it is the same object: a value object here declares no
 equality, and inventing one inside a collection would be the container deciding what its elements
-mean. Both callers map to a scalar first, which is what makes the question not arise. An object is
-**held** while it is compared rather than numbered, because `spl_object_id()` hands a freed object's
-id to the next one made — and a stream of fresh objects, each let go after its step, would drop a new
-one as a repeat of one already gone. The two floats where `===` surprises are kept as it has them:
-`-0.0` is `0.0`, and every NAN is its own.
+mean. Map to a scalar first, which is what makes the question not arise — `ContentSecurityPolicy`'s
+`hosts()` does. An object is **held** while it is compared rather than numbered, because
+`spl_object_id()` hands a freed object's id to the next one made — and a stream of fresh objects,
+each let go after its step, would drop a new one as a repeat of one already gone. The two floats
+where `===` surprises are kept as it has them: `-0.0` is `0.0`, and every NAN is its own.
 
 ## What a collection may hold
 
@@ -170,13 +167,12 @@ that, and each is worth knowing before adding a fourth:
   under `declare(strict_types=1)`, so a collection that refused `array_fill(0, 512, 0)` would be
   stricter than the language it is written in. The value is kept as it arrived rather than cast,
   exactly as a parameter would.
-- **The declared type is checked in the constructor**, the same move `HiDriveLink` makes on a share
-  id and `CspHost` makes on an origin. `instanceof` answers `false` for a string naming no class
-  rather than complaining about it, so an unchecked `new Collection('Reelase')` would not be an error
-  but a collection that silently rejected everything ever offered to it — reporting the typo as a
-  fault in the *item*. `class_exists()` and `interface_exists()` are both asked, because the first
-  answers `false` for an interface and `Collection(Node::class)` is among the commonest shapes here;
-  enums need no third question.
+- **The declared type is checked in the constructor**, the same move `CspHost` makes on an origin.
+  `instanceof` answers `false` for a string naming no class rather than complaining about it, so an
+  unchecked `new Collection('Psot')` would not be an error but a collection that silently rejected
+  everything ever offered to it — reporting the typo as a fault in the *item*. `class_exists()` and
+  `interface_exists()` are both asked, because the first answers `false` for an interface and
+  `Collection(Node::class)` is among the commonest shapes here; enums need no third question.
 
 **`CspSourceList` is the one place PHP's lack of nested generics costs something.**
 `ContentSecurityPolicy` holds source lists keyed by directive — a map of lists — and a collection is
@@ -190,16 +186,17 @@ arrays would let the map keep untyped values under a collection's name.
 
 **`with()` copies; it does not append.** That is what makes a collection safe to hold inside a
 `readonly` value object: `readonly` protects the reference, not what it points at, so a mutable
-collection would leave every `Release`, `Terminal` and `SoundCloudEmbed` appendable by anyone
-holding one. The name is deliberate too — a discarded `$c->add(…)` reads as correct, a discarded
-`$c->with(…)` reads as wrong. Same shape as `ContentSecurityPolicy::allow()`.
+collection would leave every value object holding one — an `Element`, a `ContentSecurityPolicy`, a
+site's own models — appendable by anyone holding it. The name is deliberate too — a discarded
+`$c->add(…)` reads as correct, a discarded `$c->with(…)` reads as wrong. Same shape as
+`ContentSecurityPolicy::allow()`.
 
 **The compiler enforces that naming convention.** `with()`, `allow()`, `attr()` and `containing()`
 all carry `#[\NoDiscard]` with a sentence saying why the dropped call did nothing, so a result that
 goes nowhere is an `E_WARNING` — and `phpunit.xml.dist` sets `failOnWarning`, which makes it a
-failing test rather than a line in a log. `Auth::accepts()` carries one too, and is the only member
-that is not a builder: it is the gate's entire decision, and the two `require*` methods are only the
-challenge wrapped around it. `NoDiscardTest` pins the set in both directions and asserts each
+failing test rather than a line in a log. `Auth::accepts()` and `ApiGate::accepts()` carry one too,
+and are not builders: each is a gate's entire decision, and what ends the request is only the
+refusal wrapped around it. `NoDiscardTest` pins the set in both directions and asserts each
 attribute carries a message, because the default warning has none. The deliberate discards are all
 in the tests — proving a builder did not mutate what it was called on, or that a bad argument threw
 — and each is spelled `(void)`, which says out loud what the test is there to demonstrate.
@@ -210,9 +207,8 @@ replace a variadic.** `deny(PermissionsPolicyFeature ...$features)` keeps its va
 `Collection` parameter there would replace a check the language makes for free with one we make
 ourselves. What a class *stores* once the variadic has guarded the boundary is a separate question,
 and storing an array would mean rendering with `implode(', ', array_map(…))` — which is `join()`
-spelled out. So `Allow`, `Vary`, `CacheControl`, `RobotsPolicy`, `PermissionsPolicy`, `Fragment` and
-`TerminalCommand` all hold a `Collection` behind a variadic constructor, and their `render()` is one
-`join()` each.
+spelled out. So `Allow`, `Vary`, `CacheControl`, `RobotsPolicy`, `PermissionsPolicy` and `Fragment`
+all hold a `Collection` behind a variadic constructor, and their `render()` is one `join()` each.
 
 What is a collection, each because it crosses a public boundary with nothing else checking it:
 
@@ -223,46 +219,43 @@ What is a collection, each because it crosses a public boundary with nothing els
 - The headers of `ViewResponse`, `PlainTextResponse` and `FileResponse`, and of an outbound tooling
   `Request`, whose body fields are one too — an `array<string, string|FilePart>` is a docblock's
   promise rather than the language's.
-- `SecurityHeaders::all()` and `WaveformBand::bands()`.
-- `ReleaseFolder`'s audio files, keyed by `ReleaseFormat` value in the order the catalogue lists
-  them; and in `tools/`, `Project::$markers`, `Call::$arguments` and `DemoStage::$sources`.
+- `SecurityHeaders::all()`, an app's `routes()`, `dataFiles()` and `requirements()`, and the tags and
+  attributes a `Vocabulary` holds.
+- In `tools/lib/`, `Call::$arguments`.
 
 **Ask a collection whether it is empty with `isEmpty()`, never `!== []`.** `!== []` is true of
 *every* `Collection`, so it reads as a guard and is not one. `ViewResponse::send()`'s 304 depends on
 the right question, and a test is named for the hazard.
 
-**What deliberately stays a plain array.** `Preflight`'s findings, `ReleaseFolder::missing()`'s
-filter over `Fact::cases()`, `FlpFile::all()` — none crosses a public boundary, and a collection does
-not replace a variadic. PHP's own `array_find`/`array_any`/`array_all` are the API there.
-`CurlTransport::parts()` keeps its `foreach` for a different reason: it rekeys by field name, which
-is not a `map`. `Dsp/`'s buffers and `DownloadStats`'s tally accumulator stay arrays for a third
-reason again — both are written to in a loop, and `with()` copies; see
-[below](#what-deliberately-did-not-go-in).
+**What deliberately stays a plain array.** A value that crosses no public boundary — a finding list
+a command builds and prints, a filter over an enum's `cases()` inside one method — stays an array,
+and PHP's own `array_find`/`array_any`/`array_all` are the API there. `CurlTransport::parts()` keeps
+its `foreach` for a different reason: it rekeys by field name, which is not a `map`. A buffer written
+to in a loop, or an accumulator tallying as it goes, stays an array for a third reason again —
+`with()` copies; see [below](#what-deliberately-did-not-go-in).
 
-**And a great many things stay arrays because PHP hands them over that way.** `cases()` (19 sites),
-`preg_match`'s `&$matches` (17), `unpack` (16), `file` (10), `parse_url` (7), `explode` (6),
-`json_decode` (5), `glob`, `range` — about ninety points across `src/` and `tools/` where a builtin
-answers with an array and no amount of typing on this side changes that. The target is therefore
-**all-collection in the interior with an adapter at each door**, not zero arrays anywhere:
+**And a great many things stay arrays because PHP hands them over that way.** `preg_match`'s
+`&$matches` (20), `cases()` (16), `explode` (13), `scandir` (8), `glob`, `json_decode`, `file`,
+`unpack`, `range` — about seventy points across the framework's `src/` and `tools/lib/` where a
+builtin answers with an array and no amount of typing on this side changes that. The target is
+therefore **all-collection in the interior with an adapter at each door**, not zero arrays anywhere:
 `Directory::files()` is the model, where `scandir()` is the door and the `Collection<File>` is what
 crosses the boundary.
 
 ## What deliberately did not go in
 
-**`tools/lib/Dsp/` keeps raw arrays, and it is one function rather than a directory's worth of
-exception.** `Fft::transform()` is the codebase's only genuine in-place mutation: its butterfly
-reads and writes four arbitrary indices of two arrays per iteration, and the bit-reversal above it
-swaps two more. No immutable collection expresses that, and no per-element callback can see another
-element. Measured at 512 floats a window and ~2000 windows a mix: `array_fill` 1 ms, one batched
-`with()` per window 354 ms, incremental `with()` 1321 ms. Everything else in those three classes —
-`hann()`, `magnitude()`, `Analyze::mono()`, `Spectrum::bars()` — builds a *fresh* array in a loop
-and returns it, so it is already `map`-shaped and already immutable; it stays arrays because the
-port's stated contract is that the caller owns the buffer, and because the hot path is the one place
-the 1.5x iteration cost of a collection is worth counting.
+**In-place mutation keeps raw arrays, and it is a function rather than a directory's worth of
+exception.** Numeric code — an FFT's butterfly, which reads and writes four arbitrary indices of two
+arrays per iteration — is genuine in-place mutation: no immutable collection expresses it, and no
+per-element callback can see another element. Measured at 512 floats a window and ~2000 windows:
+`array_fill` 1 ms, one batched `with()` per window 354 ms, incremental `with()` 1321 ms. Code that
+builds a *fresh* array in a loop and returns it is already `map`-shaped and already immutable, and
+may still stay an array where the caller owns the buffer and the hot path is the one place the 1.5x
+iteration cost of a collection is worth counting.
 
 **A member is written when it has a second caller.** A member added for one caller is a member
-nobody else will find — `unique()` passed that test when `Demo::verify()` became its second caller,
-and two others have not:
+nobody else will find — `unique()` passed that test when it gained a second caller, and two others
+have not:
 
 - **`do(fn(&$value, $key))`**, an in-place walk, is the obvious answer to the buffers above. It is
   mechanically fine — an arrow function does take a by-ref parameter — but it *is* `map()`, with the
@@ -273,8 +266,8 @@ and two others have not:
   here, and it would be the first member meant to be discarded — inverting the `with()`/`add()`
   convention above. If in-place ever becomes necessary, the honest shape is a separate `Buffer`
   type, not a hole in this one.
-- **`zip()`** would serve one call site in `Dsp/` and one in `hosts()` — both excluded above, both
-  doors.
+- **`zip()`** would serve one call site in numeric code and one in `ContentSecurityPolicy::hosts()` —
+  both excluded above, both doors.
 
 ## What it costs
 

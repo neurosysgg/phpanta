@@ -13,7 +13,7 @@ use ReflectionEnumUnitCase;
  *
  * `use Translated;` in an enum that implements {@link Translatable}, one
  * `#[Translation(en: …, de: …)]` on each case, and the case *is* the text —
- * `->containing(Texts::Releases::Downloads)` needs nothing else. The backing value is a stable key
+ * `->containing(Catalog::Downloads)` needs nothing else. The backing value is a stable key
  * and never the words: two captions may say the same thing, and a backed enum's values must be
  * unique.
  *
@@ -37,7 +37,7 @@ trait Translated
 
     /**
      * This case's text with arguments bound, named the way the message names them:
-     * `Texts::Releases::CoverArt->with(title: $release->title)`.
+     * `Catalog::Caption->with(title: $post->title)`.
      *
      * @param int|float|string ...$arguments
      * @return Phrase

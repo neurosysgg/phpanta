@@ -25,7 +25,7 @@ use Traversable;
  * {@link TypedItems}, shared with {@link Collection}. What is here is what makes this one a **map**:
  * `with()` takes a key, `find()` exists at all, {@link self::sequenced()} keeps what
  * {@link Collection}'s throws away, and iteration yields that key alongside the item — which is the
- * whole reason `ReleasesView` can name each release by its slug while listing it.
+ * whole reason a view can name each item by its slug while listing it.
  *
  * **A key comes out as the string it went in as**, including one PHP stores as an integer — see
  * {@link TypedItems::$castsKeys}.

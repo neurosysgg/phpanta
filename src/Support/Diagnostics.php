@@ -34,7 +34,7 @@ use Closure;
  * fail, and the handful of these a request makes, it does not show up. {@link self::muted()}
  * builds no collection at all, so it pays for the handler and nothing else.
  *
- * Note what carries no `#[\NoDiscard]`, unlike most of {@link Support}: both members run somebody
+ * Note what carries no `#[\NoDiscard]`, unlike most of this namespace: both members run somebody
  * else's operation and hand back what it answered, and three of its call sites discard that answer
  * on purpose — {@link File::write()} unlinks its temporary file on the way out
  * of a failure it is already reporting. A dropped result here is the caller's decision, not a bug.

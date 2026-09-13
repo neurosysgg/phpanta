@@ -17,7 +17,7 @@ use Phpanta\Text\FrameworkText;
 use Phpanta\Text\Language;
 
 /**
- * The UnroutedController class. What this site says about an address it does not have: the rendered
+ * The UnroutedController class. What the app says about an address it does not have: the rendered
  * 404 for a method that reads, the `text/plain` 405 for one that writes.
  *
  * **It exists because two places have to give that answer identically.** {@link \Phpanta\Router}
@@ -40,7 +40,7 @@ use Phpanta\Text\Language;
 final readonly class UnroutedController implements Controller
 {
     /**
-     * The body of every 405 this site sends, in $language.
+     * The body of every 405 the app sends, in $language.
      *
      * One method because {@link \Phpanta\Router} sends one too, for the other 405 — a path a
      * route *did* claim with a method it does not accept — and those two bodies being the same

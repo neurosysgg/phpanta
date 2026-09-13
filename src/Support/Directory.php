@@ -7,7 +7,7 @@ namespace Phpanta\Support;
 /**
  * The Directory class. The other half of {@link File}: a path that holds files.
  *
- * The site asks it for exactly one thing — {@link \Phpanta\App::dataFile()} resolves a file
+ * An app asks it for exactly one thing — {@link \Phpanta\App::dataFile()} resolves a file
  * inside `data/` through {@link self::file()}, so the one derivation of that path stays one
  * derivation and now hands back something typed. Everything else here is read by the tooling, which
  * lists and creates directories, and by the tests, which build fixtures out of them.
@@ -35,7 +35,7 @@ final readonly class Directory
      * two tests running at once cannot collide, and it is prefixed, so anything left behind by a
      * test that died says which suite left it.
      *
-     * @param string $prefix Prepended to the random part, e.g. `neurosys-flp-`.
+     * @param string $prefix Prepended to the random part, e.g. `update-test-`.
      * @return self
      */
     public static function temporary(string $prefix): self
@@ -74,7 +74,7 @@ final readonly class Directory
     /**
      * A file in this directory, by name. The file need not exist.
      *
-     * @param string $name A file name, or a path relative to this directory — `logs/downloads.log`.
+     * @param string $name A file name, or a path relative to this directory — `logs/app.log`.
      * @return File
      */
     public function file(string $name): File
@@ -104,7 +104,7 @@ final readonly class Directory
      * whole path as a pattern, so a directory whose own name holds a `[` or a `*` — a folder called
      * `site [draft]` — was read as a pattern too, and listed nothing. Only a name is matched here.
      * `FNM_PERIOD` keeps the one rule of `glob()`'s worth keeping: a leading dot is matched only by a
-     * pattern that writes one, so a release folder's `.DS_Store` is not a file anybody asked for.
+     * pattern that writes one, so a folder's `.DS_Store` is not a file anybody asked for.
      *
      * What crosses the boundary is a {@link Collection}, which is what lets a caller ask `->first()`
      * or `->where()` of a directory without unwrapping it first.
@@ -115,7 +115,7 @@ final readonly class Directory
      * already been read once here; settling keeps the whole listing one answer taken at one moment,
      * which is what every caller has always read it as.
      *
-     * @param string $pattern A shell wildcard matched against the name — `*.flac`, `*`.
+     * @param string $pattern A shell wildcard matched against the name — `*.php`, `*`.
      * @return Collection<File>
      */
     public function files(string $pattern = '*'): Collection

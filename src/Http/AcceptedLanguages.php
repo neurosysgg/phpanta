@@ -32,7 +32,7 @@ final readonly class AcceptedLanguages
      * One entry per language range, as `primary subtag => quality`, best first.
      *
      * Keyed by the **primary subtag** rather than the full range, because that is the only part
-     * this site can act on: it has an English half and a German half, and `en-GB`, `en-US` and `en`
+     * a page can act on: an app offers languages rather than regions, and `en-GB`, `en-US` and `en`
      * all want the English one. A range that is only a region apart from another keeps the higher
      * quality of the two, which is what a client means by sending both.
      *
@@ -40,8 +40,7 @@ final readonly class AcceptedLanguages
      */
     #[BareArray(
         'accumulated in a loop and then sorted. from() updates a key it has already seen with '
-        . 'max(), and arsort() puts the best first; with() copies and no collection sorts. Same '
-        . 'case as DownloadStats\'s tally.',
+        . 'max(), and arsort() puts the best first; with() copies and no collection sorts.',
     )]
     private array $qualities;
 

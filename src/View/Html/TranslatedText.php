@@ -10,8 +10,8 @@ use Phpanta\Text\Translatable;
 use UnitEnum;
 
 /**
- * The TranslatedText class. Text written in every language the site is, put into one when it is
- * rendered.
+ * The TranslatedText class. Text written in every language the app is written in, put into one
+ * when it is rendered.
  *
  * What {@link Element::containing()} makes of a {@link Translatable}, the way it makes a
  * {@link Text} of a string. It carries no language: which one it renders in is decided by where it

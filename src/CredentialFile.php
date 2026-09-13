@@ -14,7 +14,7 @@ namespace Phpanta;
  * in opposite directions, and that is the thing to read twice — see {@link self::SiteAuth} and
  * {@link self::UpdateKey}.
  *
- * All three hold live credentials, so `deploy.sh` excludes all three and each is uploaded by hand.
+ * All three hold live credentials, so a full deploy excludes all three and each is uploaded by hand.
  */
 enum CredentialFile: string implements DataFileName
 {
@@ -42,10 +42,10 @@ enum CredentialFile: string implements DataFileName
      * absence stands the gate *down*. Worth reading twice, because the two files look alike and mean
      * opposite things.
      *
-     * Untracked and excluded from `deploy.sh`, like {@link self::Admin}'s live hashes: each
+     * Untracked and excluded from a full deploy, like {@link self::Admin}'s live hashes: each
      * deployment holds its own key, which is what binds a payload to a deployment without any field
      * in the manifest naming one. Uploaded by hand, once. The private half never touches the
-     * repository at all — it lives outside it entirely, the way the SoundCloud refresh token does.
+     * repository at all — it lives outside it entirely, as any token a tool signs with should.
      */
     case UpdateKey = 'update.pub';
 

@@ -47,8 +47,8 @@ use Phpanta\Support\Collection;
  * Past the gate the posture inverts completely and every failure is reported in full, because the
  * caller has proved it holds the private key. An unknown service, version or action is a real 404
  * with a sentence in it, and a verb that is not the action's is a real 405 naming the one that is.
- * Only the key holder ever sees either. There is nowhere else for that detail to go: the live host
- * has `display_errors` off and an empty `error_log`.
+ * Only the key holder ever sees either. There is nowhere else for that detail to go: a production
+ * host has `display_errors` off, and may have an empty `error_log`.
  */
 final readonly class ApiController implements Controller
 {
@@ -59,10 +59,10 @@ final readonly class ApiController implements Controller
      *                        {@link ApiService}, because resolving it here would mean a `from()` in
      *                        the route factory — a bare `ValueError`, uncaught, *before* the
      *                        signature is checked, which is both a 500 announcing the endpoint and
-     *                        an exception this repository does not own.
+     *                        an exception the framework does not own.
      * @param string $version Same, for the second.
      * @param string $action Same, for the fourth.
-     * @param ApiGate|null $gate A test seam, the way {@link DemoAudioController}'s repository is.
+     * @param ApiGate|null $gate A test seam: null is the real gate, and a test passes its own.
      */
     public function __construct(
         private string   $service,
@@ -111,7 +111,7 @@ final readonly class ApiController implements Controller
         }
 
         // **One catch around building the handler and around running it**, which is what makes this
-        // the only place on the site that writes the word. Both throws mean the same thing — a
+        // the only place in the framework that writes the word. Both throws mean the same thing — a
         // verified caller asked for something this deployment will not do — and both happen before
         // anything has been written, since UpdateApplier's own contract is that nothing has when it
         // throws. Two handlers each phrasing that refusal for themselves is two spellings of one
@@ -129,7 +129,7 @@ final readonly class ApiController implements Controller
             // A write that could not arm the replay guard would leave a deployment updated and the
             // credential able to update it again; arming first makes that a refusal with nothing
             // written. It costs a serial on a deployment that cannot record one, which is a
-            // deployment that is not going to accept the next push either. See docs/history/api.md.
+            // deployment that is not going to accept the next push either. See docs/security.md.
             $spent = $gate->spend($verified->envelope->serial);
 
             if ($spent instanceof SerialRefusal) {

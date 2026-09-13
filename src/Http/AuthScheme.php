@@ -7,17 +7,17 @@ namespace Phpanta\Http;
 use Phpanta\Support\BareArray;
 
 /**
- * The AuthScheme enum. The authentication schemes this site reads off an `Authorization` header.
+ * The AuthScheme enum. The authentication schemes the framework reads off an `Authorization` header.
  *
  * What made it worth writing is that the token was spelled **twice, in two files, on the two sides
  * of one handshake**: {@link BasicChallenge} wrote `Basic realm="…"` into the 401, and
  * {@link Request::fromGlobals()} matched `'Basic '` on the way back in. Neither knew about the
  * other.
  *
- * **And a mismatch there is the quietest failure on the site.** `Request::authorization()`'s own
- * docblock already names it about the header's *name*: the parse fails closed, so a visitor who
+ * **And a mismatch there is the quietest failure there is.** {@link Request::rawAuthorization()}'s
+ * own docblock already names it about the header's *name*: the parse fails closed, so a visitor who
  * typed the right password is told, in the only way a browser can tell them, that they typed the
- * wrong one. It would look identical on both gates, on every attempt, with nothing in any log —
+ * wrong one. It would look identical on every gate, on every attempt, with nothing in any log —
  * and the first guess at the cause would be the credentials file.
  *
  * **Two cases now, and they are not alternatives at one door.** Each names the scheme one gate
@@ -29,8 +29,8 @@ use Phpanta\Support\BareArray;
  * calls in the middle of building a request.
  *
  * The two cannot both be satisfied by one request, since a request carries one `Authorization`.
- * That is the known interaction the demo gate already has with the pre-launch site gate, and it
- * reaches {@link self::NS1} the same way — see {@link \Phpanta\Service\ApiGate}.
+ * That is the known interaction any Basic gate a site builds has with the pre-launch site gate, and
+ * it reaches {@link self::NS1} the same way — see {@link \Phpanta\Service\ApiGate}.
  */
 enum AuthScheme: string
 {
@@ -50,8 +50,8 @@ enum AuthScheme: string
      *
      * **The digit is a format version and is deliberately not the API's.** `/api/{service}/v1/…`
      * versions what is being asked for; this versions how the asking is signed, and the two move
-     * for different reasons. It is the same argument `Waveform`'s magic
-     * makes, and this token *is* the magic: the credential needs no magic bytes of its own when the
+     * for different reasons. It is the argument a binary format makes for its magic number, and
+     * this token *is* the magic: the credential needs no magic bytes of its own when the
      * scheme it arrives under already says which reader to use.
      *
      * **It is not a bearer token and the name is chosen to stop it reading as one.** A `Bearer`

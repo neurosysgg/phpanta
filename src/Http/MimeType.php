@@ -74,7 +74,7 @@ final readonly class MimeType implements HeaderValue
     }
 
     /**
-     * A 405 refusal, or a download that has no file behind it yet.
+     * A 405 refusal, or any other answer that is only a sentence.
      *
      * @return self
      */
@@ -84,17 +84,17 @@ final readonly class MimeType implements HeaderValue
     }
 
     /**
-     * A demo's audio, named by its file extension.
+     * An audio file, named by its extension.
      *
-     * The charset is explicitly null and that is the interesting half: every other body this site
-     * sends is text, and this one is samples. A `charset` parameter on `audio/mpeg` is not merely
+     * The charset is explicitly null and that is the interesting half: every other body the
+     * framework sends is text, and this one is samples. A `charset` parameter on `audio/mpeg` is not merely
      * redundant, it is a claim about bytes that have no characters in them.
      *
      * The set is a `match` rather than a lookup that falls back, because a fallback here is the
      * failure this class exists to prevent: `application/octet-stream` on an MP3 is a file the
      * browser downloads instead of playing, with `nosniff` alongside it forbidding the browser from
-     * working out that we were wrong. Staged audio is MP3; the rest are the formats
-     * `tools/stage-demo.php` copies through rather than re-encoding.
+     * working out that we were wrong. The set is MP3 and the common formats a browser plays without
+     * a plugin.
      *
      * @param string $extension The file's extension, without the dot. Case is not significant.
      * @return self

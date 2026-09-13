@@ -11,9 +11,9 @@ use Phpanta\Support\Collection;
 /**
  * The UpdateReport class. What a push did, as the endpoint's whole response body.
  *
- * **It is the only account of the run there will be.** `display_errors` is off on the live host and
- * `error_log` is the empty string, so a PHP warning there goes nowhere at all — measured, not
- * assumed. Anything this class does not say is not written down anywhere, which is why it reports
+ * **It is the only account of the run there will be.** On a host with `display_errors` off and
+ * `error_log` the empty string — an ordinary shared-host setup — a PHP warning goes nowhere at
+ * all. Anything this class does not say is not written down anywhere, which is why it reports
  * per-path rather than in counts and why a file that could not be written is named rather than
  * summed. The one exception is {@link self::kept()}, and it proves the rule: an unchanged file is
  * the absence of an action, and naming every one of them would bury the few that changed.

@@ -16,8 +16,8 @@ use InvalidArgumentException;
  * **It is thrown where the mistake is, which is the whole point of the attributes checking
  * themselves at all.** `GuidelineTest` would notice the same fault, and
  * would report it against a list of forty other entries; the constructor reports it against the
- * line that is wrong. The same division of labour `HiDriveLink` has with
- * its own tests, arrived at for the same reason.
+ * line that is wrong. The same division of labour any value object that refuses a malformed
+ * argument has with its own tests, arrived at for the same reason.
  *
  * **Extends `InvalidArgumentException`** — an argument to a constructor is wrong, which is what
  * that means, and it is what these threw before they were named. `LogicException` would have been

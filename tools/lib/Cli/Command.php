@@ -5,17 +5,17 @@ declare(strict_types=1);
 namespace Phpanta\Tool\Cli;
 
 /**
- * The Command interface. One of this repo's development commands.
+ * The Command interface. One development command, the framework's or a site's.
  *
- * `tools/` holds four of these — `stage-release`, `release-track`, `extract-midi` and
- * `merge-coverage` — and two things that are not: `dev-router.php` is handed to `php -S` and
+ * `tools/` holds four of these — `push-update`, `api`, `export` and `merge-coverage` — and a site
+ * adds its own beside them. Two things there are not commands: `dev-router.php` is handed to `php -S` and
  * `coverage-prepend.php` is an `auto_prepend_file`. PHP loads both; nothing invokes them, so they
  * have no argv and no exit code and there is nothing here for them to implement.
  */
 interface Command
 {
     /**
-     * The command's name, matching its entry point — `stage-release` for `tools/stage-release.php`.
+     * The command's name, matching its entry point — `push-update` for `tools/push-update.php`.
      *
      * @return string
      */

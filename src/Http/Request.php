@@ -12,7 +12,7 @@ use Uri\Rfc3986\Uri;
 /**
  * The Request class. Represents an incoming HTTP request.
  *
- * Constructed from PHP's global server variables via {@link fromGlobals()}.
+ * Constructed from PHP's global server variables via {@link self::fromGlobals()}.
  */
 readonly class Request
 {
@@ -175,7 +175,7 @@ readonly class Request
      * 500 for a target as ordinary as `GET ///`, raised in {@link self::fromGlobals()}, ahead of
      * {@link \Phpanta\Router::dispatch()} and so ahead of the method gate too. PHP 8.5's
      * {@link Uri::parse()} returns **null** on a target it cannot read, which is what `??` looks
-     * for, and it reads `///` as the root written wastefully. See docs/history/security.md.
+     * for, and it reads `///` as the root written wastefully. See docs/security.md.
      *
      * **The fallback is the target, not `/`.** A target this could not read is not a request for
      * the home page, and answering one with the home page is the quiet kind of wrong. Same instinct
@@ -187,10 +187,10 @@ readonly class Request
      * why.
      *
      * **A target is a path, never an authority.** A request line carries an absolute path, whose
-     * segments may be empty, so `//x/releases` is three segments and the first of them is empty.
+     * segments may be empty, so `//x/posts` is three segments and the first of them is empty.
      * {@link Uri::parse()} reads the same string as a relative reference, where a leading `//` opens
-     * an authority: it answered `/releases` for that target, and the releases page was served at an
-     * address with a host written into it. A target that opens with `//` therefore never reaches
+     * an authority: it answers `/posts` for that target, and the page at `/posts` would be served
+     * at an address with a host written into it. A target that opens with `//` therefore never reaches
      * the parser and is cut the way an unreadable one is, which keeps every segment — and 404s,
      * because no route has an empty one.
      *
@@ -217,10 +217,10 @@ readonly class Request
      * **Only the path, because a malformed target is not a 404.** {@link \Phpanta\Support\Route::matches()}
      * compiles `{slug}` into `([^/]+)`, which matches anything at all, so every placeholder route
      * matches one, and whatever followed the `?` would arrive inside a captured value: the whole
-     * of `/demos/x"y?a=1` would reach `DemoController` with a slug of
-     * `x"y?a=1`, and a demo's slug names its realm, so a query string would reach a response
-     * header. {@link \Phpanta\Service\Auth::demoRealm()} and {@link BasicChallenge} close the
-     * other half of that. See docs/history/security.md.
+     * of `/posts/x"y?a=1` would reach the controller with a slug of `x"y?a=1`, and where a gate
+     * names its realm after the slug, a query string would reach a response header. The gate
+     * encoding the slug and {@link BasicChallenge} close the other half of that. See
+     * docs/security.md.
      *
      * @param string $uri
      * @return string
@@ -306,7 +306,7 @@ readonly class Request
      * The raw request body, or `''` where there is none.
      *
      * **Read here rather than in {@link self::fromGlobals()}, and that placement is the whole of
-     * the care.** Nine of the ten routes are reads that carry no body; parsing one into every
+     * the care.** Every route but the API's is a read that carries no body; parsing one into every
      * `Request` would make all of them pay for the one that does, and would quietly turn a class
      * that describes a request into one that has consumed it. So this is a method, not a property,
      * and `Request` stays `readonly` with nothing to memoise — `php://input` is re-readable for
@@ -402,11 +402,11 @@ readonly class Request
     /**
      * The language this request is answered in.
      *
-     * **The visitor's own choice first, then their browser's, then the site's.** A `lang` cookie
-     * naming a language this site offers is a choice somebody made on this site, so it outranks
+     * **The visitor's own choice first, then their browser's, then the app's.** A `lang` cookie
+     * naming a language the app offers is a choice somebody made on this site, so it outranks
      * `Accept-Language`, which is a setting they made once for every site. With neither, the answer
      * is the app's default — the first of {@link \Phpanta\App::languages()}. A cookie naming
-     * anything else — `lang=xx`, or a language the framework knows and this site does not write —
+     * anything else — `lang=xx`, or a language the framework knows and the app does not offer —
      * is no choice at all and falls through rather than failing.
      *
      * **A page answered in this owes a `Vary` on both headers** — see

@@ -8,7 +8,7 @@
  * segment is not a real directory; the server strips it. In production `public/.htaccess` does that
  * with a RewriteRule. The built-in server reads no `.htaccess` at all, so without this every
  * versioned URL would 404 locally while working live — the exact shape of bug this project has
- * already been bitten by once, when Strato's handler list differed from the local setup.
+ * already been bitten by once, when a shared host's handler list differed from the local setup.
  *
  * **This is one half of a mirror**, and the verify script pins that both halves strip the same
  * pattern. Change the shape in one and the check fails rather than the dev server quietly diverging.
@@ -16,9 +16,9 @@
  * **Not a `Phpanta\Tool\Cli\Command`**, and cannot be: `php -S` loads this file per request and
  * reads a `bool` back. There is no argv and no exit code for a command interface to attach to.
  *
- * Dev-only: it is passed to `php -S` by test/basic_test.sh and by anyone running the local server.
- * It is never deployed — `deploy.sh` ships `public/`, `src/`, `autoload.php` and `data/`, and this
- * is in none of them.
+ * Dev-only: it is passed to `php -S` by a site's verify script and by anyone running the local
+ * server. It is never deployed — a deploy ships `public/`, `src/`, `autoload.php` and `data/`, and
+ * this is in none of them.
  *
  * Usage:
  *   php -S localhost:8080 -t public tools/dev-router.php

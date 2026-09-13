@@ -10,10 +10,10 @@ use Phpanta\Support\Collection;
 /**
  * The CacheControl class. Whether a response may be reused, as typed directives.
  *
- * Two answers on this site and they are opposites, which is the whole reason this is a type rather
- * than a string literal at each call site. {@link self::revalidate()} is every public document:
- * keep it, ask first, usually be told 304. {@link self::doNotStore()} is the one page behind the
- * admin gate: do not write it down at all.
+ * Two answers, and they are opposites, which is the whole reason this is a type rather than a
+ * string literal at each call site. {@link self::revalidate()} is every public document: keep it,
+ * ask first, usually be told 304. {@link self::doNotStore()} is a page or file behind a password:
+ * do not write it down at all.
  *
  * Composed from a variadic of {@link CacheDirective}, the same shape as
  * {@link Security\PermissionsPolicy::deny()} — and refusing an empty list for the same reason it

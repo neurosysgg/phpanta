@@ -16,11 +16,11 @@
  * **Every flag here takes a path**, which is not a simplification of a general parser — it is the
  * whole vocabulary these tools have. `--out`, `--css`, `--js-dir` and `--graph-dir` are the four
  * that exist, and a flag that stood alone would be a different kind of tool. The PHP side has
- * `Option::takesValue()` because `--check` and `--upload` are real there; nothing here needs it,
+ * `Option::takesValue()` because `--dry-run` and `--debug` are real there; nothing here needs it,
  * and inventing it would be a case with nothing on the other end of it.
  *
  * No dependencies, and nothing runs on import: these tools have to work on a clone that has never
- * seen `npm install`, which is why `test/basic_test.sh` can rebuild the stylesheet on a bare
+ * seen `npm install`, which is why a site's verify script can rebuild the stylesheet on a bare
  * checkout while it skips everything that needs `tsc`.
  */
 

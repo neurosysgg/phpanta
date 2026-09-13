@@ -17,7 +17,7 @@ use Phpanta\Support\Collection;
  *
  * **Registered, which is not the same claim as working.** This is `get_loaded_extensions()`'s
  * answer and nothing more: an extension on this list may still be built without the part an
- * installation reaches for. Whether the ones this site needs actually work is `health v1
+ * installation reaches for. Whether the ones the framework needs actually work is `health v1
  * extensions`'s question, asked by using them — see {@link \Phpanta\Model\Health\PhpExtension}.
  *
  * Zend extensions — the opcode cache, a debugger — are a second list, because the engine keeps them

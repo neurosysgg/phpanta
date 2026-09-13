@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace Phpanta\View\Html;
 
 /**
- * The HtmlTag enum. The standard HTML elements this site emits.
+ * The HtmlTag enum. The standard HTML elements in use.
  *
  * Not every element that exists — only the ones actually used, the same way {@link HtmlAttribute}
  * and {@link \Phpanta\Http\Security\PermissionsPolicyFeature} list what is used rather than what is
  * possible. Adding markup that needs a new element means adding its case, which is the moment to ask
- * whether it should be one of ours instead — see {@link Tag}.
+ * whether it should be a custom element of the site's own instead, in the site's own tag enum.
  *
- * "Used" means by either side. `<iframe>`, `<small>`, `<div>` and `<textarea>` are only ever created
- * by the client, but they are elements this site emits all the same, and `assets/ts/model/HtmlTag.ts`
- * mirrors this list so both halves agree on every one.
+ * "Used" means by either side. Some are only ever created by the client, but they are elements a
+ * page carries all the same, and `assets/ts/model/HtmlTag.ts` mirrors this list so both halves
+ * agree on every one.
  */
 enum HtmlTag: string implements TagName
 {
@@ -37,7 +37,7 @@ enum HtmlTag: string implements TagName
     case H3 = 'h3';
 
     /**
-     * `h4`, `ul`, `li` and `em` are the privacy policy's, and they arrived with
+     * `h4`, `ul`, `li` and `em` are for hand-authored documents, and they arrived with
      * {@link MarkupParser}.
      *
      * They are the answer to the question above — whether a new element should be one of ours
@@ -61,22 +61,20 @@ enum HtmlTag: string implements TagName
     case Em     = 'em';
     case Div    = 'div';
 
-    /** Created client-side only: the player's frame, and the textarea that decodes entities. */
+    /** Created client-side only: an embedded frame, and the textarea that decodes entities. */
     /**
-     * The one media element here, and the one thing on the site that stays native for a reason
-     * beyond convention.
+     * The one media element here, and one that stays native for a reason beyond convention.
      *
-     * The demo page's player could have been a custom element, the way the SoundCloud one is. It
-     * is not, because the browser's own controls are the whole feature: they seek, they work with
-     * a keyboard, they work with a screen reader, and — unlike everything else on a release page —
-     * **they work with JavaScript off**, which for something being sent to one person to listen to
-     * is worth more than any styling. See docs/frontend.md on what a no-JS visitor loses.
+     * A player could be a custom element. This one is not, because the browser's own controls are
+     * the whole feature: they seek, they work with a keyboard, they work with a screen reader, and
+     * **they work with JavaScript off**, which for audio sent to one person to listen to is worth
+     * more than any styling.
      */
     case Audio    = 'audio';
 
     case Iframe   = 'iframe';
     /**
-     * What `<demo-waveform>` draws on. Client-created only, the way {@link self::Textarea} is — a
+     * What a custom element draws on. Client-created only, the way {@link self::Textarea} is — a
      * view emits the custom element and the element makes this.
      */
     case Canvas   = 'canvas';

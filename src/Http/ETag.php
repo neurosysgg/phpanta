@@ -14,7 +14,7 @@ namespace Phpanta\Http;
  * Nothing builds one with a `'"' . hash(…) . '"'` at a call site; the quotes cannot be forgotten
  * because nothing else can produce one.
  *
- * The hash algorithm lives here for the same reason: it is a fact about what an ETag on this site
+ * The hash algorithm lives here for the same reason: it is a fact about what an ETag here
  * *is*, and {@link self::matches()} can read a validator back only because this class wrote it.
  */
 final readonly class ETag implements HeaderValue

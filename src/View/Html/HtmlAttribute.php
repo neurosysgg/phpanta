@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\View\Html;
 
 /**
- * The HtmlAttribute enum. The standard HTML attributes this site emits.
+ * The HtmlAttribute enum. The standard HTML attributes in use.
  *
  * `class` is {@link self::ClassName} rather than `Class`, because `HtmlAttribute::Class` parses as
  * the `::class` magic constant and would quietly evaluate to the enum's own name — a case where the

@@ -16,8 +16,8 @@ use Phpanta\Exception\RequirementException;
  * misspelling is ours or the directive belongs to an extension this host does not have.
  *
  * The directive is a string rather than a {@link PhpSetting}, because the vocabulary of directives
- * is the engine's and every extension's rather than this site's; a declaration from this site
- * passes a case's value.
+ * is the engine's and every extension's rather than the framework's; a declaration of the
+ * framework's own passes a case's value.
  */
 final readonly class SettingRequirement implements Requirement
 {

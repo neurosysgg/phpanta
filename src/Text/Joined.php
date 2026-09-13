@@ -10,7 +10,7 @@ use Phpanta\Support\Collection;
  * The Joined class. Several texts as one, each put into the language before they are joined.
  *
  * For the one place a translatable has to be a single value rather than several children: a
- * `<title>` is `section — neuro.SYS`, and an attribute holds one string. Where the texts are
+ * `<title>` is `section — name`, and an attribute holds one string. Where the texts are
  * content, an element takes them as separate children instead, and nothing needs joining.
  */
 final readonly class Joined implements Translatable

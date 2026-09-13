@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\Http;
 
 /**
- * The RequestHeader enum. The request headers this site reads.
+ * The RequestHeader enum. The request headers the framework reads.
  *
  * {@link ResponseHeader} is the other direction; both are {@link HeaderName}s, so {@link Header}
  * formats either.
@@ -28,8 +28,8 @@ enum RequestHeader: string implements HeaderName
      * {@link ResponseHeader::ETag} it was given, and {@link ViewResponse} answers a match with a
      * 304. It is mirrored in `assets/ts/model/RequestHeader.ts` all the same, because that mirror
      * is compared case for case and in order; a case with no reader on one side is the same
-     * arrangement as {@link ResponseHeader::PoweredBy}, which names a header the site never sends,
-     * and `EmbedAttribute::Loaded`, which no view may emit.
+     * arrangement as {@link ResponseHeader::PoweredBy}, which names a header the framework never
+     * sends.
      *
      * Naming it is the point. The alternative is reading `HTTP_IF_NONE_MATCH` off `$_SERVER` as a
      * bare string, which is the thing this enum exists to stop.
@@ -41,7 +41,7 @@ enum RequestHeader: string implements HeaderName
      *
      * Read only by {@link FileResponse}, which is the only response here with a file behind it.
      * The reason it exists is seeking: an `<audio>` element asks for a range when the scrubber is
-     * dragged, so a server that ignores this plays a demo perfectly and refuses to skip — a broken
+     * dragged, so a server that ignores this plays a track perfectly and refuses to skip — a broken
      * control with nothing in the console about it.
      *
      * Mirrored in `assets/ts/model/RequestHeader.ts` with no reader on that side, the same
@@ -53,9 +53,8 @@ enum RequestHeader: string implements HeaderName
     /**
      * Which languages the visitor would rather read, and how much rather.
      *
-     * The site is English, so most pages ignore this. The imprint and the privacy policy are not:
-     * each carries a German half and an English half, and {@link AcceptedLanguages} decides which
-     * one a visitor meets first. See {@link \Phpanta\View\View::language()}.
+     * Every page reads it, through {@link Request::language()}: where no language cookie has
+     * decided, {@link AcceptedLanguages} picks which of the app's languages a visitor meets.
      *
      * **Whatever reads this owes a `Vary`**, and that is the whole hazard here rather than a note
      * beside it: two visitors asking for the same URL get different bytes, so a cache that has not
@@ -85,10 +84,10 @@ enum RequestHeader: string implements HeaderName
     /**
      * The page the visitor was on when they followed a link here.
      *
-     * Read by one route, `LanguageController`, for one thing: which page
-     * to send a visitor back to after they switch language. Only its path is taken, and only after
+     * Read by a language switch's route, for one thing: which page to send a visitor back to after
+     * they switch language. Only its path is taken, and only after
      * {@link \Phpanta\View\Html\Element::staysOnThisOrigin()} agrees the path stays here; it is
-     * never stored and never logged. The site's own `Referrer-Policy` is
+     * never stored and never logged. The framework's own `Referrer-Policy` is
      * `strict-origin-when-cross-origin`, so a click from one of its pages carries the full path.
      *
      * Mirrored in `assets/ts/model/RequestHeader.ts` with no reader on that side, the same

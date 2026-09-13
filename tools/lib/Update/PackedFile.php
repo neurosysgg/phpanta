@@ -9,9 +9,10 @@ namespace Phpanta\Tool\Update;
  * bytes.
  *
  * The name is the *archive's* name — `public/index.php` — not the path it was read from, and the
- * two differ on the webroot, whose directory is called `public/` here and `neurosys/` on the live
- * host. Keeping them apart in a value object is what makes that mapping happen once, in
- * {@link TarWriter::tree()}, rather than at every call site that builds a payload.
+ * two differ on the webroot, whose directory is called `public/` here and may be called anything
+ * on the live host — `htdocs/`, or the site's own name. Keeping them apart in a value object is
+ * what makes that mapping happen once, in {@link TarWriter::tree()}, rather than at every call site
+ * that builds a payload.
  */
 final readonly class PackedFile
 {

@@ -16,10 +16,13 @@ exists because of a story, the current document states the rule in one sentence 
 
 **Nothing under this directory names a site.** A second site built on Phpanta has none of the first
 one's classes, so a framework file that reaches one — by an import, a qualified name, or an
-unqualified name its namespace resolves — breaks the moment it is used anywhere else. neuro.SYS's
-`BoundaryTest` resolves every name the framework's code writes and fails on any site class, and its
-verify script fails on any mention of the site's namespace anywhere under `phpanta/`, comments and
-docs included. A site's facts reach the framework through the app, never the other way round.
+unqualified name its namespace resolves — breaks the moment it is used anywhere else. A vendoring
+site holds that line from outside: a boundary test resolves every name the framework's code writes
+and fails on any site class, and a verify script fails on any mention of the site's namespace
+anywhere under `phpanta/`, comments and docs included. Every `{@link}` lands on a framework class
+or PHP's own, and every link in these documents stays inside this directory, so an example borrowed
+from a site fails instead of dangling. A site's facts reach the framework through the app, never
+the other way round.
 
 ## Stack
 
@@ -102,8 +105,8 @@ These fail silently — no error, no log, a page that looks fine.
 **Requests and auth**
 - Never `parse_url()` the request target: it fails with `false`, which `??` does not guard.
   `Request::path()` uses `Uri\Rfc3986\Uri::parse()`, which answers null.
-- A target opening with `//` is a path, and `Uri::parse()` reads one as an authority — `//x/releases`
-  as the page at `/releases` — so `Request` never hands one to the parser.
+- A target opening with `//` is a path, and `Uri::parse()` reads one as an authority — `//x/posts`
+  as the page at `/posts` — so `Request` never hands one to the parser.
 - A `{placeholder}` compiles to `[^/]+` and matches an unparseable target too.
 - Behind a compressing module, the `ETag` a browser echoes has `-gzip` inside the quotes;
   `ETag::matches()` drops it, and a verbatim compare never answers a 304.

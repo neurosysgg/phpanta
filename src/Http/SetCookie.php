@@ -7,9 +7,9 @@ namespace Phpanta\Http;
 use Phpanta\Text\Language;
 
 /**
- * The SetCookie class. The value of a `Set-Cookie` header — the one cookie this site sets.
+ * The SetCookie class. The value of a `Set-Cookie` header — the one cookie the framework sets.
  *
- * It is set only when a visitor clicks the language switch, and it holds only `de` or `en`. Every
+ * It is set only when a visitor clicks a language switch, and it holds only a language code. Every
  * attribute is there for a reason, and none is optional:
  *
  * - `Path=/` — every page answers in the language, so every page is sent the cookie.
@@ -21,7 +21,7 @@ use Phpanta\Text\Language;
  * - `HttpOnly` — no script reads it, and none needs to: the server decides the language, and the
  *   page states it on its root element.
  *
- * The privacy policy names it, in both languages; see docs/security.md.
+ * It is storage a site's privacy policy has to name; see docs/language.md.
  */
 final readonly class SetCookie implements HeaderValue
 {

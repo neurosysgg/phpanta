@@ -15,7 +15,7 @@ use LogicException;
  * which is the point: a malformed declaration stops the call there, naming the value, instead of
  * reaching a report as a line that always passes or always fails for a reason nobody can see.
  *
- * **Extends `LogicException`**, for {@link ReleaseVerificationException}'s reason: nothing recovers
+ * **Extends `LogicException`**, for {@link RouteException}'s reason: nothing recovers
  * from a requirement written wrong and nothing should try. It is "something in this repository is
  * written wrong, go and fix it", so no construction of a requirement owes an `@throws`.
  *

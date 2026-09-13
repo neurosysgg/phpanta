@@ -21,7 +21,7 @@ enum PushUpdateOption: string implements Option
     /**
      * Leave alone whatever the payload does not mention.
      *
-     * The default is to mirror, matching `deploy.sh`'s `--delete` on the two trees this ships. This
+     * The default is to mirror, matching a full deploy's `--delete` on the trees this ships. This
      * flag is the escape hatch for a push that is deliberately partial.
      */
     case NoMirror = 'no-mirror';

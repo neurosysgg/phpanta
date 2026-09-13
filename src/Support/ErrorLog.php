@@ -11,14 +11,14 @@ use Phpanta\Model\Health\PhpSetting;
  * The ErrorLog class. Points PHP's own diagnostics at a file this deployment owns.
  *
  * **Set per request, because that is the one place every runtime can be told the same thing.**
- * Strato's `error_log` is empty, which sends a diagnostic to the SAPI's own log where nothing here
- * can read it, and its `error_reporting` drops notices and deprecations. The local Apache names
- * `/var/log/php_errors.log`, which php-fpm's `http` user cannot open, so its diagnostics went the
- * same way. Both directives are `PHP_INI_ALL`, so a script can set them for itself, and
- * `capability v1 errors` then quotes the file — see docs/runtime.md.
+ * A shared host may leave `error_log` empty, which sends a diagnostic to the SAPI's own log where
+ * nothing here can read it, and mask notices and deprecations out of `error_reporting`. A local
+ * server may name a log its PHP user cannot open, so its diagnostics go the same way. Both
+ * directives are `PHP_INI_ALL`, so a script can set them for itself, and `capability v1 errors`
+ * then quotes the file.
  *
  * **Not in `public/.user.ini`**, although that would also catch what PHP raises before the script
- * starts. A path there has to be absolute, and the live host spells one directory two ways — see
+ * starts. A path there has to be absolute, and a shared host can spell one directory two ways — see
  * {@link \Phpanta\App::webroot()}; a relative one resolves against the working directory at the
  * moment of logging, which is not the same directory at startup as during the script. So a
  * diagnostic raised before `index.php` runs still goes to the host's log. That is the cost.
@@ -35,9 +35,9 @@ use Phpanta\Model\Health\PhpSetting;
 final class ErrorLog
 {
     /**
-     * Everything, deprecations and notices included — the two classes Strato's own mask drops.
-     * A deprecation is how a PHP upgrade announces what it is about to break, and the one this
-     * host raised on every request (`register_argc_argv`) was found by accident.
+     * Everything, deprecations and notices included — the two classes a shared host's own mask may
+     * drop. A deprecation is how a PHP upgrade announces what it is about to break, and one raised
+     * on every request — `register_argc_argv` under 8.5 — is otherwise found only by accident.
      */
     public const int REPORTING = E_ALL;
 

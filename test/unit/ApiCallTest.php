@@ -24,7 +24,8 @@ use PHPUnit\Framework\TestCase;
  * verified handler carries its own report, and prefacing it with "check your key" would send
  * somebody looking in exactly the wrong place.
  *
- * No `#[CoversClass]`, like every other test of `tools/` — see {@link ApiClientTest}.
+ * No `#[CoversClass]`, like every other test of `tools/`: `tools/` is not coverage source, so a
+ * class named there would record nothing.
  */
 final class ApiCallTest extends TestCase
 {
@@ -38,7 +39,7 @@ final class ApiCallTest extends TestCase
      */
     protected function setUp(): void
     {
-        $this->sandbox = sys_get_temp_dir() . '/neurosys-apicall-' . bin2hex(random_bytes(6));
+        $this->sandbox = sys_get_temp_dir() . '/phpanta-apicall-' . bin2hex(random_bytes(6));
         new Directory($this->sandbox)->create();
 
         $key = openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => 'prime256v1']);
@@ -116,7 +117,7 @@ final class ApiCallTest extends TestCase
 
         self::assertSame(ExitCode::Success, $code);
         self::assertCount(1, $sent);
-        self::assertSame('https://neurosys.gg/api/capability/v1/extensions', $sent[0]->url->render());
+        self::assertSame('https://example.test/api/capability/v1/extensions', $sent[0]->url->render());
     }
 
     /**
@@ -180,7 +181,7 @@ final class ApiCallTest extends TestCase
         $error = fopen('php://memory', 'r+');
 
         $code = Runner::execute(
-            new ApiCall('https://neurosys.gg', '.config/neurosys/update.key', $transport),
+            new ApiCall('https://example.test', '.config/example/update.key', $transport),
             ['--key', $this->keyFile->path, $service, $version, $action],
             new Output($out, $error),
         );

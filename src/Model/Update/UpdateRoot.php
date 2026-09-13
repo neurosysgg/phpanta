@@ -9,13 +9,13 @@ namespace Phpanta\Model\Update;
  *
  * **This enum is the allowlist.** A member name whose first segment is not one of these values —
  * and `data` conspicuously is not — reaches no destination at all, which is what keeps
- * `data/admin.php`, `data/site_auth.php`, `data/demos.php` and every unreleased track out of reach
+ * `data/admin.php`, `data/site_auth.php` and whatever else a site keeps in `data/` out of reach
  * of any push, however well signed. That is a stronger guarantee than a path check, because there
  * is no destination to compute rather than a destination that is computed and then rejected.
  *
- * `data/` is left to `deploy.sh` for a second reason as well: it is the one tree rsynced *without*
- * `--delete`, precisely because `demos.php` and `demos/` are gitignored and a mirror from a clone
- * that has never staged a demo would take every demo off the server. A mirroring updater would have
+ * `data/` is left to a full deploy for a second reason as well: it is the one tree copied *without*
+ * deleting, because a site may keep gitignored files there that exist only on the server, and a
+ * mirror from a clone that never had them would take them off it. A mirroring updater would have
  * to reproduce that asymmetry, and an updater with two opposite deletion policies in one code path
  * is where the mistake would live.
  *
@@ -34,9 +34,9 @@ enum UpdateRoot: string
     /**
      * The hand-rolled autoloader, which is a single file rather than a tree.
      *
-     * It is a root because `deploy.sh` ships it as its own rsync for the same reason: it sits
+     * It is a root of its own for the reason a full deploy ships it on its own: it sits
      * beside `src/` rather than inside it, and it is what `public/index.php` requires before any
-     * class exists. Being one file is why {@link self::directory()} answers null for it and why it
+     * class exists. Being one file is why {@link Deployment::directory()} answers null for it and why it
      * is never mirrored — a lone file is replaced or left alone, and can never be stale in the way
      * a tree can.
      */
@@ -91,7 +91,7 @@ enum UpdateRoot: string
      * deciding whether a name is under `public/` must not mean resolving where `public/` *is*.
      * Coupling a question about a string to a question about the environment lets a test that
      * points DOCUMENT_ROOT somewhere else reach the live tree, and the mirror deletes what it
-     * reaches. Where a root lands is {@link Deployment}'s to say. See docs/history/api.md.
+     * reaches. Where a root lands is {@link Deployment}'s to say.
      *
      * @return bool
      */

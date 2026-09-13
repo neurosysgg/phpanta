@@ -45,8 +45,8 @@ interface ApiHandler
      *
      * Past the gate the site's posture inverts completely: every failure here is reported in full,
      * with the sentence that says what went wrong, because the caller has proved possession of the
-     * private key and there is nowhere else for that detail to go — the live host has
-     * `display_errors` off and an empty `error_log`.
+     * private key and there is nowhere else for that detail to go — a production host has
+     * `display_errors` off, and may have an empty `error_log`.
      *
      * No `#[\NoDiscard]`, and its absence is the codebase's rule rather than an oversight: PHP
      * resolves the attribute at the *implementation*, so one here would warn about nothing, and

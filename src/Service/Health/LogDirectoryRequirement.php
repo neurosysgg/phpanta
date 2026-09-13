@@ -16,13 +16,13 @@ use Phpanta\Support\Directory;
  * **The one requirement whose failure would otherwise be silent in both directions.**
  * {@link \Phpanta\Support\ErrorLog} points `error_log` at a file in this directory, and when PHP
  * cannot open that file it says nothing and hands the diagnostic to the SAPI's log instead — so a
- * missing directory reads exactly like a site that raises nothing. The directory is gitignored and
- * `deploy.sh` excludes it, so it exists only where somebody made it.
+ * missing directory reads exactly like an app that raises nothing. The directory is gitignored and
+ * a deploy need not carry it, so it exists only where somebody made it.
  *
- * **Optional**, because the site is correct without it and only harder to diagnose: a `warn`, never
+ * **Optional**, because an app is correct without it and only harder to diagnose: a `warn`, never
  * a 503.
  *
- * The directory comes in by constructor rather than from `Site`, so a test can
+ * The directory comes in by constructor rather than from {@link \Phpanta\App::logs()}, so a test can
  * hand it one that is missing, or one it cannot write, without touching the repository's own.
  */
 final readonly class LogDirectoryRequirement implements Requirement
@@ -68,7 +68,7 @@ final readonly class LogDirectoryRequirement implements Requirement
 
     /**
      * Missing and unwritable are told apart, because the fix differs: one is a `mkdir`, the other
-     * a `chgrp` — locally, php-fpm runs as `http` while the repository belongs to its owner.
+     * a `chgrp` — a server's PHP often runs as a different user from the one who owns the files.
      *
      * @return Finding
      */

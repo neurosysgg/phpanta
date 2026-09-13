@@ -67,10 +67,11 @@ abstract class View
     /**
      * A page title: the section, then the site.
      *
-     * Written once, here, rather than by each view: `' — neuro.SYS'` in six views is six chances to
-     * use a hyphen where the others use an em dash and never notice. A translatable rather than a
-     * string, because most sections are words, which the language decides when the title renders;
-     * a section that is a name — a release's title — is the same in every language.
+     * Written once, here, rather than by each view: the separator and the name written out in every
+     * view is a chance per view to use a hyphen where the others use an em dash and never notice. A
+     * translatable rather than a string, because most sections are words, which the language
+     * decides when the title renders; a section that is a name — a post's title — is the same in
+     * every language.
      *
      * @param Translatable|string|null $section
      * @return Translatable

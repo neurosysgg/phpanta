@@ -8,7 +8,7 @@ namespace Phpanta\View\Html;
  * The Document class. A doctype and the `<html>` element under it.
  *
  * The doctype is the one piece of a page that is not an element and has no attributes, so it is
- * neither a {@link Tag} case nor an {@link Element}. It is a {@link Doctype}, which is a Node like
+ * neither a {@link TagName} case nor an {@link Element}. It is a {@link Doctype}, which is a Node like
  * everything else here — leaving the last string in the document as a string would have been the
  * one exception, and it guards the loudest-consequence, quietest-failure value on the page.
  */

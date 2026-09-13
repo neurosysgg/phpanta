@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Phpanta\Support;
 
 /**
- * The Charset enum. The encoding this site is written in.
+ * The Charset enum. The encoding an app is written in.
  *
  * One case, like {@link \Phpanta\Http\RequestedWith} — it exists to make the encoding a type, not
  * to offer a choice. Before it, `utf-8` was written in three places in two shapes: the
- * `Content-Type` parameter, the third argument to the site's only escaping call, and the
+ * `Content-Type` parameter, the third argument to the markup tree's only escaping call, and the
  * charset meta tag in the document head. Nothing connected them, and the failure mode is a
  * quiet one — a document whose header names one encoding and whose head names another is decoded
  * by whichever the browser decides to believe.
@@ -20,8 +20,8 @@ namespace Phpanta\Support;
  *
  * **Two forms, because the two kinds of reader write a charset name differently.** Both accept
  * either — the header parameter is case-insensitive by spec and PHP's encoding names are too — so
- * the split is convention rather than correctness, and keeping both is what leaves every byte the
- * site already emits exactly as it was.
+ * the split is convention rather than correctness, and keeping both is what leaves every byte
+ * already emitted exactly as it was.
  */
 enum Charset: string
 {

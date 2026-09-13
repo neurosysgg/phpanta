@@ -1,13 +1,13 @@
 /**
  * Base for a tag that only means anything inside a particular element.
  *
- * <terminal-key> outside a <terminal-field> is not a smaller mistake than a misspelled tag — it is
- * the same mistake, and it fails the same silent way: an inert inline box, styled by a selector that
- * no longer matches, with nothing in the console. So each of these says what it belongs inside, and
+ * A <list-item> outside its <list-box> is not a smaller mistake than a misspelled tag — it is the
+ * same mistake, and it fails the same silent way: an inert inline box, styled by a selector that no
+ * longer matches, with nothing in the console. So each of these says what it belongs inside, and
  * says so where it is defined rather than in a comment.
  *
- * The check is "somewhere inside", not "directly under", because a card's tags sit inside the
- * anchor that has to stay a real link — <download-card> wraps <a> wraps <download-label>.
+ * The check is "somewhere inside", not "directly under", because a card's tags can sit inside an
+ * anchor that has to stay a real link — <link-card> wraps <a> wraps <card-label>.
  */
 export abstract class NestedElement extends HTMLElement {
   /** The element this one has to sit inside. */

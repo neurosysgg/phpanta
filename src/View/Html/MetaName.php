@@ -21,8 +21,8 @@ namespace Phpanta\View\Html;
  * pages, which shows up in a search result weeks later or never.
  *
  * That is the same shape as the `modulepreload` argument on {@link LinkRel}: a value whose absence
- * costs something real and reports nothing. {@link HtmlAttribute::Name} is used nowhere else on
- * this site, so this enum is the whole vocabulary of that attribute.
+ * costs something real and reports nothing. {@link HtmlAttribute::Name} is used nowhere else in
+ * the framework, so this enum is the whole vocabulary of that attribute.
  */
 enum MetaName: string
 {
@@ -34,6 +34,6 @@ enum MetaName: string
      */
     case Viewport = 'viewport';
 
-    /** The sentence a search result or a link preview quotes, in the page's language. See `Layout`. */
+    /** The sentence a search result or a link preview quotes, in the page's language. A shell writes it. */
     case Description = 'description';
 }

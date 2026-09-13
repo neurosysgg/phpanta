@@ -10,7 +10,7 @@ namespace Phpanta\Http\Api;
  * One case, like {@link \Phpanta\Http\RequestedWith} and
  * {@link \Phpanta\View\Html\LinkTarget} — it exists to make the segment a type, not to offer a
  * choice. A version that lived as the literal `'v1'` would be a segment the router matched and
- * nothing else recognised, which on this site is the shape of drift every enum here exists to stop.
+ * nothing else recognised, which is the shape of drift every enum here exists to stop.
  *
  * **It is the second segment rather than the first, and that is a decision about what a version
  * versions.** `/api/v1/update/patch` would make one number govern every service at once, so adding

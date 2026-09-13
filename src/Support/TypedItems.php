@@ -17,7 +17,7 @@ use SplObjectStorage;
  *
  * **A trait rather than a base class, and that is still the whole design decision here.** The two
  * collections are not substitutable and never should be: one is a list and one is a map, their
- * `with()` methods take different arguments, and no call site on this site holds "either kind of
+ * `with()` methods take different arguments, and no call site holds "either kind of
  * collection". A shared parent would announce a common type that nothing wants and nothing checks;
  * a trait announces shared plumbing, which is all this is. It is the first trait in the codebase
  * for that reason — the honest reading of `extends` would have been a claim, and the honest reading
@@ -74,11 +74,11 @@ use SplObjectStorage;
  * **Nothing is memoised.** A pipeline materialised twice runs its callbacks twice. Every callback
  * here is pure and every source is a `readonly` value object, so both runs answer the same; a cache
  * would be the one mutable thing inside the class whose immutability is the reason it is safe to
- * hold inside every `readonly` value object on the site.
+ * hold inside every `readonly` value object in an app.
  *
  * ## The query methods
  *
- * They are the site's default way of handling a group of things. They were written because `all()`
+ * They are the framework's default way of handling a group of things. They were written because `all()`
  * had become the escape hatch out of the type: sixteen call sites reached for it or hand-rolled a
  * `foreach`, and nine of those unwrapped the collection for no other purpose than to hand the array
  * to `array_map`. A collection that has to be unwrapped before it can be asked anything is a
@@ -88,7 +88,7 @@ use SplObjectStorage;
  * `array_find`, `array_any` and `array_all` use — `Element::renderChildren()` already calls one —
  * and the order `ARRAY_FILTER_USE_BOTH` passes. It also costs nothing at the call sites that do not
  * want the key: PHP hands a userland callback extra arguments harmlessly, so
- * `$links->map(self::profileLink(...))` stays a first-class callable rather than growing a closure
+ * `$items->map(self::card(...))` stays a first-class callable rather than growing a closure
  * around it. Key-first would have broken every one of those.
  *
  * **What a collection may hold is anything with a type, not only an object.** The bound was
@@ -97,13 +97,12 @@ use SplObjectStorage;
  * outside the type for a reason that was about the check rather than about them. It is
  * `get_debug_type()` beside the `instanceof` now.
  *
- * **What deliberately did not follow it in is `tools/lib/Dsp/`.** Those three classes are a port of
- * `c-µdsp` whose stated contract is that the caller owns the buffer, and
- * `Fft::transform()` is the codebase's only genuine in-place mutation:
- * its butterfly reads and writes four arbitrary indices of two arrays per iteration, which no
- * immutable collection expresses and no per-element callback can see. Measured at 512 floats a
- * window, rebuilding a collection per window costs 354 ms against `array_fill`'s 1 ms. The port
- * keeps arrays, and that is one named exception rather than a hole in the type.
+ * **What deliberately does not follow it in is a buffer the caller owns.** Code whose contract is
+ * genuine in-place mutation — an FFT, whose butterfly reads and writes four arbitrary indices of
+ * two arrays per iteration — does what no immutable collection expresses and no per-element
+ * callback can see. Measured at 512 floats a window, rebuilding a collection per window costs
+ * 354 ms against `array_fill`'s 1 ms. Such code keeps arrays under a `#[BareArray]` that says so,
+ * and that is a named exception rather than a hole in the type.
  *
  * @template T
  */
@@ -162,16 +161,16 @@ trait TypedItems
      * and a collection of arrays is the shape every one of these was written to replace — allowing
      * it would let the escape hatch back in under the type's own name. That refusal is load-bearing
      * rather than tidy: it is what forced {@link \Phpanta\Http\Security\CspSourceList} to exist,
-     * and it is why two callbacks on this site map to a `JsonSerializable` and a
-     * `SectionPosition` rather than to an `array`.
+     * and it is why a callback that wants to hand back a pair maps to a small value object — a
+     * `JsonSerializable`, say — rather than to an `array`.
      */
     private const array SCALARS = ['string', 'int', 'float', 'bool'];
 
     /**
      * Constructs an instance of {@link self}.
      *
-     * **The declared type is checked here, and that is the same move `HiDriveLink`
-     * makes on a share id.** {@link self::guard()} asks `instanceof`, which answers `false` for a
+     * **The declared type is checked here, and that is the same move a value object makes when it
+     * checks its own shape at its constructor.** {@link self::guard()} asks `instanceof`, which answers `false` for a
      * string naming no class rather than complaining about it — so without this check,
      * `new Collection('Reelase')` would not be an error but a collection that silently rejects
      * everything ever offered to it, reporting the typo as a `CollectionException` about the *item*. Naming
@@ -290,9 +289,8 @@ trait TypedItems
      * **An object is compared by identity and not by value**, for the same reason and a stronger
      * one: a value object here declares no equality, so the only honest question about two of them
      * is whether they are the same object. A caller wanting value equality maps to the value first,
-     * which is what both callers do — `Demo::verify()` reduces its tracks to
-     * their labels and {@link \Phpanta\Http\Security\ContentSecurityPolicy::hosts()} reduces its
-     * sources to their origins, and each asks this afterwards.
+     * which is what {@link \Phpanta\Http\Security\ContentSecurityPolicy::hosts()} does: it reduces
+     * its sources to their origins, and asks this afterwards.
      *
      * @return static
      */
@@ -348,7 +346,7 @@ trait TypedItems
      * **The element type is read off $callback's own return declaration**, which is why this takes
      * no type argument. A `class-string` parameter beside a callback that already declares
      * `: string` would be the same fact written twice, and the second copy is the one that goes
-     * stale — the drift `Site` exists to stop. Stating it once also puts it where
+     * stale. Stating it once also puts it where
      * PHP itself enforces it, which is the stronger of the two checks: a callback that returns the
      * wrong thing is a `TypeError` at the `return`, naming the function, before this class sees the
      * value at all.
@@ -368,8 +366,8 @@ trait TypedItems
      * maps to a map — {@link self::ofType()} is what knows which.
      *
      * **A map keeps its keys.** Reindexing would be the implementation talking — `array_map` given
-     * two arrays returns one — and a `SearchableCollection` is a map: the whole reason `ReleasesView`
-     * can name each release by its slug is that it stays one. See docs/history/types.md.
+     * two arrays returns one — and a `SearchableCollection` is a map: the whole reason a view can
+     * name each item by its slug while mapping it is that it stays one. See docs/history/types.md.
      * The consequence to know is that its result cannot be spread into a call — string keys
      * become named arguments — so a call site that spreads asks {@link self::toValues()} for a list
      * and says so.
@@ -430,7 +428,7 @@ trait TypedItems
     /**
      * The first item $predicate accepts, or the first item at all, or null for neither.
      *
-     * Replaces the `foreach`-and-return that `Release::findFormat()` was
+     * Replaces the `foreach`-and-return a search over a collection is otherwise
      * written as. Null rather than an exception for the same reason `find()` answers null: not
      * finding something is a normal answer to a search.
      *
@@ -459,16 +457,16 @@ trait TypedItems
     /**
      * The last item, or null for an empty collection.
      *
-     * Here because `Arrangement::lastStart()` was the one
-     * remaining place in `src/` that unwrapped a collection to get at an array — not to do anything
-     * with the array, but because `end()` was the only way to ask this question.
+     * Here because a caller wanting the last item would otherwise unwrap the collection to get at
+     * an array — not to do anything with the array, but because `end()` is the only way to ask an
+     * array this question.
      *
      * `array_key_last()` rather than `end()`: `end()` moves the array's internal pointer, which is
      * a write to the store from a method that promises to be a read.
      *
      * **No predicate, unlike {@link self::first()}**, and the asymmetry is deliberate rather than
-     * an omission. `first()` has one because `Release::findFormat()` is a
-     * search; nothing here searches backwards. PHP gives `array_find()` and no `array_find_last()`,
+     * an omission. `first()` has one because finding a match is a search from the front;
+     * nothing here searches backwards. PHP gives `array_find()` and no `array_find_last()`,
      * so the predicate form would be a hand-rolled reverse loop written for nobody — and the day
      * something wants one, `where(…)->last()` already answers it.
      *
@@ -488,10 +486,10 @@ trait TypedItems
     /**
      * A copy with every pending step already run.
      *
-     * **The one member laziness made necessary, and it exists for callbacks that do work.** Every
-     * other callback on this site is pure, so when it runs cannot be observed;
-     * `DemoStage::write()` is the exception — its `where()` predicate
-     * transcodes a mix with ffmpeg and reports whether that worked. Left pending, that filter is a
+     * **The one member laziness made necessary, and it exists for callbacks that do work.** Most
+     * callbacks are pure, so when they run cannot be observed; the exception is a predicate that
+     * acts — a `where()` inside a method called `write()` that converts each file it is given and
+     * reports whether that worked. Left pending, that filter is a
      * method called `write()` which writes nothing: the first thing to ask a question runs it, an
      * {@link self::isEmpty()} stops at the first failure with every source behind it unstaged, and
      * a `foreach` over the answer encodes them all a second time.
@@ -683,7 +681,7 @@ trait TypedItems
      *
      * `$callback(...)` normalises anything callable to a `Closure` first, which is what makes this
      * work for a plain arrow function, a first-class callable of a **private** method
-     * (`$this->downloadCard(...)`), a static one (`self::card(...)`) and an internal function alike.
+     * (`$this->row(...)`), a static one (`self::card(...)`) and an internal function alike.
      *
      * A union or intersection type is not a `ReflectionNamedType`; a nullable one is, and so is
      * `mixed`, both of which report `allowsNull()`. All three are refused rather than guessed at:
@@ -721,8 +719,8 @@ trait TypedItems
      *
      * The one check a PHP generic cannot make. `@template T` is a docblock, erased at runtime, so
      * `$this->type` is the only thing that actually knows — which is also why it is a public
-     * readonly property rather than an implementation detail: `Release`, `Terminal` and both embeds
-     * read it to check the *element* type of a collection they were handed.
+     * readonly property rather than an implementation detail: a value object handed a collection
+     * reads it to check the *element* type of what it was given.
      *
      * Called by `with()` and by nothing else. {@link self::map()} says why the items it produces
      * need no guard.

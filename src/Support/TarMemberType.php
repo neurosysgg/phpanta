@@ -6,7 +6,7 @@ namespace Phpanta\Support;
 
 /**
  * The TarMemberType enum. The ustar type byte — every kind of thing a tar member can be, and which
- * three of them this site will read.
+ * three of them a push may carry.
  *
  * **The whole vocabulary is here rather than only the accepted part**, which is the opposite of how
  * an allowlist is usually written and is deliberate. {@link TarArchive} has to refuse a symlink by
@@ -49,7 +49,7 @@ enum TarMemberType: string
     case PaxGlobal = 'g';
 
     /**
-     * Whether this site will read a member of this type.
+     * Whether a push may carry a member of this type.
      *
      * @return bool
      */

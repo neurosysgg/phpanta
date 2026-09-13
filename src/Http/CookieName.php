@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\Http;
 
 /**
- * The CookieName enum. The cookies this site reads.
+ * The CookieName enum. The cookies the framework reads.
  *
  * A cookie's name is the same kind of fact a header's is: both ends have to spell it identically,
  * and a misspelling is not an error but a cookie nobody reads — a choice a visitor made that is

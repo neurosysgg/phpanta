@@ -15,9 +15,9 @@ use Phpanta\Support\Collection;
 /**
  * The CapabilitySettings class. Every php.ini directive the engine knows, and the value in force.
  *
- * **All of them, rather than the ones this site cares about.** A curated list is exactly what
+ * **All of them, rather than the ones an app cares about.** A curated list is exactly what
  * cannot answer the question this is for — "does this host have a directive I have not thought
- * of" — and the ones this site does care about are floors, which are `health v1 settings`'s to
+ * of" — and the ones an app does care about are floors, which are `health v1 settings`'s to
  * check. About three hundred lines, in the engine's own order, which is alphabetical.
  *
  * The value is the local one — what a request here runs under, after `.user.ini` and anything else

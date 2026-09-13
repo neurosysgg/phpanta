@@ -15,13 +15,13 @@ use Phpanta\Model\Health\Requirement;
 /**
  * The WebrootRequirement class. `DOCUMENT_ROOT` resolves to a webroot inside this deployment.
  *
- * **A requirement of this site's rather than of the core's**, which is why it lives here and not
- * under `Model\Health`: it asks {@link App::webroot()}, and nothing in the core may know this
- * site's `Config`. It is also the first use of the extension point by the code that defines it —
+ * **A requirement of the installation's rather than of the core's**, which is why it lives here
+ * and not under `Model\Health`: it asks {@link App::webroot()}, and nothing in the core may know
+ * the app. It is also the first use of the extension point by the code that defines it —
  * see {@link Requirement}.
  *
  * Required, because a push mirrors into this directory: a deployment whose webroot will not resolve
- * cannot be updated over `/api` at all, and has to be fixed with `deploy.sh`.
+ * cannot be updated over `/api` at all, and has to be fixed with a full deploy.
  *
  * **The refusal is caught and becomes the finding**, which is the contract {@link Requirement}
  * states. `App::webroot()` refuses with an {@link UpdateException}, and left alone that would

@@ -1,7 +1,7 @@
 /**
- * Stamps every built asset with a hash of its content, and writes what came out to
- * the site's src/<Site>/AssetManifest.php, which its shell reads to emit the stylesheet, the entry script and
- * the modulepreload list.
+ * Stamps every built asset with a hash of its content, and writes what came out to the site's
+ * src/<App>/AssetManifest.php, which its shell reads to emit the stylesheet, the entry script and the
+ * modulepreload list.
  *
  * Two jobs that have to be one tool, because the second depends on the first:
  *
@@ -17,13 +17,13 @@
  * the browser fetches the file twice and the hint is worse than useless. That is why one tool owns
  * both: the stamp in every URL the manifest names is the one every import resolves under.
  *
- * **A version segment in the path, not a renamed file and not a query.** `Tag.a1b2c3d4.js` is the
- * conventional shape and would break every test that imports `public/assets/js/model/Tag.js` by
+ * **A version segment in the path, not a renamed file and not a query.** `Status.a1b2c3d4.js` is the
+ * conventional shape and would break every test that imports `public/assets/js/model/Status.js` by
  * name — costing the property that the client tests load exactly what the browser loads. `?v=` on
  * each import specifier reads well and cost the front end's 100% coverage gate, for the reason
  * written at the stamp below. A path segment costs neither: a relative specifier resolves against
- * the URL it was loaded from, so `/assets/js/v-a1b2c3d4/main.js` importing `./model/Tag.js` asks
- * for `/assets/js/v-a1b2c3d4/model/Tag.js` with nothing having to rewrite anything.
+ * the URL it was loaded from, so `/assets/js/v-a1b2c3d4/main.js` importing `./model/Status.js` asks
+ * for `/assets/js/v-a1b2c3d4/model/Status.js` with nothing having to rewrite anything.
  *
  * So this tool **writes no file but the manifest**. The compiled JS is byte-identical to what tsc
  * emitted, which is what keeps the drift check a straight diff, the tests importing plain paths,
@@ -34,8 +34,8 @@
  * verify script pins that they strip the same shape.
  *
  * Deliberately not versioned: everything under `assets/img/`. Those are vendored, hand-placed and
- * referenced from `Platform::icon()` and `Site::COVER_PLACEHOLDER` as plain constants — teaching
- * a Model enum to consult a build artefact would cost more than a calendar TTL on files that change
+ * referenced from the site's PHP as plain constants — teaching a model enum to consult a build
+ * artefact would cost more than a calendar TTL on files that change
  * about never. The line is: assets the build generates get a content hash, assets a person drops in
  * keep a date. `public/.htaccess` gives those thirty days.
  *
@@ -82,7 +82,7 @@ const COMMENT = /\/\/[^\n]*|\/\*[\s\S]*?\*\//g;
  * is a decision to fetch later, and stamping it would undo the reason it was written that way.
  *
  * Anchored to a whole line, and `[^'"\n]` rather than `[^'"]`, because the loose version walked out
- * of `export class Config {` and into the string on the line below it, then reported `neuro.SYS` as
+ * of `export class Config {` and into the string on the line below it, then reported the site's name as
  * an unresolvable import. tsc emits one statement per line and terminates each with a semicolon, so
  * requiring both costs nothing and makes that false match impossible.
  */
@@ -172,7 +172,7 @@ function bundled() {
  * Inserts the build stamp as a path segment: /assets/js/x.js -> /assets/js/v-a1b2c3d4/x.js
  *
  * Directly after the asset root and before everything else, because that is the only position a
- * relative specifier carries with it. A stamp at the end would not survive `./model/Tag.js`.
+ * relative specifier carries with it. A stamp at the end would not survive `./model/Status.js`.
  *
  * @param {string} url
  * @returns {string}
@@ -245,14 +245,14 @@ walk(ENTRY, 'the build');
  *
  * Per-file would bust less — editing one element would bust that element and its ancestors instead
  * of all forty-nine — but the only per-file shape that keeps every path intact is `?v=` on each
- * import specifier, and V8 attributes a module reached that way to `…/CoverArt.js?v=48f0b166`,
+ * import specifier, and V8 attributes a module reached that way to `…/Status.js?v=48f0b166`,
  * which `--test-coverage-include` does not match: every module the tests reach through `main.js`
  * would report zero. The gate is a deliberate property and worth more than per-file granularity
- * over a few kilobytes. See docs/history/frontend.md.
+ * over a few kilobytes.
  *
  * Putting the version in the *path* instead costs nothing, because a relative specifier resolves
- * against the URL it was loaded from: `/assets/js/v-a1b2c3d4/main.js` importing `./model/Tag.js`
- * asks for `/assets/js/v-a1b2c3d4/model/Tag.js` without anything having to rewrite it. So the
+ * against the URL it was loaded from: `/assets/js/v-a1b2c3d4/main.js` importing `./model/Status.js`
+ * asks for `/assets/js/v-a1b2c3d4/model/Status.js` without anything having to rewrite it. So the
  * committed JS is byte-identical to what tsc emitted, which is what keeps the drift check a
  * straight diff and the client tests loading exactly the files the browser runs.
  *
@@ -272,7 +272,7 @@ const stamp = digest(
 //
 // A bundle has nothing to list, and that is the feature switching itself off rather than a build
 // that found nothing. The waterfall a preload hint exists to flatten is the graph being discovered
-// a wave at a time; once it is one file there is no graph left to discover. Layout::modulePreloads()
+// a wave at a time; once it is one file there is no graph left to discover. The site's shell
 // spreads this into containing(), so empty emits no links at all.
 const modules = BUNDLE === ''
   ? [...graph.keys()]

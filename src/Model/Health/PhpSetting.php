@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\Model\Health;
 
 /**
- * The PhpSetting enum. The php.ini directives this site names — in a requirement it declares, or in
+ * The PhpSetting enum. The php.ini directives the framework names — in a requirement it declares, or in
  * a line `capability` reports on its own.
  *
  * **A directive name is typed here for the reason every name in this codebase is: getting one
@@ -16,9 +16,9 @@ namespace Phpanta\Model\Health;
  * indistinguishable from an absence. {@link SettingRequirement} closes the other half, by failing a
  * directive the engine does not know.
  *
- * These are not settings this repository owns, which is the whole point of reading them.
+ * These are not settings an app owns, which is the whole point of reading them.
  * Deliberately not exhaustive: `capability v1 settings` lists every directive the engine has, and a
- * case here is a directive this site has something to say about.
+ * case here is a directive the framework has something to say about.
  */
 enum PhpSetting: string
 {
@@ -48,7 +48,7 @@ enum PhpSetting: string
     case Timezone = 'date.timezone';
 
     /**
-     * Whether the opcode cache is on — this site's one optional requirement.
+     * Whether the opcode cache is on — optional, since an app is only slower without it.
      *
      * The one directive here that can genuinely be absent rather than merely unset — a PHP built
      * without the extension has no such name at all — which {@link SettingRequirement} reports as
@@ -59,8 +59,8 @@ enum PhpSetting: string
     /**
      * Whether a diagnostic is printed into the response.
      *
-     * The first half of the pair five docblocks in this repository once asserted about the live
-     * host, and which is now a requirement instead. It has to be off there:
+     * The first half of a pair every production host should have right, and a requirement for
+     * that reason. It has to be off:
      * `SecurityHeaders::send()` and the doctype have both gone out long before most of what could
      * warn, so a printed warning lands inside a page that is already being written.
      */
@@ -72,9 +72,9 @@ enum PhpSetting: string
     /**
      * Whether a web request's query string becomes `$_SERVER['argv']`.
      *
-     * Deprecated in PHP 8.5 and on at the live host, so every request there raised the deprecation
-     * at startup — the last diagnostic `capability v1 errors` reported, and nothing on the web side
-     * reads argv. `public/.user.ini` turns it off; the CLI registers argv regardless.
+     * Deprecated in PHP 8.5 and still on at some hosts, so every request there raises the
+     * deprecation at startup — and nothing on the web side reads argv. `public/.user.ini` turns it
+     * off; the CLI registers argv regardless.
      */
     case RegisterArgcArgv = 'register_argc_argv';
 
@@ -82,7 +82,7 @@ enum PhpSetting: string
      * Where a recorded diagnostic goes, and the other half of that pair.
      *
      * Empty is a real answer rather than a missing one: it means the SAPI's own destination, which
-     * under `cgi-fcgi` on shared hosting is a log this repository has no path to. That is the
+     * under `cgi-fcgi` on shared hosting is a log the app has no path to. That is the
      * measured claim underneath "it is the only account of the run there will be" on
      * {@link \Phpanta\Model\Update\UpdateReport} — and where it is *not* empty, it names the one
      * file worth reading when something has gone wrong, which `capability v1 errors` quotes.

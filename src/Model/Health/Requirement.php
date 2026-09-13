@@ -10,20 +10,21 @@ namespace Phpanta\Model\Health;
  *
  * **This is the extension point.** The built-in kinds — {@link VersionRequirement},
  * {@link ExtensionRequirement}, {@link SettingRequirement} — cover what most installations need
- * without a line of code, and anything they cannot say is a class implementing this. The site's
- * own deployment checks are written that way ({@link \Phpanta\Service\Health\WebrootRequirement},
+ * without a line of code, and anything they cannot say is a class implementing this. The
+ * framework's own deployment checks are written that way ({@link \Phpanta\Service\Health\WebrootRequirement},
  * {@link \Phpanta\Service\Health\DataFileRequirement}), so the extension point has been used by
  * the code that defines it rather than only described. Declarations live in
  * {@link \Phpanta\Support\RequirementInitialization}; see `docs/health.md`.
  *
  * **Nothing under `Model\Health` knows which installation it is checking.** No class here imports
- * `Config`, a `DataFile` or anything else of this site's — that is what lets the core be lifted out
- * whole, and a requirement that needs to know about this site lives beside the site instead.
+ * the app, a data-file name or anything else of an installation's — that is what keeps the core
+ * independent of every one, and a requirement that needs to know about its installation lives
+ * outside it, under `Service\Health` or in the site itself.
  *
  * **{@link self::check()} must not throw.** A requirement that cannot tell reports that it cannot
  * tell, as a {@link Finding} that is not met — the refusal's own sentence is usually the most useful
- * thing it could say. The report does not catch on an implementation's behalf, and cannot: this
- * codebase refuses `catch (Throwable)` outright (see `docs/guidelines.md`), so a requirement that
+ * thing it could say. The report does not catch on an implementation's behalf, and cannot: the
+ * framework refuses `catch (Throwable)` outright (see `docs/guidelines.md`), so a requirement that
  * throws turns the whole report into a 500 rather than one line into a `fail`.
  */
 interface Requirement

@@ -23,23 +23,23 @@ use Phpanta\Text\Language;
  * to the text this tree translates — and above the first `lang` there is no language at all, where
  * a {@link TranslatedText} refuses to render rather than guessing.
  *
- * **Hand-authored markup is not a fourth.** The privacy policy is read *into* these three by
+ * **Hand-authored markup is not a fifth.** A hand-authored document is read *into* these by
  * {@link MarkupParser}, so markup authored outside PHP is a thing the tree can be built from rather
- * than an exception to it, and an element or an attribute the site does not emit is a refusal
+ * than an exception to it, and an element or an attribute the app does not emit is a refusal
  * rather than a string nobody read. See docs/history/markup.md.
  *
- * **There is a second tree in this repo, and it is deliberately not this one.** The release tooling
- * emits `data/releases.php` through an expression tree of its own, `Phpanta\Tool\Php\Expression`,
+ * **There is a second tree in the framework, and it is deliberately not this one.** The tooling
+ * emits PHP data files through an expression tree of its own, `Phpanta\Tool\Php\Expression`,
  * which answers for PHP source the objection this answers for markup — nothing builds a language by
  * concatenating it — and which states the same indentation contract as {@link self::render()} does,
  * in a parameter of its own shape.
  *
  * They stay two types, on the test this codebase already applies to `Support\TypedItems`: nothing
  * anywhere holds "either kind of node", so a common parent would announce a type nothing wants. It
- * would also have to live under `src/` to be reachable from both — shipped to Strato and inside
+ * would also have to live under `src/` to be reachable from both — shipped to the host and inside
  * `phpunit.xml.dist`'s coverage source, for a tool that never runs there — which is the arrangement
- * `docs/authoring.md` argues against by name. The kinship is real and it is prose, which is the
- * most a language can carry across a boundary the deployment draws.
+ * the rule that no tooling class goes under `src/` exists to refuse. The kinship is real and it is
+ * prose, which is the most a language can carry across a boundary the deployment draws.
  */
 interface Node
 {

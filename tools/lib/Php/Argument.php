@@ -8,10 +8,10 @@ namespace Phpanta\Tool\Php;
  * The Argument class. One item inside a call's parentheses.
  *
  * Carries three things the emitted entry needs and a bare expression could not: the parameter
- * **name**, because `data/releases.php` is written with named arguments; a trailing **comment**,
- * which is the column naming the file whose share id is wanted; and whether the whole thing is
- * **commented out**, which is how the half-state is written down — an `embed:` that cannot exist
- * until the track is uploaded is a line to uncomment, not a line to write.
+ * **name**, because a data file of entries is written with named arguments; a trailing **comment**,
+ * which is the column naming the file whose id is wanted; and whether the whole thing is
+ * **commented out**, which is how the half-state is written down — an argument that cannot exist
+ * until something outside the file assigns its id is a line to uncomment, not a line to write.
  *
  * A bare comment line is this with no value at all, so `Call` has one kind of item rather than two.
  */

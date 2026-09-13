@@ -5,17 +5,16 @@ declare(strict_types=1);
 namespace Phpanta\Tool\Php;
 
 /**
- * The Expression interface. One piece of the PHP source `EntryWriter`
- * emits.
+ * The Expression interface. One piece of the PHP source a site's entry writer emits.
  *
  * This exists for the reason the markup tree exists, and the objection is the same one: nothing
  * should build PHP by concatenating it, any more than `View/` builds HTML by concatenating it. Built
  * from a heredoc with `%s` holes and a `sprintf` per fragment, a class name would be a string, an
- * enum case `'MusicalKey::' . $key->name`, and the only thing standing between a typo and a data
+ * enum case `'Status::' . $status->name`, and the only thing standing between a typo and a data
  * file that will not parse would be reading it carefully.
  *
- * The emitter composes values instead and one renderer writes the syntax, so `Genre::Dubstep` comes
- * out of a real `Genre`, and a name that does not exist cannot be written down.
+ * The emitter composes values instead and one renderer writes the syntax, so `Status::Draft` comes
+ * out of a real `Status`, and a name that does not exist cannot be written down.
  *
  * **It is the same protocol as {@link \Phpanta\View\Html\Node}, and deliberately not the same
  * type.** Both say: the first line carries no indent, every line after it is indented to where the
@@ -25,10 +24,10 @@ namespace Phpanta\Tool\Php;
  *
  * Making them one type was considered and turned down. Nothing anywhere holds "either kind of
  * node", which is the test that already makes `Support\TypedItems` a trait rather than a base
- * class; and a shared parent would have to live under `src/`, which `docs/authoring.md` gives two
- * mechanical reasons none of this may do — `deploy.sh` rsyncs `src/` to Strato with `--delete`, and
- * `phpunit.xml.dist` names it as the site's coverage source. A supertype whose only second
- * implementor is a tool would be shipped to a server that never runs the tool.
+ * class; and a shared parent would have to live under `src/`, which none of this may do for two
+ * mechanical reasons — a deploy mirrors `src/` to the server, and `phpunit.xml.dist` names it as
+ * coverage source. A supertype whose only second implementor is a tool would be shipped to a
+ * server that never runs the tool.
  */
 interface Expression
 {

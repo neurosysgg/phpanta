@@ -12,7 +12,7 @@ use Phpanta\Http\HttpMethod;
 /**
  * A registered route — a {@link Path} paired with a factory that produces a Controller.
  *
- * Pattern syntax: static segments and `{param}` placeholders, e.g. `/releases/{slug}/{format}`.
+ * Pattern syntax: static segments and `{param}` placeholders, e.g. `/posts/{slug}/{page}`.
  * The pattern is a case rather than a string because the views build their links from the same
  * cases — see {@link Path}, which is where that argument is made.
  */
@@ -49,9 +49,9 @@ readonly class Route
     /**
      * @param Path $pattern
      * @param Closure $factory
-     * @param MethodPolicy $methods Who decides which methods this route answers on. Nine routes
-     *                              take the default and say nothing; see that enum for the one
-     *                              that does not, and why it cannot carry a method set instead.
+     * @param MethodPolicy $methods Who decides which methods this route answers on. Nearly every
+     *                              route takes the default and says nothing; see that enum for the
+     *                              one that does not, and why it cannot carry a method set instead.
      * @param Closure|null $exports Which pages a static export writes for this route: a closure
      *                              answering an iterable of placeholder values, each a string
      *                              (one placeholder) or a list of them. Only a site knows which
@@ -83,7 +83,7 @@ readonly class Route
      *
      * **A route is a page when it only reads and is one address**: without placeholders, its path
      * is the whole of it. A route with placeholders is one address per value, and which values
-     * exist — the releases in a catalogue — only the site knows, so it says, with `$exports`;
+     * exist — the posts on a blog — only the site knows, so it says, with `$exports`;
      * without one it exports nothing rather than guessing. A route under any other
      * {@link MethodPolicy} is never a page — the API is the one today, and a static host has
      * nowhere to send a request it would have to verify.
@@ -184,7 +184,7 @@ readonly class Route
      * expression early. Each placeholder becomes {@link self::SEGMENT}.
      *
      * `\z` rather than `$`: `$` also matches immediately before a trailing newline, so `$` would let
-     * `/releases/ill\n` match and capture the newline into the slug. The anchor that means "the
+     * `/posts/hello\n` match and capture the newline into the slug. The anchor that means "the
      * end" should be the one that says so.
      *
      * @param string $pattern

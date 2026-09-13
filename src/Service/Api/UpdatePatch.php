@@ -13,15 +13,15 @@ use Phpanta\Model\Update\UpdateManifest;
 use Phpanta\Service\UpdateApplier;
 
 /**
- * The UpdatePatch class. The one action on this site that writes: the signed tree, applied.
+ * The UpdatePatch class. The one action that writes: the signed tree, applied.
  *
  * It is the write path from the signature check down — the applier call, the 422 for an archive
  * that will not expand, the 500 for a push that could not write everything. It is not a
  * Controller: by the time one of these exists the request has been
  * verified, so there is no `Request` to consult and nothing left to refuse quietly. Every failure
  * from here on is reported in full, because the caller has proved it holds the private key and
- * there is nowhere else for that detail to go — the live host has `display_errors` off and an empty
- * `error_log`.
+ * there is nowhere else for that detail to go — a production host has `display_errors` off, and may
+ * have an empty `error_log`.
  */
 final readonly class UpdatePatch implements ApiHandler
 {
@@ -30,8 +30,8 @@ final readonly class UpdatePatch implements ApiHandler
      *
      * @param UpdateManifest $manifest What this push asks for, already read out of the signed bytes.
      * @param string $archive The gzipped tar, already matched against the envelope's digest.
-     * @param UpdateApplier|null $applier A test seam, the way `DemoAudioController`'s
-     *                                    repository is. Production passes nothing, which is what
+     * @param UpdateApplier|null $applier A test seam, the way {@link \Phpanta\Service\ApiGate}'s
+     *                                    key and serial are. Production passes nothing, which is what
      *                                    makes {@link UpdateApplier} resolve the live deployment.
      */
     public function __construct(
@@ -59,7 +59,7 @@ final readonly class UpdatePatch implements ApiHandler
     /**
      * @return Response
      *
-     * @throws UpdateException if the archive cannot be expanded, or holds a member this site will
+     * @throws UpdateException if the archive cannot be expanded, or holds a member the applier will
      *                         not write. **Nothing has been written when it does** — that is
      *                         {@link UpdateApplier::apply()}'s own contract, and it is what lets
      *                         this throw rather than catch: {@link \Phpanta\Controller\ApiController}

@@ -21,12 +21,13 @@ use Phpanta\Support\Collection;
  * reads are there.
  *
  * **Every file, tracked or not, and no verdict.** The tracked ones are also requirements — an
- * absence is a fault, and `health v1 deployment` fails it — but the untracked four each have their
- * own reason to be absent: no demos staged, no gate, no log yet. So this reports state, and the
+ * absence is a fault, and `health v1 deployment` fails it — but the untracked ones each have their
+ * own reason to be absent: no gate configured, no key installed, nothing written yet. So this
+ * reports state, and the
  * tracked flag beside each line is what lets `absent  (tracked)` read as the fault it is without
  * this class inventing a severity word for it.
  *
- * **{@link DataFile::UpdateKey} can never be reported absent**, and that is worth knowing rather
+ * **{@link \Phpanta\CredentialFile::UpdateKey} can never be reported absent**, and that is worth knowing rather
  * than confusing: a report anybody is reading verified against it. The size beside it is what tells
  * a whole key from a truncated paste.
  *
@@ -47,7 +48,7 @@ final readonly class CapabilityDeployment implements ApiHandler
     /** The repository carries this file, so every clone has it and an absence is a fault. */
     private const string TRACKED = '  (tracked)';
 
-    /** It does not, so an absence is a state: no demos staged, no gate, no key. */
+    /** It does not, so an absence is a state: no gate, no key, nothing written yet. */
     private const string UNTRACKED = '  (untracked)';
 
     /**
@@ -108,7 +109,7 @@ final readonly class CapabilityDeployment implements ApiHandler
     }
 
     /**
-     * Whether one of the files this site reads is there, and whether the repository carries it.
+     * Whether one of the files the app reads is there, and whether the repository carries it.
      *
      * @param DataFileName $file
      * @return string

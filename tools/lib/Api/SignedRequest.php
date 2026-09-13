@@ -28,7 +28,7 @@ use Phpanta\Tool\Http\Url;
  *
  * **What it signs is exactly what it sends.** The URL is built from the path this puts in the
  * manifest, in that order, so the two cannot disagree by construction. That matters because
- * {@link SitePath::to()} `rawurlencode`s each value and is therefore *not* the inverse of
+ * {@link ApiPath::to()} `rawurlencode`s each value and is therefore *not* the inverse of
  * {@link \Phpanta\Support\Route::matches()} — for every service, version and action spelled in
  * `[a-z0-9]` it is exactly the identity, and for one that ever is not, signing the encoded form and
  * sending the encoded form still agree.

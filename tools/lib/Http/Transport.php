@@ -14,11 +14,10 @@ namespace Phpanta\Tool\Http;
  * two streams, and for the same reason: the interesting half of an API client is *what it sends*,
  * and that half cannot be asserted against a method that ends in a socket.
  *
- * It is deliberately not a general HTTP abstraction. Three shapes of request go out of this repo
- * — a form-encoded token exchange, a multipart upload, and the bare `GET` {@link
- * Client::track()} reads a secret token back with — and this is the
- * interface that carries exactly those. They are the three {@link Request} has a factory for, and
- * a fourth shape means a fourth factory rather than a wider interface here.
+ * It is deliberately not a general HTTP abstraction. The shapes of request it carries are the ones
+ * {@link Request} has a factory for — a form-encoded token exchange, a multipart upload, a bare
+ * `GET` that reads a resource back, and the raw body of a signed push — and nothing wider. A new
+ * shape means a new factory rather than a wider interface here.
  */
 interface Transport
 {

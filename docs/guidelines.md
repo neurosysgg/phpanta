@@ -2,14 +2,15 @@
 
 The PHP side argues against five habits. A **bare array** announces nothing about what it holds,
 which is what [`Collection`](collections.md) is for; a **bare string** is a name with no vocabulary,
-which is what the sixty-odd enums are for; an **`array_*` call** is a member of that collection
+which is what the fifty-odd enums are for; an **`array_*` call** is a member of that collection
 written the long way; an **`@`** hides whatever it happens to be in front of; and a **bare SPL
 exception** names the condition "something".
 
 None of those arguments is worth anything if it only holds for as long as whoever writes the next
-method remembers it. neuro.SYS's `test/unit/GuidelineTest.php` is what holds it, over both source trees — the framework's
-and the site's. How the rules arrived, and what
-they found on their first run, is in [history/types.md](history/types.md).
+method remembers it. `GuidelineTest` is what holds it, over both source trees — the framework's and
+the vendoring site's; it still runs in the site's suite, see
+[testing.md](testing.md#what-still-lives-in-a-vendoring-site). How the rules arrived, and what they found on
+their first run, is in [history/types.md](history/types.md).
 
 ---
 
@@ -23,10 +24,10 @@ directions the way `NoDiscardTest`'s set is.
 
 `#[BareArray('why')]` on a method or property, `#[BareString('literal', 'why')]` on a class,
 `#[BareCall('array_map', 'why')]` on a method. The reason is mandatory in the attribute's own
-constructor as well as in the test, for the reason `HiDriveLink` checks a share id at its
-constructor: the test reports a fault against a list, the constructor reports it against the line
-that is wrong. A bare `#[BareArray]` would say the array is deliberate, which the reader already
-suspected; what is worth saying is **which door it is**.
+constructor as well as in the test, for the reason `CspHost` checks an origin at its constructor:
+the test reports a fault against a list, the constructor reports it — as a `GuidelineException` —
+against the line that is wrong. A bare `#[BareArray]` would say the array is deliberate, which the
+reader already suspected; what is worth saying is **which door it is**.
 
 **Two of the five have no excuse mechanism at all**, and that is a claim about those two rather than
 a gap. Neither `@` nor a foreign exception has a case where the replacement is worse, so there is
@@ -41,14 +42,15 @@ parameter there would replace it with one we make ourselves — the distinction
 [collections.md](collections.md#where-a-collection-goes-and-where-it-does-not) draws between what a
 class *takes* and what it *stores*.
 
-31 `#[BareArray]` attributes carry an excuse (counted at `946c4fd`), and they come in four kinds:
+25 `#[BareArray]` attributes carry an excuse in the framework's `src/` (counted on 2026-09-13), and
+they come in four kinds:
 
 | Kind | Examples |
 |---|---|
-| a **door** | `preg_match`'s `$matches`, `file()`'s lines, `require`'s data file, `jsonSerialize()`'s contract, `toArray()` itself |
-| a **variadic's argument**, spread into a call | `varyOn()`, `accented()`, `nodes()`, `modulePreloads()`, `terminalFields()` |
-| a **tuple** — two types in a fixed order, the one shape a homogeneous collection cannot hold | `entry()`, `credentials()` |
-| an **accumulator** — written to in a loop, where `with()` would copy | `$qualities`, `counts()` |
+| a **door** | `preg_match`'s `$matches` in `Route::matches()`, `file()`'s lines in `File::lines()`, `unpack`'s shape in `TarArchive`, `scandir()` in `Directory`, `toArray()` itself |
+| a **variadic's argument**, spread into a call | `varyOn()`, `Route::createController()` |
+| a **tuple** — two types in a fixed order, the one shape a homogeneous collection cannot hold | `AcceptedLanguages::entry()`, `AuthScheme::credentials()` |
+| an **accumulator** — written to in a loop, where `with()` would copy | `AcceptedLanguages::$qualities`, `UpdateApplier::walk()` |
 
 ## The string rule
 
@@ -69,20 +71,20 @@ anything with no letter or digit in it, because `'/'`, `', '` and `"\n"` are str
 for them would read worse than they do; and so are an attribute's own arguments, which are prose
 about the code the way a docblock is.
 
-20 literals carry a `#[BareString]` excuse (counted at `946c4fd`), and **every one of them is a
-coincidence rather than a shortcut**, which is the point of listing them: each is a word that looks
-like a name and is not. Captions (`artist`, `status`, `releases`, `error` — two pages agreeing on a
-caption, where the thing that does have to be one fact is the `SitePath` under the link), another
-grammar (`%d:%02d` is a printf format, `#^https://…#i` is a regex), or somebody else's vocabulary
-(`int` and `string` are `get_debug_type()`'s spellings in a class-string's place; `time` is a JSON key
-on one side of its pair and a caption on the other).
+9 literals carry a `#[BareString]` excuse in the framework's `src/` (counted on 2026-09-13), and
+**every one of them is a coincidence rather than a shortcut**, which is the point of listing them:
+each is a word that looks like a name and is not. Somebody else's vocabulary — `int` and `string`
+are `get_debug_type()`'s spellings in a class-string's place, in `TypedItems`, `Diagnostics`,
+`Route`, `Vocabulary`, `HealthSection` and `UpdateReport` — or another grammar: `c` is an `fopen()`
+mode in `FileLock`, and `#^https://…#i` is a regex in `Location`.
 
-**One entry is a real duplication kept on purpose and is worth re-reading rather than assuming.**
-`Location::URL_PATTERN` and `Profile::URL_PATTERN` are the same regex in two files. They check two
-different kinds of address — a header the site emits, and data it reads — and throw different
-exceptions for it, so sharing one constant would mean a change made for a redirect silently
-changing what a profile URL may be. That is the argument; it is written on `Location`, and it is
-the one exception here that a later reader might reasonably overturn.
+**That last one is a real duplication kept on purpose and is worth re-reading rather than
+assuming.** A site that holds URLs of its own — a profile link in its data — may check them with the
+same regex, in a class of its own. The two check two different kinds of address — a header the
+framework emits, and data a site reads — and throw different exceptions for it, so sharing one
+constant would mean a change made for a redirect silently changing what the site's data may hold.
+That is the argument; it is written on `Location`, and it is the one excuse here that a later reader
+might reasonably overturn.
 
 ## The call rule
 
@@ -99,13 +101,13 @@ until somebody looks at it.
 declaration is exempt from the string rule: those three *are* the members, and the array functions
 are what they are made of.
 
-Four calls carry a `#[BareCall]` excuse, in two kinds:
+Three calls in the framework carry a `#[BareCall]` excuse, in two kinds:
 
-- **A class constant** — `Layout::modulePreloads()` and `Element::verifyUrl()`. A class constant
-  *cannot* hold a `Collection`, since `new` is not a constant expression, so those two are permanent.
+- **A class constant** — `Element::verifyUrl()` maps `URL_SCHEMES`. A class constant *cannot* hold a
+  `Collection`, since `new` is not a constant expression, so that one is permanent.
 - **A door, or a variadic straight through one** — `File::lines()` is `file()`'s doorway;
   `Element::containing()` maps the variadic PHP already guards directly into `with()`, on the hottest
-  path this site has.
+  path a page has.
 
 ## The `@` rule
 
@@ -120,18 +122,18 @@ and hands everything else back to PHP untouched, and `watched()` keeps the
 messages, which is what `MarkupParser` uses to refuse a parse error. It costs **0.58 µs** a call,
 measured; against the 3.4 µs a failing `file_get_contents()` takes to fail, it does not show up.
 
-**This is the one rule that walks the tooling too** — both `tools/lib/` trees —, and for the reason the others do not: what is
-excluded there are the doors, and a suppression is not a door — `PrivateKey` signs a call with the
-only private key this repository touches.
+**This is the one rule that walks the tooling too** — the framework's `tools/lib/` and a site's own
+— and for the reason the others do not: what is excluded there are the doors, and a suppression is
+not a door — `PrivateKey` signs a call with the only private key a deployment's tooling touches.
 
 ## The exception rule
 
-**Three questions, and `@throws` already answers the hardest.** Every `throw new` under either source tree names
-a class in `Exception`; every method that throws directly declares it; every `catch` names a
-concrete class rather than `Throwable` or `Exception` — and one that binds a variable and then throws
-must hand that variable on. An SPL exception becomes ours by *extending what it already was*, so
-every `instanceof`, `catch` and `expectException` keeps matching; see
-[architecture.md](https://github.com/neurosysgg/neurosys-webspace/blob/master/docs/architecture.md#exceptions).
+**Three questions, and `@throws` already answers the hardest.** Every `throw new` under either source
+tree names a class in `Phpanta\Exception` or the site's own exception namespace; every method that
+throws directly declares it; every `catch` names a concrete class rather than `Throwable` or
+`Exception` — and one that binds a variable and then throws must hand that variable on. An SPL
+exception becomes ours by *extending what it already was*, so every `instanceof`, `catch` and
+`expectException` keeps matching; see [architecture.md](architecture.md#exceptions).
 
 **Three smaller guidelines ride along**, all at zero and all there as regressions rather than as
 work:
@@ -144,9 +146,11 @@ work:
 
 ## What is deliberately not checked
 
-**`mixed`**, which appears twelve times under `src/`, always as a collection's element type. It is
-there because PHP has no generics rather than because anybody chose it, and a fourth attribute for a
-set that cannot change would be ceremony.
+**`mixed`**, which appears a dozen times in declared types under `src/`: as a collection's element
+type — `with()`, `find()`, `first()`, `last()`, `guard()` — and as what `Diagnostics::muted()` hands
+back from a closure whose result it cannot know, an `fopen()` handle or `false`. It is there because
+PHP has no generics rather than because anybody chose it, and a fourth attribute for a set that
+cannot change would be ceremony.
 
 **The tooling (`tools/lib/`)**, except for the `@` rule: it is not deployed, it is outside the coverage source, and
 the doors it is made of (`unpack`, `preg_match`, `file`) are most of what it does.

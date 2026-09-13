@@ -16,14 +16,13 @@ use Uri\Rfc3986\Uri;
  * address with nothing looking at it was this one: the target of a request carrying a client secret
  * and a rotating refresh token, passed to {@link Request} as a `string` and handed to
  * {@link CurlTransport} as whatever that string happened to be. (Named through the class rather than
- * through the function it calls, because `test/basic_test.sh` asserts that one file under
- * `tools/lib/` reaches the extension and greps for the prefix to do it — a check that cannot tell
- * prose from a call site, and should not have to. Same reason `Terminal` names a tag through its
- * enum.)
+ * through the function it calls, because a site's verify script may assert that one file under
+ * `tools/lib/` reaches the extension and grep for the prefix to do it — a check that cannot tell
+ * prose from a call site, and should not have to.)
  *
  * **It is not `Location`, though it wants the same thing of a URL.** That class is a
  * {@link \Phpanta\Http\HeaderValue} — a header the *site* sends on a response — and it lives under
- * `src/`, which `deploy.sh` uploads and `phpunit.xml.dist` counts as coverage source. A target a
+ * `src/`, which a deploy uploads and `phpunit.xml.dist` counts as coverage source. A target a
  * *command* aims a request at is a different fact that happens to have the same shape, and it
  * belongs on this side of the wall. See `tools/autoload.php` for why that wall exists.
  *
@@ -34,8 +33,8 @@ use Uri\Rfc3986\Uri;
  * which is the same shape of answer as a scheme that is not `https`.
  *
  * `InvalidArgumentException` rather than a named one, because that is exactly what this is: every
- * address here is built from a constant in `Endpoint`, so a refusal
- * is a mistake in this repository's own source rather than a condition a run can encounter. Same
+ * address here is built from a constant in the tooling — an API client's endpoints, the default
+ * origin — so a refusal is a mistake in the repository's own source rather than a condition a run can encounter. Same
  * reasoning as {@link \Phpanta\Support\TypedItems}'s plain `TypeError`.
  */
 final readonly class Url

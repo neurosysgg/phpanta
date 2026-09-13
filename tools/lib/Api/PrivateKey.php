@@ -13,19 +13,20 @@ use Phpanta\Tool\Cli\UsageException;
  * The PrivateKey class. The half of the pair that can make a signature.
  *
  * The counterpart to {@link \Phpanta\Support\PublicKey}, and deliberately on this side of the
- * boundary: `deploy.sh` uploads `src/` and never `tools/`, so the server holds a class that can
+ * boundary: a deploy uploads `src/` and never `tools/`, so the server holds a class that can
  * only ever *check* a signature and has no way to make one. **That asymmetry is the whole security
  * argument for `/api`**, and it is worth noticing that it is enforced by where the files are rather
  * than by any check in the code.
  *
  * **The private key is read and used here and nowhere else in this repository.** It never leaves
- * this machine and is never committed — `~/.config/neurosys/update.key` is outside the repository
- * entirely, which is the same arrangement the SoundCloud refresh token has, and for the same
- * reason: no `.gitignore` entry and no rsync `--exclude` is what stands between it and a webroot.
+ * this machine and is never committed — a path like `~/.config/example/update.key` is outside the
+ * repository entirely, which is the arrangement any API client's refresh token should have too, and
+ * for the same reason: no `.gitignore` entry and no rsync `--exclude` is what stands between it and
+ * a webroot.
  *
- * It moved out of `PayloadBuilder` when `/api` arrived, because that class's docblock made exactly
- * the claim above and a second signer — one for a push, one for a read — would have made it false.
- * One class signs; what is signed is its caller's business.
+ * It is a class of its own rather than part of whatever builds a push, because a second signer —
+ * one for a push, one for a read — would make the claim above false. One class signs; what is
+ * signed is its caller's business.
  */
 final readonly class PrivateKey
 {

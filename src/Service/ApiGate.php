@@ -25,12 +25,12 @@ use Phpanta\Support\PublicKey;
  * It is {@link Auth} for `/api`, and the split is the same one: the decision is a returned value
  * and the refusal lives outside it, because a method that ends the request cannot be asserted
  * against. Here the refusal is not even a challenge — it is
- * {@link \Phpanta\Controller\ApiController} answering exactly as the site answers for a path no
+ * {@link \Phpanta\Controller\ApiController} answering exactly as the app answers for a path no
  * route claims, so a caller without the key cannot tell `/api` or anything under it from a typo.
  *
  * **Nothing this class refuses says why.** Every failure below is one `null`, and the controller
  * turns every `null` into the same 404 or 405. That is the difference between this gate and the
- * three Basic ones: those announce a realm because a person has to be prompted for a password, and
+ * Basic ones: those announce a realm because a person has to be prompted for a password, and
  * this must announce nothing at all, because the only legitimate caller already knows the endpoint
  * is there. Past the signature the situation inverts and diagnostics become generous — see
  * {@link \Phpanta\Http\Api\ApiHandler} — since by then the caller has proved possession of the
@@ -45,7 +45,7 @@ use Phpanta\Support\PublicKey;
  * time it took to drain. An unrouted path drains nothing; now neither does this.
  *
  * **The key and the serial are still named for `update`** — `data/update.pub` and
- * `cgi-bin/.update-serial` — though both now cover every service. Renaming either would mean a file
+ * `.update-serial` — though both now cover every service. Renaming either would mean a file
  * uploaded by hand on the server and a counter starting again from zero, which is a migration to
  * buy a tidier name; the names are the service that first needed them, and that is written here
  * rather than fixed.
@@ -55,17 +55,17 @@ final readonly class ApiGate
     /**
      * The most a request body may weigh.
      *
-     * The real payload is about 250 KB, so this is thirty times what it takes and a **sixteenth**
-     * of what the live host's `post_max_size` would permit.
+     * A real payload is about 250 KB, so this is thirty times what it takes and a **sixteenth**
+     * of what a host whose `post_max_size` is 128M would permit.
      *
      * **It is a ceiling on what the envelope may ask for rather than the length anything is read
      * to**: the read below is bounded by the *signed* size, so a credential claiming ten bytes
      * cannot make this process buffer eight megabytes, and a credential claiming more than this is
      * refused before a byte is read at all. A bound the application states is worth more than one
-     * inherited from a php.ini nobody in this repository owns.
+     * inherited from a php.ini the app does not own.
      *
      * **Neither figure above is worth carrying**: the payload grows with the codebase, and the
-     * limit is the host's (`post_max_size` read 128M). Re-derive both rather than trusting these —
+     * limit is the host's. Re-derive both rather than trusting these —
      * `php tools/push-update.php --dry-run` prints the archive's size, and
      * `php tools/api.php health v1 settings` checks the limit against this.
      *
@@ -104,7 +104,7 @@ final readonly class ApiGate
     {
         $method = $request->method();
 
-        // First, and not merely tidy. A verb this site does not recognise is null, and null has no
+        // First, and not merely tidy. A verb the framework does not recognise is null, and null has no
         // ->value — so comparing it against the envelope's method without asking would be an
         // uncaught TypeError, which is a 500 where an address that does not exist sends a 405.
         // One differing status code and the endpoint has announced itself to anybody who types
@@ -146,8 +146,8 @@ final readonly class ApiGate
         // one action would verify at any other.
         //
         // Compared against Request::path() directly and never against a path rebuilt from the
-        // router's captures: SitePath::to() rawurlencodes each value, so it is not the inverse of
-        // Route::matches() and a rebuild would disagree on any segment that needs encoding.
+        // router's captures: Path::to() encodes afresh what Route::matches() decoded, so a rebuild
+        // would disagree with the signed path on any segment the caller encoded differently.
         if ($envelope->method !== $method->value || $envelope->path !== $request->path()) {
             return null;
         }

@@ -8,12 +8,11 @@ namespace Phpanta\Http\Security;
  * The CspSource interface. One entry in a Content-Security-Policy directive's source list.
  *
  * A source list mixes three unrelated kinds of thing — keywords (`'self'`), schemes (`data:`)
- * and hosts (`https://my.hidrive.com`). Each owns its own wire format behind this interface, so
- * {@link ContentSecurityPolicy} composes them without knowing which is which, the same way
- * `FileLink` lets a release name a file without knowing its host.
+ * and hosts (`https://cdn.example.test`). Each owns its own wire format behind this interface, so
+ * {@link ContentSecurityPolicy} composes them without knowing which is which.
  *
- * Deliberately not {@link \Stringable}, for the reason `FileLink`
- * gives: every use site should be visible as a call.
+ * Deliberately not {@link \Stringable}: every use site should be visible as a call, and a
+ * `Stringable` could be concatenated into somewhere nothing checked it.
  */
 interface CspSource
 {

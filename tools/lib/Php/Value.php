@@ -12,8 +12,8 @@ use UnitEnum;
  * Scalars go through `var_export()`, which is the whole point: quoting and escaping a string for
  * PHP source is a solved problem with a function in the language.
  *
- * **An enum renders as its short name**, `Genre::Dubstep`, not the `Genre::Dubstep`
- * that `var_export()` would give. `data/releases.php` imports its enums at the top and every entry
+ * **An enum renders as its short name**, `Status::Draft`, not the `\Acme\Status::Draft`
+ * that `var_export()` would give. A data file of entries imports its enums at the top and every entry
  * beside this one is written that way, so a fully-qualified case would be correct and out of place.
  * The short name is taken off the case itself rather than typed, so it cannot disagree with the
  * class — and {@link self::className()} hands the full name back for the import list.
@@ -35,7 +35,7 @@ final readonly class Value implements Expression
     {
         if ($this->value === null) {
             // var_export() writes NULL in capitals, alone among the literals it emits — and every
-            // other null in `data/releases.php` is lower case, including the ones this replaces.
+            // other null in a hand-written data file is lower case, including the ones this replaces.
             return 'null';
         }
 

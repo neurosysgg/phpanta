@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Phpanta\Tool\Php;
 
 /**
- * The ClassConstant class. A `Foo::class` reference — what `new Collection(Format::class)` takes.
+ * The ClassConstant class. A `Foo::class` reference — what `new Collection(Label::class)` takes.
  *
- * Constructed from the real class name, so `Format::class` at the call site is what reaches the
- * page rather than the string `'Format'`. The short name is what renders, for the reason
+ * Constructed from the real class name, so `Label::class` at the call site is what reaches the
+ * page rather than the string `'Label'`. The short name is what renders, for the reason
  * {@link Value} gives.
  */
 final readonly class ClassConstant implements Expression

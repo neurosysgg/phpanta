@@ -15,8 +15,7 @@ use Phpanta\Support\File;
  * **This is separate from {@link UpdateRoot} because membership must not require resolving a
  * path.** An enum that reached for {@link App::webroot()} to decide so much as whether a name
  * is *under* a root would give a test that points `DOCUMENT_ROOT` at a sandbox a sandbox for one
- * root and the live tree for the other — and the mirror deletes what it reaches. See
- * docs/history/api.md.
+ * root and the live tree for the other — and the mirror deletes what it reaches.
  *
  * The split is the ordinary one: `UpdateRoot` is the **vocabulary** — three names,
  * asked and answered without touching a filesystem — and this is the **environment**, which is a
@@ -65,7 +64,8 @@ final readonly class Deployment
      *
      * The payload's prefix is stripped and the root's own directory put in its place, which for
      * {@link UpdateRoot::Source} is the identity and for {@link UpdateRoot::Public} is the whole
-     * point — the directory is `public/` in the repository and `neurosys/` on the live host.
+     * point — the directory is `public/` in the repository and whatever the host names its document
+     * root on the server.
      *
      * @param UpdateRoot $root
      * @param string $name A member name that root claimed.

@@ -23,7 +23,7 @@ enum UpdateAction: string implements ApiAction
     /**
      * Write the payload's tree, and delete what it omits unless told not to.
      *
-     * The one action on this site that changes anything. Its own manifest fields — `apply` and
+     * The one action in the framework that changes anything. Its own manifest fields — `apply` and
      * `mirror` — are {@link UpdateManifest}'s, parsed out of the same signed bytes the envelope
      * came from, so a dry run cannot be turned into a real one by anything short of the private
      * key.

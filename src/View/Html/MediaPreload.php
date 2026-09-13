@@ -12,12 +12,12 @@ namespace Phpanta\View\Html;
  * Server-only, like those three — nothing client-side reads it — so it has no TypeScript mirror and
  * wants none.
  *
- * **The one this site writes is {@link self::None}, and on a demo page that is a decision rather
- * than a default.** The attribute's own default is `metadata`, which fetches the beginning of every
- * track on the page whether or not anybody plays one. Here every one of those fetches goes through
- * `DemoAudioController` — a PHP process on shared hosting reading a file
- * off disk — for a page that routinely carries four mixes of the same track. `none` means a demo
- * page costs one request until a listener asks for audio.
+ * **{@link self::None} is usually the one to write, and on a page of several tracks it is a
+ * decision rather than a default.** The attribute's own default is `metadata`, which fetches the
+ * beginning of every track on the page whether or not anybody plays one. Where the audio is served
+ * by PHP rather than as a static file — behind a password, say — every one of those fetches is a
+ * PHP process on shared hosting reading a file off disk. `none` means the page costs one request
+ * until a listener asks for audio.
  */
 enum MediaPreload: string
 {

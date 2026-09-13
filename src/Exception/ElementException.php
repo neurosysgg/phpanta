@@ -9,7 +9,7 @@ namespace Phpanta\Exception;
  *
  * Two refusals, both from {@link \Phpanta\View\Html\Element} and both about a tree being *built*:
  * a void element handed children, and an attribute the browser dereferences whose value names a
- * scheme this site does not emit.
+ * scheme the tree does not emit.
  *
  * The second is the one that matters. `htmlspecialchars` touches not one character of
  * `javascript:alert(1)`, so escaping was never the tool for a URL — the scheme allowlist is, and

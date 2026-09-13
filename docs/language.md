@@ -1,172 +1,202 @@
 # Language
 
-The mechanism is the framework's — `Translatable`, `Translation` and `Translated`, `Phrase`,
-`Languages`, `Request::language()`, and the tree putting each word into the nearest `lang`. The
-examples are neuro.SYS's: its catalogs under `Texts`, its footer switch and its legal pages are the
-site's own, and stand here for any site's.
+Every page is written in each language its app offers, at the same address. The request decides
+which. Every word a page shows is a `Translatable`, put into that language when the page renders. A
+view never names a language.
 
-Every page is written in each language its site offers — neuro.SYS's are English and German — at
-the same address. The request decides which, and
-every word a page shows is a `Translatable` that is put into that language when the page renders. A
-view never names a language. This page is how that works and how to write for it; the legal pages'
-own arrangement — both halves, always — is in [architecture.md](https://github.com/neurosysgg/neurosys-webspace/blob/master/docs/architecture.md#language).
+This page covers the mechanism and how to write for it:
+
+- `Translatable`, `Translation` and `Translated`;
+- `Phrase`, `Verbatim` and `Joined`;
+- `Languages` and `Request::language()`;
+- the tree putting each word into the nearest `lang`.
+
+The examples are `TestApp`'s, or made-up catalogs. A site's own catalogs and its switch are its own,
+and are documented with it.
 
 ## Which language a request gets
 
-`Request::language()` answers, and it is asked once per request:
+An app offers its languages through `languages()`, a `Languages` whose first language is the
+default. `TestApp` offers `new Languages(Language::English, Language::German)`. Each language is
+offered once, and offering one twice is refused. `Request::language()` answers, and it is asked once
+per request:
 
-1. the **`lang` cookie**, where it names a language this site has — a choice made on this site;
-2. else **`Accept-Language`**, through `AcceptedLanguages` — a setting made once for every site;
-3. else **English**, the site's own language.
+1. the **`lang` cookie** (`CookieName::Language`), where it names a language the app offers. That
+   is a choice made on this site;
+2. else **`Accept-Language`**, through `AcceptedLanguages`, among the languages offered. That is a
+   setting made once for every site;
+3. else the app's **default**, on a tie or when the header names none of them.
 
-A cookie naming anything else (`lang=xx`) is no choice at all and falls through. `ViewResponse` puts
-the answer on `<html lang>`, sends it as `Content-Language`, and names `Accept-Language` and `Cookie`
-in every page's `Vary` — every page is written in the language those two decide, so a cache that
-was not told could hand one visitor another's page. The ETag is the second guard: two languages are
-two bodies.
+A cookie naming anything else is no choice at all, and falls through. That covers `lang=xx`, and
+equally `lang=fr` on an app that does not write French, even though the framework knows the language
+exists. `Languages::tryFrom()` answers only for what is offered.
+
+`ViewResponse` puts the answer on the page in three places:
+
+- on `<html lang>`;
+- in `Content-Language`;
+- in every page's `Vary`, which names `Accept-Language` and `Cookie`.
+
+Every page is written in the language those two headers decide, so a cache that was not told could
+hand one visitor another visitor's page. The ETag is the second guard, because two languages are two
+bodies.
 
 ## How a word finds its language
 
-A `Translatable` carries no language. `Node::render()` carries the language down the tree the way
-it carries the depth, and an element with a `lang` names it for everything under it:
+A `Translatable` carries no language. `Node::render()` carries the language down the tree the way it
+carries the depth, and an element with a `lang` names the language for everything under it:
 
-- on a page that element is `<html lang>`, which `Layout::wrap()` sets from the request;
+- on a page, that element is `<html lang>`, which the app's `Shell` sets from the language it is
+  handed. `TestApp::document()` is the smallest example;
 - a fragment has no `<html>`, so `ViewResponse` passes the language to `render()` directly;
-- the German half of a legal document is `<section lang="de">`, and stays German on an English page.
+- an element with a `lang` of its own keeps it. A `<section lang="de">` holding a document written in
+  German stays German on an English page.
 
-A `lang` that names none of this site's languages leaves the language in scope as it was. **Above
-the first `lang` there is no language, and a translatable refuses to render** — a
-`TranslationException` naming it, never a default. The default would be an English word on a German
-page, with nothing anywhere to say so.
+A `lang` that names none of the app's languages leaves the language in scope as it was. **Above the
+first `lang` there is no language, and a translatable refuses to render.** It throws a
+`TranslationException` naming itself, never a default. A default would be an English word on a
+German page, with nothing anywhere to say so.
 
-An attribute takes a translatable too — `alt`, `title`, `aria-label`, the meta description — and is
-resolved in its own element's language. A terminal's rows cross to the client as JSON, and their
-captions are translated, so `TerminalFields` encodes them at render rather than when the terminal is
-built.
+An attribute takes a translatable too (`alt`, `title`, `aria-label`, the meta description), and it
+is resolved in its own element's language. Some values have to be put into a language as a whole,
+such as JSON crossing to the client in an attribute with translated captions inside. Such a value
+implements `Translatable` itself, so it is encoded at render in its element's language, rather than
+when the element is built.
 
 ## Writing words: the catalog
 
 ```php
-->containing(Texts::Releases::Downloads)                                   // a case is its words
-->attr(HtmlAttribute::Alt, Texts::Releases::CoverArt->with(title: $title)) // a phrase with arguments
-->containing(Texts::Stats::Total, $count)                                  // words beside data
+->containing(PostText::ReadMore)                                   // a case is its words
+->attr(HtmlAttribute::Alt, PostText::CoverArt->with(title: $title)) // a phrase with arguments
 ```
-
-**`Texts` is the index**, one constant per section of the site — `Layout`, `Home`, `Terminal`,
-`Releases`, `Demo`, `Stats`, `Errors`, `Profiles`, `Keys` — each naming a catalog enum. PHP resolves
-a class constant on a string, so `Texts::Releases::Downloads` *is* `ReleaseText::Downloads`. Its
-constants are not upper case, and `phpcs.xml.dist` exempts `Texts.php` and `ReleaseText.php` by name:
-they are steps of a path a reader skims, not values to notice.
 
 **A catalog is an enum that `use`s `Translated`**, with both languages on each case:
 
 ```php
-enum ReleaseText: string implements Translatable
+enum PostText: string implements Translatable
 {
     use Translated;
 
-    #[Translation(en: 'downloads', de: 'downloads')]
-    case Downloads = 'downloads';
+    #[Translation(en: 'read more', de: 'weiterlesen')]
+    case ReadMore = 'read-more';
 
-    #[Translation(en: '{title} cover art', de: 'cover von {title}')]
+    #[Translation(en: '{title} cover art', de: 'Cover von {title}')]
     case CoverArt = 'cover-art';
 }
 ```
 
 - **The backing value is a stable key, never the words.** Two captions may say the same thing, and a
-  backed enum's values must be unique. The key is also how GuidelineTest's rules see the file: an
-  enum is exempt from the bare-string rule, and attribute arguments are too.
-- **English is required; German falls back to it** — but `TranslationTest` fails any catalog case
-  without its German, except a release description's.
+  backed enum's values must be unique. The key is also how the guideline rules see the file: an
+  enum is exempt from the bare-string rule, and so are attribute arguments. See
+  [guidelines.md](guidelines.md).
+- **English is required, and German falls back to it.** A site's suite can hold every catalog case
+  to its German anyway, and it should, because the fallback is an English word on a German page.
 - **Text is literal until it takes arguments.** `->with(title: …)` binds arguments into a `Phrase`,
-  and only then is the text an ICU message: `{title}`, `{count, plural, one {# Download} other {#
-  Downloads}}`, and numbers in the language's own style — `1.000` in German, `1,000` in English. That
-  is what ext/intl is for.
-- **`Verbatim`** is text that is the same in every language — a title, a name. **`Joined`** is
-  several texts as one value, for the two places that need one: a `<title>` (`section — neuro.SYS`)
+  and only then is the text an ICU message: `{title}`, `{count, plural, one {# comment} other {#
+  comments}}`, and numbers in the language's own style (`1.000` in German, `1,000` in English). That
+  is what `ext/intl` is for.
+- **`Verbatim`** is text that is the same in every language, such as a title or a name. **`Joined`**
+  is several texts as one value, for the two places that need one: a `<title>` (`a page — a site`)
   and an attribute.
 
+A site may keep an index: one class whose constants each name a catalog enum. PHP resolves a class
+constant fetch on a string, so `Words::Posts::ReadMore` *is* `PostText::ReadMore`. That arrangement
+is the site's, not the framework's. The framework asks only that a word be a `Translatable`.
+
 A plain-text response is not a tree, so a controller puts its words into the request's language
-itself: `Texts::Errors::NotYetAvailable->in($request->language())`.
+itself: `PostText::ReadMore->in($request->language())`. The framework's own few words sit in
+`FrameworkText` and are written the same way.
 
 ## Words that belong to one entry
 
-- **A release's description** is a case of `ReleaseDescription`, reached as
-  `Texts::Releases::Descriptions::Ill` — backing value the slug — and `data/releases.php` names it:
-  `description: Texts::Releases::Descriptions::Ill`. It lives in `src/` so both languages sit side
-  by side and ship with a push. German may fall back here: a description is written by whoever
-  releases the track, possibly before the German exists. A plain string still works and reads the
-  same in both languages, which is what the staging tool writes (`description: ''`).
-- **A demo's description is never a catalog case.** `src/` is public, and a case would name an
-  unreleased track. It is written inline in the gitignored `data/demos.php`:
-  `description: new Translation(en: '…', de: '…')`.
-- **A release's key** is translated on `MusicalKey` itself — `Fis-Dur`, `dis-Moll`, `H` for the
-  English B — while its backing value stays the English name the tools match on. Genres and formats
-  are proper names and stay as they are.
+A catalog case is for words the code writes. Words that belong to one entry of a data file, such as
+a post's summary, belong to the entry, and they can take one of two forms:
+
+- **The entry can name a catalog case.** Both languages then sit side by side in `src/` and ship with
+  the code.
+- **The entry can construct a `Translation` inline**, as
+  `summary: new Translation(en: '…', de: '…')`. That is the same class the attribute is.
+
+**Words that must not be public never become a catalog case.** `src/` is code, a repository is often
+public, and a case would name what the entry is about. Write those words inline, in a data file the
+repository does not track.
+
+An enum whose backing value is a name the tooling matches on can be translated on itself. It
+`use`s `Translated` and carries a `#[Translation]` on each case, while the backing value stays the
+key. A proper name that reads the same everywhere stays a plain value, or becomes a `Verbatim`.
 
 ## The switch
 
-The footer names every language in itself — `english · deutsch` — the page's own as text and the
-others as links to `/language/{language}`. `LanguageController` answers with a 303, a
-`Set-Cookie: lang=de; Path=/; Max-Age=31536000; SameSite=Lax; Secure; HttpOnly`, and
-`Cache-Control: no-store, private`. The links carry `data-no-spa`: the header and footer are outside
-the fragment Navigation swaps, and they have to come back in the new language too.
+The framework reads the cookie, and setting it is a site's job. A switch is a link per offered
+language, each named in that language itself (`Language::endonym()`). Each link points to an address
+whose controller answers with a 303, a `Set-Cookie: lang=…`, and `Cache-Control: no-store, private`.
+Any switch owes three things:
 
-**Back is the `Referer`'s path, and only its path.** The host is dropped, so the redirect cannot
-leave the site; the path is still put to `Element::staysOnThisOrigin()`, because `//evil.example` is a
-path that names another host. No referrer, a refused one, or a switch itself goes home.
-
-The cookie is set only on that click and holds only `de` or `en`. The privacy policy names it in
-both languages, as storage strictly necessary for a service the visitor asked for (§ 25 Abs. 2 Nr. 2
-TDDDG). See [security.md](https://github.com/neurosysgg/neurosys-webspace/blob/master/docs/security.md#the-language-cookie).
+- **Its links carry `data-no-spa` wherever the switch sits outside `#content`.** Navigation swaps
+  only the fragment, and everything around the fragment has to come back in the new language too.
+- **Back is the `Referer`'s path, and only its path.** Drop the host, so the redirect cannot leave the
+  site, and still put the path to `Element::staysOnThisOrigin()`, because `//evil.example` is a path
+  that names another host. No referrer, a refused one, or the switch's own address goes home.
+- **The cookie holds only an offered language's tag, and is set only on the click.** Whether it
+  needs consent is the site's question for its privacy policy, answered in every language the site
+  offers.
 
 ## The client
 
-The client writes a few words of its own — the consent gate, a player's iframe title. It reads the
-language off `<html lang>` through `pageLanguage()` in `model/Language.ts`, a mirror of `Language`
-compared case for case by `enum-parity.test.mjs`, falling back to English where the page states none
-of the site's. Each element keeps its words in a `Record<Language, …>`, so a language the server
-gains without its words there is a compile error rather than an English gate on a German page.
+The client writes a few words of its own, such as a consent notice or an iframe title. It reads the
+language off `<html lang>` through `pageLanguage()` in
+[`model/Language.ts`](../assets/ts/model/Language.ts), a mirror of `Language`. That fallback is
+English, hard-coded rather than the app's default. A page the server sent always states a language,
+so the fallback is only for a document that did not come from it, which in practice is a test's
+document.
+
+Each element keeps its words in a `Record<Language, …>`. A language the server gains without its
+words there is then a compile error, rather than an English gate on a German page.
 
 ## What checks it
 
-- **`TranslationTest`** reads the index, and every catalog a catalog names in turn: every case has a
-  `#[Translation]`, both languages parse as ICU messages and name the same arguments, and German is
-  written. It also walks `src/` for every enum that uses `Translated` and fails on one the index
-  cannot reach, so a catalog cannot be left out of the index and go unchecked. And it reads every
-  view's tokens for a word written as a literal — a string with a letter in it, passed straight to
-  `containing()` or as an `alt`, `title` or `aria-label` — so a word nobody translated fails here.
-- **`HtmlTest`** pins the scope: inheritance, a `lang` narrowing it, a foreign `lang` keeping it, a
-  translated attribute, a translated child keeping its element on one line, and the refusal.
-- **`TextTest`** pins `Translation`, `Phrase` (plurals, `1.000`), `Verbatim` and `Joined`.
-- **The verify script** asks the running server: German to a German browser and to a German cookie,
-  on the home page, a release, the 404 and a fragment; `Vary` and `Content-Language` on every page;
-  the switch's cookie, its way back, and its refusal of a path that is another host.
+- **`TextTest`**, in the framework's suite, pins these behaviours:
+  - `Translation` falls back to English, and refuses a translation with no English;
+  - unbound text stays literal;
+  - a catalog case with no `#[Translation]` is loud;
+  - `Phrase` formats plurals and numbers by the language's rules (`1.000`), and an ICU message it
+    cannot format is loud;
+  - `Verbatim` is the same in every language, and `Joined` puts each part into the language first.
+- **A site's own suite holds its catalogs**, and this is the check worth writing first:
+  - every case has a `#[Translation]`;
+  - both languages parse as ICU messages and name the same arguments;
+  - the German is written;
+  - every enum under `src/` that uses `Translated` is reachable from the site's index, so no catalog
+    goes unchecked;
+  - no view passes a word straight to `containing()`, `alt`, `title` or `aria-label` as a literal.
+- **The scope rules** are pinned in the suite of the site the framework grew in, and have no
+  framework test of their own yet. Those rules are inheritance, a `lang` narrowing the scope, a
+  foreign `lang` keeping it, a translated attribute, and the refusal.
 
 ## Adding a word
 
-A case on the right catalog, with both languages, and the case at the call site. If the words depend
-on something the view knows, name it in the message — `{title}` — and bind it with `->with()`.
-`TranslationTest` reports a case missing its German, or naming different arguments in the two.
+Add a case on the right catalog, with both languages, and put the case at the call site. If the
+words depend on something the view knows, name it in the message (`{title}`) and bind it with
+`->with()`.
 
 ## Adding a language
 
-1. A `Language` case, and its `endonym()`; the same case in `phpanta/assets/ts/model/Language.ts`.
-2. A parameter on `Translation` — `fr:` — and its arm in `pattern()` and `has()`.
-3. Its words on every catalog case: `TranslationTest` lists each one missing.
-4. Its words in each client `Record`: `npm run check` lists each one missing.
-5. `Request::language()`'s `preferred()` call, which names every language on offer.
+1. A `Language` case, and its `endonym()`; the same case in `assets/ts/model/Language.ts`.
+2. A parameter on `Translation` (`fr:`), and its arm in `pattern()` and `has()`.
+3. The app offering it, in `languages()`.
+4. Its words on every catalog case. A site's catalog check lists each one missing.
+5. Its words in each client `Record`. `tsc` lists each one missing.
 
-The legal pages are the exception. They are written in each language rather than translated, and a
-third half is a legal decision, not a translation.
+A document written separately in each language rather than translated, such as a legal text, gains a
+third version only by someone writing it. That is a decision, not a translation.
 
 ## Traps
 
-- **`Translatable` is asked before `BackedEnum`.** A catalog case is both; read as an enum, it would
-  render its key — `cover-art` in an alt text. `Element::attr()` orders its arms that way.
+- **`Translatable` is asked before `BackedEnum`.** A catalog case is both, and read as an enum it
+  would render its key: `cover-art` in an alt text. `Element::attr()` orders its arms that way.
 - **Render a view with a language.** `$view->content()->render()` throws on the first translated
-  word; a test writes `->render(0, Language::English)`.
-- **The verify script's "no markup from a string" grep reads comments too.** An apostrophe followed
-  on the same line by a `<tag` — "the page's language off `<html lang>`" — fails it. Reword the line.
-- **`data/releases.php` naming a new description case needs `./deploy.sh`**, which ships `data/`; a
-  push ships only `src/`, where the case lives. Push first, then deploy.
+  word. A test writes `->render(0, Language::English)`.
+- **A language the framework knows and an app does not offer is answered as if it were nothing**,
+  whether it arrives in the cookie or in `Accept-Language`.
+- **A data file naming a new catalog case needs the case deployed first.** A push ships `src/` and
+  never `data/`. Ship the code that declares the case, then the data file that names it.

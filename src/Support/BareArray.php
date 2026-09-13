@@ -18,7 +18,7 @@ use Phpanta\Exception\GuidelineException;
  * the ones that do — so an exception is a sentence somebody wrote rather than a habit that spread.
  *
  * The reason is mandatory and is checked here rather than only in the test, for the same reason
- * `HiDriveLink` checks a share id at its own constructor: the test
+ * a value object checks its own shape at its constructor: the test
  * reports the fault against a list, and the constructor reports it against the line that is wrong.
  * A bare `#[BareArray]` would say the array is deliberate, which the reader already suspected;
  * what is worth saying is *which door this is* — an `explode()` on one side, a variadic on the

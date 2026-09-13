@@ -13,23 +13,23 @@ use Phpanta\Exception\UpdateException;
  * **Hand-rolled rather than `PharData`, and that is a security decision before a dependency one.**
  * `PharData::extractTo()` decides for itself what a member name means and what a link points at,
  * which is exactly the decision this class must not delegate: the names arriving here came off the
- * network. Reading the format directly is about a hundred lines of `unpack()` — the same idiom
- * `tools/lib/Flp/FlpFile` uses on a far nastier format — and it buys total control over which
+ * network. Reading the format directly is about a hundred lines of `unpack()` — the ordinary
+ * idiom for a binary format in PHP — and it buys total control over which
  * member types exist and which names are allowed. It also drops a dependency on an extension that
  * shared hosts disable, though that is the smaller half.
  *
  * **Nothing here touches the filesystem.** It parses bytes into values; where those values are
  * allowed to land is {@link \Phpanta\Model\Update\UpdateRoot}'s question, and writing them is
  * {@link \Phpanta\Service\UpdateApplier}'s. The split is deliberate: this class knows nothing
- * about this site, so what it refuses it refuses for reasons that are true of any archive.
+ * about the app, so what it refuses it refuses for reasons that are true of any archive.
  *
  * **The refusals are the point, so they are exhaustive rather than illustrative.** Only regular
  * files and directories survive. A symlink, a hardlink, a device node, a fifo, a GNU long-name
  * record and a pax header are each rejected by name — not skipped, rejected, because an archive
- * containing one is not an archive this site produced and the right answer is to stop rather than
+ * containing one is not an archive the push produced and the right answer is to stop rather than
  * to quietly unpack the rest. Every one of those is a documented way to write outside an extraction
- * root, and none of them is a shape `tar -czf` produces for this repository: measured over the real
- * tree, the archive is 269 regular files and 29 directories and nothing else.
+ * root, and none of them is a shape `tar -czf` produces for an ordinary source tree, which packs as
+ * regular files and directories and nothing else.
  */
 final readonly class TarArchive
 {
@@ -174,9 +174,9 @@ final readonly class TarArchive
      *
      * The split is joined here rather than ignored because ignoring it is how a reader silently
      * gets the *wrong* name for a deep path — the 100-byte `name` field alone would hand back a
-     * plausible-looking tail. Nothing in this repository is long enough to need it (the longest
-     * path is 63 bytes against a 100-byte field), so this is a correctness guard rather than a
-     * live code path, and it costs one concatenation.
+     * plausible-looking tail. A typical tree has no path long enough to need it against a 100-byte
+     * field, so this is a correctness guard rather than a busy code path, and it costs one
+     * concatenation.
      *
      * @param array<string, string> $fields
      * @return string
@@ -229,8 +229,7 @@ final readonly class TarArchive
      *
      * Validated rather than fed straight to `octdec()`, which answers `0` for a field full of
      * rubbish — and a size of zero is a perfectly ordinary value, so the failure would be a member
-     * silently read as empty and the walk desynchronised behind it. That is the same trap
-     * `FlpFile::varInt()` documents from the other end.
+     * silently read as empty and the walk desynchronised behind it.
      *
      * @param string $field
      * @param string $what Which field, for the message.

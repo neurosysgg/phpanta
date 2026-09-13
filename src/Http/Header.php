@@ -14,7 +14,7 @@ namespace Phpanta\Http;
  * The value is typed as well as the name because a value has a *grammar* — a quoted ETag, a
  * comma-separated method list, `Basic realm="…"`, `max-age=…; includeSubDomains` — and a
  * `new Header(…)` call site is the one place a grammar cannot be checked. See {@link HeaderValue},
- * and docs/history/security.md.
+ * and docs/security.md.
  */
 final readonly class Header
 {

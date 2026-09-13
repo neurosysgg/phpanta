@@ -28,9 +28,8 @@ use Phpanta\Exception\ApiException;
  * {@link \Phpanta\Http\RequestHeader}, so it has no TypeScript mirror and puts nothing in the
  * browser's bundle. A header is the part of a request most likely to be rewritten in transit,
  * which is exactly why `public/.htaccess` puts this one back with `E=HTTP_AUTHORIZATION` and why
- * {@link \Phpanta\Http\Request::authorization()} reads both spellings. Both auth gates already
- * depend on this header surviving Strato, which is the strongest evidence available that it does.
- * See docs/history/api.md.
+ * {@link \Phpanta\Http\Request} reads it under both spellings. The Basic gates depend on the same
+ * header surviving the same host, so a host that strips it is found out by them first.
  *
  * **Nothing here is trusted.** This establishes only that the bytes are shaped like a credential;
  * whether they are *ours* is {@link \Phpanta\Service\ApiGate}'s question, and it cannot be asked

@@ -9,22 +9,21 @@
  *
  *     public/                       ← readable, mapped, committed, tested
  *           ↓ npm run build:prod
- *     build/dist/public/            ← one bundled module, minified, no maps; what deploy.sh rsyncs
- *     build/dist/src/<Site>/AssetManifest.php
+ *     build/dist/public/            ← one bundled module, minified, no maps; what a deploy ships
+ *     build/dist/src/<App>/AssetManifest.php
  *
  * Three things change, and all three are only worth doing here:
  *
  *   1. **The maps go.** They are several times the JS they describe, because `tsconfig`'s
  *      `inlineSources` puts the whole commented TypeScript inside each one. Static
  *      assets are served straight by Apache and reach neither auth gate (docs/security.md), so on
- *      the live host those are public files. The source is on GitHub, which is a reason not to
- *      worry about it rather than a reason to serve a second copy from Strato.
+ *      the live host those are public files. A site whose source is public anyway has a reason not
+ *      to worry about it, and still no reason to serve a second copy from its host.
  *   2. **The graph is bundled into one module**, which is the change that pays for the rest.
  *      gzip's window then spans the whole graph instead of restarting at every small module, so
  *      one response compresses to well under half of what forty-nine separate ones do. It also
  *      turns forty-nine requests into one and empties the preload list, which takes forty-six
- *      `modulepreload` links off *every document* — see Layout::modulePreloads(), and
- *      docs/performance.md for the figures.
+ *      `modulepreload` links off *every document* — see the site's shell, which emits them.
  *   3. **The JS is minified.** Still worth doing, though the compression above already does most
  *      of the work identifier mangling would.
  *
@@ -37,17 +36,17 @@
  * **`keep_classnames` is load-bearing, not a default left alone.** `NestedElement.tagOf()` falls
  * back to `constructor.name` when `customElements.getName` is missing, and that is the text of the
  * error a misnested tag throws — the whole reason those classes are not empty. Mangling class names
- * would turn `<terminal-key> must be inside <terminal-field>` into `must be inside <e>`.
+ * would turn `<list-item> must be inside <list-box>` into `must be inside <e>`.
  *
  * **It takes both tools to keep, and terser's option alone is not enough.** Bundling rewrites some
  * `class X extends Y {}` declarations into `var X = class extends Y {}`, whose name is inferred
  * from the binding rather than declared — and `keep_classnames` only protects a declared one. So
- * terser mangles the binding and the error becomes `<terminal-key> must be inside <P>`. esbuild's
+ * terser mangles the binding and the error becomes `<list-item> must be inside <P>`. esbuild's
  * `keepNames` emits an explicit name assignment that survives it. Its `__name` helper is emitted
  * once in the bundle, for about 256 gzipped bytes.
  *
- * The suite checks this rather than the reasoning being trusted: test/basic_test.sh re-runs every
- * client test against these bytes. See docs/history/frontend.md.
+ * A site's suite checks this rather than the reasoning being trusted: its verify script can re-run
+ * every client test against these bytes.
  *
  * `mangle.properties` stays off for the same kind of reason one step further out: `connectedCallback`,
  * `observedAttributes` and `attributeChangedCallback` are contracts with the browser rather than
@@ -163,7 +162,7 @@ const graph = await esbuild({
   // Load-bearing, and terser's keep_classnames is not enough on its own — see the note at the top.
   // Bundling rewrites some `class X extends Y {}` declarations into `var X = class extends Y {}`,
   // whose name is inferred from the binding; terser then mangles that binding to `P` and
-  // NestedElement.tagOf() starts reporting `<terminal-key> must be inside <P>`. keepNames emits an
+  // NestedElement.tagOf() starts reporting `<list-item> must be inside <P>`. keepNames emits an
   // explicit name assignment that survives any mangling. Measured at 256 gzipped bytes.
   keepNames: true,
 

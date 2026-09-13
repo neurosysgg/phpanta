@@ -12,23 +12,23 @@ use Phpanta\Model\Health\Level;
 use Phpanta\Model\Health\Requirement;
 
 /**
- * The DataFileRequirement class. A file under `data/` is where the site expects it.
+ * The DataFileRequirement class. A file under `data/` is where the app expects it.
  *
  * **Declared for the tracked files only**, by {@link \Phpanta\Support\RequirementInitialization}:
  * the repository carries those, so every clone has them and an absence is a fault. The untracked
- * four each have their own reason to be absent — no demos staged, no gate, no log yet — which is
- * state rather than a fault, and `capability v1 deployment` reports it without a verdict.
+ * ones each have their own reason to be absent — no gate configured, no key installed, nothing
+ * written yet — which is state rather than a fault, and `capability v1 deployment` reports it
+ * without a verdict.
  *
- * Present is the whole check. Whether the catalogue parses is the catalogue's to say, on the first
- * page that reads it; a health check that re-ran every repository would be a second, slower copy
- * of the site.
+ * Present is the whole check. Whether a file parses is its reader's to say, on the first page that
+ * reads it; a health check that re-ran every reader would be a second, slower copy of the app.
  */
 final readonly class DataFileRequirement implements Requirement
 {
     /**
      * Constructs an instance of {@link self}.
      *
-     * @param DataFile $file
+     * @param DataFileName $file
      */
     public function __construct(private DataFileName $file) {}
 

@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Phpanta\Text;
 
 /**
- * The Translatable interface. Text that exists in every language the site is written in, and is
+ * The Translatable interface. Text that exists in every language the app is written in, and is
  * put into one at the last moment.
  *
  * **It carries no language of its own**, and that is the whole design. A view writes
- * `->containing(Texts::Releases::Downloads)` and never says which language; the markup tree
+ * `->containing(Catalog::Downloads)` and never says which language; the markup tree
  * decides at render, from the nearest `lang` above the text — see
  * {@link \Phpanta\View\Html\Node}. So a view cannot pick the wrong language, because it never
  * picks one, and the same tree renders in either.

@@ -34,12 +34,12 @@ use Phpanta\View\Shell;
 /**
  * The App class. What a site tells the framework about itself, and the one place it is told.
  *
- * A site is a subclass — this one's is {@link Site} — and there is exactly one per process, booted
- * by the entry point and read back with {@link self::current()}. That is a static in all but name,
- * and deliberately so: the framework's deep code (the site gate, the API's serial, the health
- * report) needs the site's facts at the bottom of a call chain that never had a reason to carry
- * them, and threading an object through every constructor on the way down would change forty
- * signatures to move nine facts.
+ * A site is a subclass — the framework's own suite runs under one, `TestApp` — and there is exactly
+ * one per process, booted by the entry point and read back with {@link self::current()}. That is a
+ * static in all but name, and deliberately so: the framework's deep code (the site gate, the API's
+ * serial, the health report) needs the site's facts at the bottom of a call chain that never had a
+ * reason to carry them, and threading an object through every constructor on the way down would
+ * change forty signatures to move nine facts.
  *
  * **Three rules keep the static honest.**
  *
@@ -99,8 +99,8 @@ abstract class App
     /**
      * The booted app.
      *
-     * Asked as `App::current()` it answers whatever is booted; asked as `Site::current()` it also
-     * insists the booted app is a `Site`, so a site's own code gets its own type back.
+     * Asked as `App::current()` it answers whatever is booted; asked on a site's own subclass it
+     * also insists the booted app is that subclass, so a site's own code gets its own type back.
      *
      * @return static
      * @throws AppException if nothing is booted, or what is booted is not this class.
@@ -131,10 +131,10 @@ abstract class App
     /**
      * The directory the deployment sits in: `src/`, `data/`, `autoload.php` and the webroot.
      *
-     * The repository root locally, `cgi-bin/` on Strato. **It must be the directory holding the
-     * autoloader**, whatever the framework's own files happen to sit in — the update serial and the
-     * push's mirror both hang off it, and a wrong answer here moves the serial (a replay window, in
-     * silence) or points the mirror at the wrong tree.
+     * The repository root locally, wherever the host puts it live. **It must be the directory
+     * holding the autoloader**, whatever the framework's own files happen to sit in — the update
+     * serial and the push's mirror both hang off it, and a wrong answer here moves the serial (a
+     * replay window, in silence) or points the mirror at the wrong tree.
      *
      * @return Directory
      */
@@ -288,18 +288,15 @@ abstract class App
      * The webroot, whatever the server calls it.
      *
      * **The one path here that is not derived, because it cannot be.** The directory is `public/`
-     * in the repository and `neurosys/` on the live host, and nothing under `src/` can know that.
-     * `DOCUMENT_ROOT` does, so this asks it — for the directory's *name* and nothing else, hanging
-     * that name off {@link self::above()} like every other path here.
+     * in the repository and whatever the host named it on a live one, and nothing under `src/` can
+     * know that. `DOCUMENT_ROOT` does, so this asks it — for the directory's *name* and nothing
+     * else, hanging that name off {@link self::above()} like every other path here.
      *
      * **Taking only the basename is the whole of the care here, and it was measured into being.**
-     * On the live host `DOCUMENT_ROOT` reads
-     * `/home/strato/http/premium/rid/…/htdocs/cgi-bin/neurosys` while `__DIR__` for a file in that
-     * very directory reads `/mnt/web505/…/htdocs/cgi-bin/neurosys` — two mounts of one export, and
-     * the elided segments are the hosting account's own number, which is also what its SFTP
-     * hostname is built from and so is not this repository's to write down. They are the same
-     * directory reached two ways; as strings they are not equal and never will be. Use
-     * `DOCUMENT_ROOT` whole and this path stops comparing equal to
+     * A shared host can report `DOCUMENT_ROOT` through one mount of an NFS export while `__DIR__`
+     * for a file in that very directory reads through another — `/home/…/htdocs/webroot` against
+     * `/mnt/…/htdocs/webroot`. They are the same directory reached two ways; as strings they are
+     * not equal and never will be. Use `DOCUMENT_ROOT` whole and this path stops comparing equal to
      * {@link Service\UpdateApplier}'s walk of it, which is a mirror that deletes everything it just
      * wrote.
      *
@@ -402,7 +399,7 @@ abstract class App
      * two trees an update mirrors are wiped and rewritten, so it cannot live in either; `data/` is
      * rsynced from the working tree without `--delete`, so a copy there would be pushed up from
      * whichever machine deployed last and could hand an attacker a replay window by moving the
-     * number backwards. `cgi-bin/` is rsynced as a whole by nothing at all.
+     * number backwards. The deployment directory itself is rsynced as a whole by nothing at all.
      *
      * @return File
      */
@@ -416,8 +413,8 @@ abstract class App
      *
      * It hands back a {@link File} rather than a string, because every one of its callers asks the
      * same two questions of the path — is it there, and what is in it — and `File` answers them in
-     * one set of words rather than each caller's own. The argument is a {@link DataFile} rather than
-     * a path because every caller collapses a missing file to an empty result, so a mistyped name
+     * one set of words rather than each caller's own. The argument is a {@link DataFileName} rather
+     * than a path because every caller collapses a missing file to an empty result, so a mistyped name
      * is not an error anywhere — it is an empty catalogue, an empty footer, or a gate that stands
      * down. See that enum.
      *
@@ -459,7 +456,7 @@ abstract class App
     /**
      * `data/logs/`: what the site writes, beside what it reads.
      *
-     * Gitignored and excluded from `deploy.sh`, so it exists only where somebody made it — and
+     * Gitignored and excluded from a full deploy, so it exists only where somebody made it — and
      * nothing here makes it, for the reason {@link File} gives. `health v1` warns where it is
      * missing or unwritable; see {@link Service\Health\LogDirectoryRequirement}.
      *

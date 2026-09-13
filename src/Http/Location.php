@@ -11,26 +11,26 @@ use Phpanta\View\Html\Element;
 /**
  * The Location class. Where a redirect points.
  *
- * The one header value on this site that carries a URL, and therefore the one where the type buys a
- * check rather than only a grammar: {@link self::verify()} refuses anything that is not an absolute
- * `https://` address or a path on this site. That is narrower than the spec allows, and narrower on
- * purpose, for the same reason `Profile` is narrower than an `href` in
- * general. A redirect here goes to the file host, off-origin and over TLS, or — after a language
- * switch — back to a page of this site; anything else is a mistake rather than a case to support.
+ * The one header value the framework sends that carries a URL, and therefore the one where the
+ * type buys a check rather than only a grammar: {@link self::verify()} refuses anything that is not
+ * an absolute `https://` address or a path on this site. That is narrower than the spec allows, and
+ * narrower on purpose, for the same reason an external link is narrower than an `href` in general.
+ * A redirect goes to another host, off-origin and over TLS, or back to a page of this site — after
+ * a language switch, say; anything else is a mistake rather than a case to support.
  *
  * A path is put to {@link Element::staysOnThisOrigin()} rather than trusted for its leading slash:
  * `//evil.example` starts with one, and is another host.
  *
  * It is the counterpart to {@link \Phpanta\View\Html\Element}'s scheme check, one layer along:
  * that one governs a URL the browser is asked to *render*, this one a URL it is told to *follow*.
- * A `Location` was the one address the site emits that nothing had ever looked at.
  */
 #[BareString(
     '#^https://[^\s/]+(?:[/?\#]\S*)?\z#i',
-    'the same pattern as Profile::URL_PATTERN and deliberately a second copy of it. The two are '
-    . 'checks on two different kinds of address — a header this site emits, and data it reads — '
-    . 'and they throw different exceptions for that reason. Sharing one constant would mean a '
-    . 'change made for a redirect silently changed what a profile URL may be.',
+    'the same pattern a site may keep for the https URLs its own data carries, and deliberately a '
+    . 'second copy of it. The two are checks on two different kinds of address — a header the '
+    . 'framework emits, and data a site reads — and they throw different exceptions for that '
+    . 'reason. Sharing one constant would mean a change made for a redirect silently changed what '
+    . 'a site\'s data may hold.',
 )]
 final readonly class Location implements HeaderValue
 {
@@ -38,8 +38,8 @@ final readonly class Location implements HeaderValue
      * An absolute `https://` URL: a host, then optionally a path, query or fragment.
      *
      * `\S` throughout so no whitespace survives anywhere, and `\z` rather than `$` because `$` also
-     * matches before a trailing newline — the same two details, for the same two reasons, as
-     * `Profile::URL_PATTERN`. A newline in particular is what would turn a
+     * matches before a trailing newline — the two details every validating pattern here keeps, for
+     * the same two reasons. A newline in particular is what would turn a
      * redirect into header injection if PHP's own `header()` did not already refuse one.
      */
     private const string URL_PATTERN = '#^https://[^\s/]+(?:[/?\#]\S*)?\z#i';

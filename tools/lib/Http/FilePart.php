@@ -11,8 +11,9 @@ use Phpanta\Support\File;
 /**
  * The FilePart class. One field of a multipart request whose value is a file on disk.
  *
- * It stays a {@link File} all the way to {@link CurlTransport}, which is the point: the master this
- * is built for is 45 MB, and a multipart body assembled in PHP would be 45 MB of string. curl
+ * It stays a {@link File} all the way to {@link CurlTransport}, which is the point: a file this is
+ * built for can run to tens of megabytes, and a multipart body assembled in PHP would be that much
+ * string. curl
  * streams the file off disk instead, and what this class carries is only what the part's headers
  * need.
  *
@@ -27,7 +28,7 @@ final readonly class FilePart
      *
      * @param File     $file     The file to send. Read by the transport, not by this.
      * @param string   $filename The name the far end is told, which need not be the name on disk.
-     * @param MimeType $type     The part's `Content-Type`. Never carries a charset: audio is bytes.
+     * @param MimeType $type     The part's `Content-Type`. Never carries a charset: a file is bytes.
      */
     public function __construct(
         public File     $file,
@@ -39,7 +40,7 @@ final readonly class FilePart
      * A part for a file, named for the file unless told otherwise.
      *
      * The type is the caller's to say, because only the caller knows what the file is: a site that
-     * uploads audio knows which of its formats it is, and bytes this cannot name go as bytes.
+     * uploads a file knows which of its formats it is, and bytes this cannot name go as bytes.
      *
      * @param File          $file
      * @param string|null   $filename Overrides the name on disk, for a working file whose name is not

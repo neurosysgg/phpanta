@@ -66,7 +66,7 @@ final class CapabilityTest extends TestCase
     {
         $this->errorLog     = (string) ini_get('error_log');
         $this->documentRoot = (string) ($_SERVER['DOCUMENT_ROOT'] ?? '');
-        $this->sandbox      = sys_get_temp_dir() . '/neurosys-capability-' . bin2hex(random_bytes(6));
+        $this->sandbox      = sys_get_temp_dir() . '/phpanta-capability-' . bin2hex(random_bytes(6));
 
         new Directory($this->sandbox)->create();
     }

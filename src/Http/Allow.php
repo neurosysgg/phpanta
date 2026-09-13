@@ -21,7 +21,7 @@ final readonly class Allow implements HeaderValue
     private function __construct(private Collection $methods) {}
 
     /**
-     * Every method that only reads — which on this site is every method the router answers.
+     * Every method that only reads — which is every method a read-only route answers.
      *
      * @return self
      */

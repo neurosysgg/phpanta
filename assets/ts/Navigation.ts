@@ -178,7 +178,7 @@ export class Navigation {
     if (link.hasAttribute(HtmlAttribute.Download) || !Navigation.opensHere(link)) return;
 
     // The selector matches the href *attribute*, and `//evil.example/x` starts with a slash exactly
-    // as `/releases` does — a protocol-relative URL is a different origin wearing a path's clothes.
+    // as `/posts` does — a protocol-relative URL is a different origin wearing a path's clothes.
     // Everything below uses the *resolved* `link.href`, so the two readings have to be reconciled
     // here rather than assumed equal. Nothing the server emits is protocol-relative, and pushState
     // would throw a SecurityError on a cross-origin URL one line down, so today the consequence is

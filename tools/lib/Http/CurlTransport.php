@@ -10,10 +10,9 @@ use Phpanta\Http\Header;
 /**
  * The CurlTransport class. Every network request this repo makes, in one place.
  *
- * The same arrangement `Probe` has for shelling out: one class holds
- * the calls, so the options are stated once and a machine without the extension fails the same way
- * everywhere rather than differently at each call site. `test/basic_test.sh` pins it — a `curl_`
- * anywhere else under `tools/lib/` fails the build.
+ * One class holds the calls, so the options are stated once and a machine without the extension
+ * fails the same way everywhere rather than differently at each call site. A site's verify script
+ * can pin it — a `curl_` anywhere else under `tools/lib/` fails the build.
  *
  * **The site itself makes no outbound request at all**, which is worth saying because it is a
  * property rather than an accident: `public/index.php` answers requests and never issues one. This
@@ -21,7 +20,7 @@ use Phpanta\Http\Header;
  *
  * Three options are set that a default would otherwise decide, and each is a decision:
  *
- * - **No total timeout, but a stall does end the transfer.** A 45 MB master over a domestic uplink
+ * - **No total timeout, but a stall does end the transfer.** A large upload over a domestic uplink
  *   is minutes of legitimate transfer, so any wall-clock limit generous enough to be safe is too
  *   generous to be useful. `CURLOPT_LOW_SPEED_LIMIT`/`_TIME` say the real thing instead: a transfer
  *   moving less than a byte a second for a minute has stopped, however long it has been running.

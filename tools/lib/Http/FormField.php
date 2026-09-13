@@ -11,8 +11,8 @@ use BackedEnum;
  *
  * What an `array<string, string|FilePart>` was: a map whose keys were field names written at the
  * call site and whose values were "a string, unless it is a file". The name is a property here, so
- * a `TrackField` case reaches it as a case rather than as
- * `->value` at every call site — and the union it holds is checked when the collection takes it,
+ * a case of an API client's field-name enum reaches it as a case rather than as `->value` at every
+ * call site — and the union it holds is checked when the collection takes it,
  * which is the one thing a PHP array of that shape cannot do.
  */
 final readonly class FormField

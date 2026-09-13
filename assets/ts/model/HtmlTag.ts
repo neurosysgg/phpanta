@@ -37,12 +37,12 @@ export enum HtmlTag {
   Em       = 'em',
   Div      = 'div',
 
-  /** The demo page's player. Server-side only — it is native precisely so no client code is needed. */
+  /** A native player. Server-side only — it is native precisely so no client code is needed. */
   Audio    = 'audio',
 
   Iframe   = 'iframe',
 
-  /** What <demo-waveform> draws on. Client-created only, the way Textarea is. */
+  /** What an element that draws, draws on. Client-created only, the way Textarea is. */
   Canvas   = 'canvas',
 
   Textarea = 'textarea',

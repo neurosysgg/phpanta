@@ -16,7 +16,7 @@ namespace Phpanta\Http\Api;
  * whole point of the address being `/api/{service}/{version}/{action}` rather than a case per
  * endpoint: {@link \Phpanta\Support\ApiPath::Api} already matches every one of them, so a new
  * service inherits the gate, the silence and the method policy without anybody remembering to
- * arrange them again. Both services after the first cost exactly that. ([history](docs/history/api.md))
+ * arrange them again. Both services after the first cost exactly that.
  *
  * Server-only, and no TypeScript mirror is wanted — see {@link ApiVersion}.
  */
@@ -37,8 +37,8 @@ enum ApiService: string
      *
      * Verdicts only, against the floors {@link \Phpanta\Support\RequirementInitialization}
      * declares — and a `503` when a required one is unmet. It exists because the facts it checks
-     * were asserted somewhere and checked nowhere: the four extensions the site is a fatal without
-     * are named in `composer.json`, which never runs on the server, and in `test/basic_test.sh`,
+     * were asserted somewhere and checked nowhere: the extensions the framework is a fatal without
+     * are named in `composer.json`, which never runs on the server, and asked for by a test suite,
      * which runs a developer's PHP. See {@link \Phpanta\Service\Api\HealthCheck}.
      *
      * **It is a service rather than a third `update` action**, because it is not about deploying.
@@ -54,8 +54,8 @@ enum ApiService: string
      * **Split from {@link self::Health} so that each answers one kind of question.** An inventory
      * and a set of verdicts in one report left a reader to decide, line by line, which lines were
      * claims; now a line is a claim exactly when it is under `health`. The one overlap is
-     * deliberate: this lists the extensions that are registered, and `health` proves the ones this
-     * site needs actually work. See {@link CapabilityAction}.
+     * deliberate: this lists the extensions that are registered, and `health` proves the ones the
+     * app needs actually work. See {@link CapabilityAction}.
      */
     case Capability = 'capability';
 

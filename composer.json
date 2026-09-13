@@ -13,6 +13,8 @@
         "ext-zlib": "*"
     },
     "require-dev": {
+        "ext-curl": "*",
+        "phpunit/php-code-coverage": "^14.3",
         "phpunit/phpunit": "^13.3"
     },
     "autoload": {

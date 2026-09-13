@@ -32,8 +32,8 @@ enum ResponseHeader: string implements HeaderName
      * A cookie for the browser to keep.
      *
      * Sent by one response, the language switch's 303, and only because a visitor clicked it — see
-     * {@link SetCookie} for the attributes it carries and why each is there. The only cookie this
-     * site sets.
+     * {@link SetCookie} for the attributes it carries and why each is there. The only cookie the
+     * framework sets.
      */
     case SetCookie = 'Set-Cookie';
 
@@ -46,10 +46,10 @@ enum ResponseHeader: string implements HeaderName
     /**
      * Whether a response may be reused, and on what terms.
      *
-     * Two answers on this site, and they are opposites. Every public document says `no-cache`,
-     * which is not `no-store`: keep it, but ask before reusing it — see {@link ViewResponse}.
-     * The one page behind a gate says `no-store, private` instead, and {@link
-     * StatsController} sets that itself.
+     * Two answers, and they are opposites. Every public document says `no-cache`, which is not
+     * `no-store`: keep it, but ask before reusing it — see {@link ViewResponse}. A page behind a
+     * password says `no-store, private` instead — {@link CacheControl::doNotStore()} — and sets
+     * that itself.
      */
     case CacheControl = 'Cache-Control';
 
@@ -102,7 +102,7 @@ enum ResponseHeader: string implements HeaderName
     /**
      * What a crawler may do with this response.
      *
-     * Sent only on the demo routes. It is not what keeps them out of an index — a crawler is
+     * Sent only on gated routes that ask for it. It is not what keeps them out of an index — a crawler is
      * answered with a 401 and never sees a page — see {@link RobotsPolicy} for the narrower gap
      * this actually covers, and for why `robots.txt` would be the wrong tool.
      */

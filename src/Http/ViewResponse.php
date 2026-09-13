@@ -15,7 +15,8 @@ use Phpanta\View\View;
  * The ViewResponse class. Renders a {@link View} as an HTTP response.
  *
  * On AJAX requests, emits only the content fragment prefixed by a title tag.
- * On full-page requests, wraps the content in the site {@link Layout}.
+ * On full-page requests, wraps the content in the app's {@link \Phpanta\View\Shell}, which
+ * {@link App::shell()} names.
  *
  * Sends its own `Content-Type` rather than leaving PHP's `default_mimetype` to supply one — see
  * {@link MimeType}. It matters most for the fragment, which declares no encoding of its own.
@@ -140,9 +141,9 @@ readonly class ViewResponse implements Response
      * here more than it would elsewhere:
      *
      * - A document embeds every versioned asset URL — the stylesheet, the entry script and whatever
-     *   preloads there are, straight out of `AssetManifest`. That is two URLs on the
-     *   bundled tree that ships and forty-nine on the debug tree, and the argument is the same
-     *   either way: it takes one. A stale document
+     *   preloads there are, straight out of the build's asset manifest. That is a couple of URLs
+     *   on a bundled tree and dozens on a debug tree, and the argument is the same either way: it
+     *   takes one. A stale document
      *   therefore names *last build's* URLs, and `public/.htaccess` marked those `immutable` for a
      *   year, so the browser would serve the old JS out of its own cache against the new HTML.
      *   That is the mirror drift the parity tests exist to catch, arriving by the one route no test
@@ -150,9 +151,9 @@ readonly class ViewResponse implements Response
      * - Hashing the body needs no coupling to the build stamp, because the stamp is already *in*
      *   the body. A rebuild changes the asset URLs, which changes the markup, which changes the
      *   validator. Nothing had to be wired together for that; it falls out.
-     * - `data/releases.php` and both halves of the policy are read on every request and contribute
-     *   nothing to the build stamp. Under `no-cache` an edit to either is live immediately, which
-     *   keeps `docs/releases.md`'s "no cache to bust, no rebuild needed" true.
+     * - A site's data files are read on every request and contribute nothing to the build stamp.
+     *   Under `no-cache` an edit to one is live immediately: there is no cache to bust and no
+     *   rebuild needed.
      *
      * `Vary` names `X-Requested-With` because one URL has two bodies here — see
      * {@link ResponseHeader::Vary}. The `ETag` is a second guard on the same hazard: the document
@@ -163,7 +164,7 @@ readonly class ViewResponse implements Response
      * the language {@link Request::language()} reads from those two; the `ETag` is a second guard
      * there as well, since two languages are different bytes. **Anything beyond those three comes
      * from the view**, through {@link View::varyOn()}, because the page is what knows which other
-     * headers it read — none, today.
+     * headers it read.
      *
      * **`Vary` goes on every response this class sends**, whatever else is left out, because it is
      * a statement about the body rather than about caching it. A caller that says how its response
@@ -171,16 +172,16 @@ readonly class ViewResponse implements Response
      * without a `Vary` is exactly the cache that hands one visitor another's language.
      *
      * **A caller that supplied its own `Cache-Control` gets no validator**, and no 304 either.
-     * That is `StatsController`, which says `no-store, private` because
-     * it sits behind a password; adding a validator to a response we just asked not to be stored
-     * would be arguing with ourselves.
+     * That is a page behind a password, which says `no-store, private` —
+     * {@link CacheControl::doNotStore()} — because nothing about it may be kept; adding a validator
+     * to a response we just asked not to be stored would be arguing with ourselves.
      *
      * **Neither does anything but a success** — see {@link self::validates()}. A 404 still says
      * `no-cache`, because a 404 is cacheable by default: a browser left to its heuristics could
      * keep one for a page that has since been published.
      *
-     * The other responses are not this class's to answer for and deliberately carry nothing: the
-     * 303 a download redirects with is logged per hit and must be re-asked every time, the 401
+     * The other responses are not this class's to answer for and deliberately carry nothing: a
+     * {@link RedirectResponse} is re-asked every time, the 401
      * {@link \Phpanta\Service\Auth} exits with never becomes a `Response` at all, and the 405 and
      * 503 are {@link PlainTextResponse}.
      *

@@ -18,7 +18,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * The text layer: a translation, a catalog case, and a phrase with its arguments bound.
  *
- * How the markup tree decides which language one renders in is {@link HtmlTest}'s.
+ * How the markup tree decides which language one renders in is the markup tree's tests' to say.
  */
 #[CoversClass(Translation::class)]
 #[CoversClass(Phrase::class)]
@@ -124,7 +124,7 @@ final class TextTest extends TestCase
      */
     public function testVerbatimTextIsTheSameInEveryLanguage(): void
     {
-        self::assertSame('ill', new Verbatim('ill')->in(Language::German));
+        self::assertSame('note', new Verbatim('note')->in(Language::German));
         self::assertSame('', new Verbatim('')->in(Language::English));
     }
 
@@ -136,9 +136,9 @@ final class TextTest extends TestCase
      */
     public function testJoinedTextPutsEachPartIntoTheLanguageFirst(): void
     {
-        $title = new Joined(' — ', TextFixture::Plain, new Verbatim('neuro.SYS'));
+        $title = new Joined(' — ', TextFixture::Plain, new Verbatim('Example'));
 
-        self::assertSame('downloads — neuro.SYS', $title->in(Language::English));
-        self::assertSame('Downloads — neuro.SYS', $title->in(Language::German));
+        self::assertSame('downloads — Example', $title->in(Language::English));
+        self::assertSame('Downloads — Example', $title->in(Language::German));
     }
 }

@@ -18,17 +18,18 @@ trait FillsPlaceholders
     /**
      * This path with its placeholders filled, in declaration order.
      *
-     * `SitePath::Release->to($slug)` is `/releases/ill`; `SitePath::Home->to()` is `/`.
+     * A case `'/posts/{slug}'` fills as `->to('hello')`, which is `/posts/hello`; a case `'/'` as
+     * `->to()`, which is `/`.
      *
      * **Refusing the wrong number of values is what the method is for.** A concatenation cannot
-     * make that check — `'/releases/' . $slug . '/'` is a perfectly good string and a URL that
+     * make that check — `'/posts/' . $slug . '/'` is a perfectly good string and a URL that
      * matches nothing — so this is the one thing typing the paths buys that naming them does not.
      * It throws rather than returning null because a caller cannot do anything useful with the
      * answer: the page is already being rendered, and a link to nowhere is not a fallback.
      *
-     * Each value is `rawurlencode`d. That is a no-op for every slug, format and label in `data/`
-     * today — all of them match patterns narrower than the encoding cares about — and it is the
-     * right answer for the first one that is not, rather than a `%` appearing in a path segment
+     * Each value is `rawurlencode`d. That is a no-op for the usual slug — letters, digits and
+     * hyphens are nothing the encoding cares about — and it is the right answer for the first
+     * value that is not, rather than a `%` appearing in a path segment
      * where the router will read it as content.
      *
      * @param string ...$values One per placeholder, left to right.
@@ -55,7 +56,7 @@ trait FillsPlaceholders
 
         // `function` and `use (&…)`, not an arrow function: `fn()` captures by value, so each call
         // would shift a fresh copy and every placeholder would be filled with the first value.
-        // `/releases/ill/ill` — a URL that is well formed, matches a route, and is the wrong page.
+        // `/posts/hello/hello` — a URL that is well formed, matches a route, and is the wrong page.
         //
         // No null check on the result, the way Route::matches() does not check its own: the pattern
         // is a constant and the subject is a string, so there is no failure for one to report.

@@ -8,19 +8,19 @@ use InvalidArgumentException;
 use Phpanta\Support\Collection;
 
 /**
- * The Call class. `new Release(…)`, `Section::named(…)`, or `…->with(…)`.
+ * The Call class. `new Post(…)`, `Author::named(…)`, or `…->with(…)`.
  *
  * One class for all three because they differ only in what comes before the parentheses, and
  * everything interesting happens inside them: the named arguments, the trailing comments, and the
  * alignment that makes a generated entry look like the hand-written ones around it.
  *
- * **Stacked or inline is a decision, not a measurement.** A `new Format(ReleaseFormat::FLAC)` on its
- * own line reads as one thing; the same rule applied by width would put `new Release(` on one line
+ * **Stacked or inline is a decision, not a measurement.** A `new Label(Status::Draft)` on its
+ * own line reads as one thing; the same rule applied by width would put `new Post(` on one line
  * the day a title got shorter. The caller says which, because the caller knows what the line is for.
  */
 final readonly class Call implements Expression
 {
-    /** One level of nesting, matching `data/releases.php`. */
+    /** One level of nesting, matching the hand-written data file this feeds. */
     public const string STEP = '    ';
 
     /** Between an aligned value and the comment after it. */
@@ -164,9 +164,9 @@ final readonly class Call implements Expression
      * commented so a person can uncomment it. An inline call has no lines to put either on.
      *
      * Rendering them anyway would produce nothing anybody meant: a bare comment comes out as
-     * `new Format('a', , 'b')`, which is a syntax error, and a pending argument as
-     * `new Format('a', b: 'b')` — which parses, so a line meant to be uncommented later would ship
-     * as live code in `data/releases.php`. The second is the one worth throwing over.
+     * `new Label('a', , 'b')`, which is a syntax error, and a pending argument as
+     * `new Label('a', b: 'b')` — which parses, so a line meant to be uncommented later would ship
+     * as live code in the data file. The second is the one worth throwing over.
      *
      * @param string $indent
      * @return list<string>
@@ -207,12 +207,12 @@ final readonly class Call implements Expression
         }
 
         // A commented-out argument is rendered against column zero and then prefixed line by line,
-        // so its own nesting sits *after* the slashes — `//     new Plugin(…)` rather than a block
+        // so its own nesting sits *after* the slashes — `//     new Author(…)` rather than a block
         // indented into the middle of a comment.
         $value = $argument->value->render($argument->commentedOut ? '' : $indent) . ',';
         $name  = $argument->name !== null
             // Only the single-line arguments are padded into a column: a name whose value is a
-            // block sits directly against it, the way `formats:` does in the file this feeds.
+            // block sits directly against it, the way `labels:` does in the file this feeds.
             ? str_pad($argument->name . ':', $this->nameWidth($argument)) . ' '
             : '';
 

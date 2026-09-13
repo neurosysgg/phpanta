@@ -12,7 +12,7 @@ use Phpanta\Support\BareArray;
  * The Phrase class. A translation with its arguments bound, formatted by ICU in whichever language
  * it is rendered in.
  *
- * What `Texts::Stats::Total->with(count: $n)` returns. The arguments are bound where the view knows
+ * What `Catalog::Total->with(count: $n)` returns. The arguments are bound where the view knows
  * them; the language is not known until render, and it decides as much as the words do. ICU picks
  * the plural form by the language's own rules, and writes a number the way that language writes
  * one — `1.000` in German against `1,000` in English. That is what ext/intl is for here; see

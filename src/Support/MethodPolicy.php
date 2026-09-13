@@ -23,14 +23,14 @@ use Phpanta\Http\HttpMethod;
  * null for one, null is in no set, and the refusal would name the whole set.
  *
  * So the choice is not "which methods" but "who answers", and written that way the router only
- * ever sends one `Allow` — the read-only one. See docs/history/api.md.
+ * ever sends one `Allow` — the read-only one.
  */
 enum MethodPolicy: string
 {
     /**
      * The router refuses anything that is not a read, before the controller is built.
      *
-     * Nine routes, and the default, so none of them says so.
+     * Every page, and the default, so none of them says so.
      */
     case ReadOnly = 'read-only';
 

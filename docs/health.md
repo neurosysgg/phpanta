@@ -5,17 +5,21 @@ invisible without a signature. They answer two different questions and never mix
 
 - **`capability` says what this host has**: every extension it loaded, every php.ini directive, its
   runtime, its deployment's files, its error log. No line is a claim and nothing is judged.
-- **`health` says whether this host meets what the site needs.** Every line is a requirement with a
+- **`health` says whether this host meets what the app needs.** Every line is a requirement with a
   floor, plus its verdict. A line is a claim exactly when it is under `health`.
 
 The one overlap is deliberate. `capability v1 extensions` lists what is **registered**, and
-`health v1 extensions` proves that the extensions the site needs actually **work**, by using them.
-Registered and working are two questions.
+`health v1 extensions` proves that the extensions the framework needs actually **work**, by using
+them. Registered and working are two questions.
 
-What `capability` said about Strato, the local Apache and the CLI, side by side, is in
-[runtime.md](https://github.com/neurosysgg/neurosys-webspace/blob/master/docs/runtime.md).
+A site does well to keep what `capability` says about each runtime it meets (the live host, a local
+server, the CLI) side by side, in its own documents. Those are facts about hosts, not about the
+framework.
 
 ## Addresses
+
+Both services are called with the `ApiCall` command. A site wires it as a command of its own, with
+its origin and its key. The examples below call that command `tools/api.php`:
 
 ```bash
 php tools/api.php capability v1 <action>
@@ -27,13 +31,13 @@ php tools/api.php health v1 <action>
 | `runtime` | PHP version and `PHP_VERSION_ID`, SAPI, Zend version, OS family; the server software, protocol, `uname`, clock and `date.timezone` |
 | `extensions` | every loaded extension, then every Zend extension, each with its version |
 | `settings` | every php.ini directive the engine knows, with the local value a request runs under |
-| `deployment` | the webroot, and every `DataFile` as present or absent, tracked or untracked |
+| `deployment` | the webroot, and every data file the app names (a `DataFileName`) as present or absent, tracked or untracked |
 | `errors` | the reporting mask, `display_errors`, `log_errors`, `error_log`, `error_get_last()`, and the log's last 20 lines |
 
 | `health v1` | checks |
 |---|---|
 | `runtime` · `extensions` · `settings` · `deployment` | the declared requirements in that area |
-| `report` | every area, then a tally: `19 pass, 1 warn, 0 fail` |
+| `report` | every area, then a tally that names every verdict even at zero, so `0 fail` is the line that says the host is fine |
 
 A `health` line gives the name, the verdict, what was found, and the floor. The verdict comes first
 because it is the column worth reading down:
@@ -46,11 +50,11 @@ settings
 
 **Each area has an address of its own and is never a parameter.** The signature does not cover the
 query string, so `?area=settings` would be the one input reaching a verified handler unsigned. See
-[security.md](https://github.com/neurosysgg/neurosys-webspace/blob/master/docs/security.md#the-api).
+[security.md](security.md#the-api).
 
 ## The status is the verdict
 
-| When | Status | `tools/api.php` exits |
+| When | Status | `ApiCall` exits |
 |---|---|---|
 | a required requirement is unmet (`FAIL`) | `503` | 1 |
 | only optional ones are unmet (`warn`) | `200` | 0 |
@@ -58,27 +62,25 @@ query string, so `?area=settings` would be the one input reaching a verified han
 
 **The body is the whole report either way.** A `503` with nothing in it would say that something is
 wrong while withholding what, from the one caller who has proved they may know. `HealthCheck`
-*returns* the `503` rather than throwing it, because `ApiController` turns an `ApiException` into
-a `422`, and that would report an unhealthy host as a malformed request.
+*returns* the `503` rather than throwing it. `ApiController` turns an `ApiException` into a `422`,
+and that would report an unhealthy host as a malformed request.
 
-`tools/api.php` prints the body and exits on the status, so a failed check can stop a script after a
-push. Only a `404` is explained as a refusal ("check the key, the clock, the server's age"), because
-only a `404` is one. Any other status is reported as `answered 503.`, and the body above it already
+`ApiCall` prints the body and exits on the status, so a failed check can stop a script after a push.
+It explains only a `404` as a refusal ("check the key, the clock, the server's age"), because only a
+`404` is one. It reports any other status as `answered 503.`, and the body above that line already
 says what failed.
 
-**Strato passes a `503`'s body through unchanged**: `HTTP/2 503`, `text/plain`, the report byte
-for byte. Nothing in `public/.htaccess` replaces an error body either. A front proxy *can*
-substitute its own page for a 5xx, which is why this was asked of the live host rather than assumed,
-with a probe push declaring one impossible requirement. Ask again the same way if the host changes;
-see [deployment.md](https://github.com/neurosysgg/neurosys-webspace/blob/master/docs/deployment.md#probing-the-live-host). ([history](https://github.com/neurosysgg/neurosys-webspace/blob/master/docs/history/api.md))
+**A front proxy can substitute its own page for a 5xx.** Whether a host's proxy does that is a
+question to ask of the host, not an assumption to make. Push a probe declaring one impossible
+requirement, read what comes back, and push it away again. Ask again whenever the host changes.
 
 ## Declaring a requirement
 
-Every requirement is declared in one place, `phpanta/src/Support/RequirementInitialization.php`,
-the same way `RouteInitialization` declares routes. **It is code in `src/`, never a file in
-`data/`.** A requirement exists because some code needs it, so the two have to deploy together.
-Every push ships `src/` and none ships `data/`, so a floor declared in a data file could take effect
-a week before or after the code that set it.
+The framework's floor is declared in one place, `src/Support/RequirementInitialization.php`, the same
+way a route table is declared. A site adds its own in its app's `ownRequirements()`. **Both are code,
+never a file in `data/`.** A requirement exists because some code needs it, so the two have to deploy
+together. A push ships the code and never `data/`, so a floor declared in a data file could take
+effect a week before or after the code that set it.
 
 The built-in kinds cover the common cases without a class of your own. The level defaults to
 `Level::Required`:
@@ -140,42 +142,51 @@ final readonly class SpoolWritable implements Requirement
   floor. `Verdict::of()` turns that and the level into pass, warn or fail, so no requirement can
   downgrade its own failure to a warning.
 - **Never throw.** Catch what you expect and turn it into the finding. `WebrootRequirement` catches
-  `Config::webroot()`'s refusal and reports the refusal's sentence. The core catches nothing on your
-  behalf, because `GuidelineTest` refuses `catch (Throwable)`, so a single throw becomes a 500 for
+  the refusal from `App::webroot()` and reports the refusal's sentence. The core catches nothing on
+  your behalf, because the guidelines refuse `catch (Throwable)`, so a single throw becomes a 500 for
   the whole report.
 - **Pick one of the four areas.** Each area is an address, so there is no fifth. `deployment` means
   "this installation", and it is where anything an application checks about its own surroundings
   belongs.
-- **Anything that knows this site stays out of `Model/Health/`.** That namespace imports nothing of
-  this site's, so it can be lifted out whole. The site's own requirements live in
-  `Service/Health/`.
+- **`Model/Health/` asks no app.** It imports nothing but itself and the framework's support
+  classes, so a requirement there can be checked anywhere. A requirement that asks the booted app
+  lives in `Service/Health/`: `WebrootRequirement`, `DataFileRequirement` and
+  `LogDirectoryRequirement` are the framework's. A site's own requirements live in its own
+  namespace and reach the report through `ownRequirements()`.
 
 ## The framework's floor
 
-What `health v1` checks is `App::requirements()`: this floor, declared in
-`Support\RequirementInitialization`, and then whatever a site adds in its `ownRequirements()`.
-neuro.SYS adds nothing, so its report is this table.
+What `health v1` checks is `App::requirements()`. That is this floor, declared in
+`Support\RequirementInitialization`, followed by whatever a site adds in its `ownRequirements()`. An
+app that adds nothing, `TestApp` among them, reports exactly this table.
 
 | Area | Requirement | Floor | Level |
 |---|---|---|---|
 | runtime | `php` | 8.5 or later, `composer.json`'s `^8.5` | required |
 | extensions | `uri`, `dom`, `intl`, `openssl`, `zlib` | working, each proved by `PhpExtension::isPresent()` | required |
 | settings | `post_max_size` | `ApiGate::MAX_BODY` (8M), or 0 | required |
-| | `memory_limit` | 4 × `MAX_BODY` (32M), or -1 | required |
+| | `memory_limit` | 2 × `MAX_BODY` + 2 × `UpdateApplier::MAX_EXPANDED` (48M), or -1 | required |
 | | `max_execution_time` | 30s, or 0 | required |
 | | `display_errors` | off | required |
 | | `log_errors` | on | required |
 | | `opcache.enable` | on | optional |
-| | `register_argc_argv` | off, set by `public/.user.ini` | optional |
+| | `register_argc_argv` | off, which a site's `public/.user.ini` can set | optional |
 | deployment | `DOCUMENT_ROOT` | a directory inside this deployment | required |
 | | every tracked data file | present | required |
 | | `logs/` | writable, so PHP can log into it | optional |
 
-- **neuro.SYS's `HealthTest` pins these values to their sources.** It checks the extension list and the PHP
-  floor against `composer.json`, and the two size floors against `MAX_BODY`.
-- **The memory floor comes from the push.** At its peak a push holds three copies of about
-  `MAX_BODY` at once: the body, the decoded tar, and each file's bytes. The fourth copy is headroom
-  for the interpreter itself.
+- **Pin these values to their sources.** The extension list and the PHP floor are stated in
+  `composer.json` too, and the two size floors are derived from `MAX_BODY`. Composer never runs on
+  the server to notice a drift, so a site's suite should hold the two statements to each other.
+  `RequirementTest` reads its byte floors off `MAX_BODY` for the same reason.
+- **The memory floor comes from the push, derived from the two caps rather than written out.** At
+  its peak, a push holds four things at once, each bounded before it is held:
+  - the body as read, at most `MAX_BODY`;
+  - the tar that `gzdecode()` makes of it, at most `MAX_EXPANDED`, which is twice the body's cap;
+  - each file's bytes cut out of that tar, as much again;
+  - the interpreter and the codebase, about a body's worth.
+
+  Both caps are enforced, so the floor is a bound on what any push can make a request hold, not only
+  what an honest one needs.
 - **Only the tracked data files are required.** An untracked file being absent is state, not a
-  fault: no demos staged, no gate, no log yet. `capability v1 deployment` reports it without a
-  verdict.
+  fault: no gate configured, no log yet. `capability v1 deployment` reports it without a verdict.

@@ -8,32 +8,32 @@ use OpenSSLAsymmetricKey;
 use Phpanta\Exception\UpdateException;
 
 /**
- * The PublicKey class. An ECDSA P-256 public key, checked to be one, and the only thing on this
- * site that verifies a signature.
+ * The PublicKey class. An ECDSA P-256 public key, checked to be one, and the only thing in the
+ * framework that verifies a signature.
  *
  * It is {@link PasswordHash} for the other kind of credential, and it is written to the same shape
  * on purpose: the material is validated once where it is written down, the comparison is the one
  * thing that stays inside, and nothing else in `src/` calls the underlying primitive. **This is the
- * single `openssl_*` call site in the whole repository**, which `test/basic_test.sh` pins the way
- * it already pins `curl_` to one file under `tools/lib/`.
+ * single `openssl_*` call site in the whole framework**, which the verify script pins the way it
+ * pins `curl_` to one file of tooling.
  *
- * **Why a key rather than a password.** The site's other three gates are HTTP Basic, where the
+ * **Why a key rather than a password.** The other gates are HTTP Basic, where the
  * secret is on the wire and the server holds something derived from it. This gate protects a route
  * that overwrites `src/` and the webroot, so the server must hold nothing that can be replayed:
  * what it stores is the *public* half, useless to anyone who reads it, and a compromise of the
  * whole account yields no ability to push an update. That asymmetry is the entire reason this class
- * exists instead of a tenth bcrypt digest.
+ * exists instead of one more bcrypt digest.
  *
  * **ECDSA P-256 with SHA-256, decided by measurement rather than taste.** Ed25519 would be the
  * modern default and is not available: `ext/sodium` is absent on the development machine, and
  * PHP's own openssl binding refuses an Ed25519 key with `Provider routines::invalid digest`,
  * because its signing call drives the digest-based API while Ed25519 is a one-shot algorithm.
- * P-256 was then verified end to end on the live host — key parses, a good signature returns 1, a
+ * P-256 was then verified end to end on a shared host — key parses, a good signature returns 1, a
  * tampered one returns 0 — before any of this was written. Widening the algorithm is a decision,
  * not a convenience, exactly as it is on {@link PasswordHash}.
  *
  * Note that nothing here can sign, and that is structural rather than a matter of restraint: this
- * class holds a public key and calls one function. `test/basic_test.sh` asserts that no file under
+ * class holds a public key and calls one function. The verify script asserts that no file under
  * `src/` names a signing or key-minting call at all, so a private key arriving on the server would
  * have nothing to use it.
  */

@@ -11,7 +11,7 @@ use Phpanta\Support\Collection;
 /**
  * The PermissionsPolicy class. A `Permissions-Policy` header built from typed features.
  *
- * The site asks for none of these, so the only thing it ever expresses is denial — hence a
+ * The framework asks for none of these, so the only thing it ever expresses is denial — hence a
  * single {@link self::deny()} constructor rather than a general allow-list builder. If a
  * feature ever needs granting, that is a new named constructor, not a string edit.
  */

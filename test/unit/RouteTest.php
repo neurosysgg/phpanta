@@ -26,8 +26,8 @@ final class RouteTest extends TestCase
 
         $item = self::route(RoutePatternFixture::Item);
 
-        self::assertSame(['ill'], $item->matches('/items/ill.json'));
-        self::assertFalse($item->matches('/items/ill-json'));
+        self::assertSame(['note'], $item->matches('/items/note.json'));
+        self::assertFalse($item->matches('/items/note-json'));
     }
 
     /**
@@ -51,7 +51,7 @@ final class RouteTest extends TestCase
     {
         $item = self::route(RoutePatternFixture::Item);
 
-        foreach (['ill', 'a b', 'x/y', '100%', '2024'] as $slug) {
+        foreach (['note', 'a b', 'x/y', '100%', '2024'] as $slug) {
             self::assertSame([$slug], $item->matches(RoutePatternFixture::Item->to($slug)), $slug);
         }
     }

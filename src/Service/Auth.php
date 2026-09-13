@@ -16,23 +16,22 @@ use Phpanta\Support\File;
 use Phpanta\Support\PasswordHash;
 
 /**
- * The Auth class. Provides HTTP Basic Authentication gates for the site.
+ * The Auth class. Provides HTTP Basic Authentication gates for an app.
  *
  * The decision and the 401 are separate, the same way {@link \Phpanta\Http\SecurityHeaders}
  * separates `headers()` from `send()`, and for the same reason: a gate that ends the request
  * cannot be asserted against in-process, so everything worth asserting lives in
  * {@link self::accepts()}, and the two `require*` methods are only the challenge around it.
  *
- * That split is what the `AdminTest` needs to exist. Before it, the
- * credential comparison had never run under either suite: `data/admin.php` ships with an empty
- * `pass_hash`, so the guard short-circuits and neither `hash_equals()` nor `password_verify()`
- * is reached — which means the two `/admin/stats → 401` checks in `test/basic_test.sh` prove the
- * route is gated, not that the comparison works.
+ * That split is what lets a test reach the comparison at all. A repository's `data/admin.php`
+ * ships with an empty `pass_hash`, so the guard short-circuits and neither `hash_equals()` nor
+ * `password_verify()` is reached — which means an end-to-end check that an admin route answers 401
+ * proves the route is gated, not that the comparison works.
  *
  * **Two gates here, and any number built on them, differing in where the credential comes from
  * rather than in what is done with it.** The site gate and the admin gate read a `data/` file
- * returning a user and a hash. A site's own gate brings its own credential — this one's
- * {@link DemoGate} carries a {@link PasswordHash} per demo — and asks {@link self::matches()} and
+ * returning a user and a hash. A site's own gate brings its own credential — a
+ * {@link PasswordHash} per protected item, say — and asks {@link self::matches()} and
  * {@link self::challenge()}, which are public for that reason. So every gate still ends up in
  * {@link self::matches()}, and that is still the only place a credential is compared.
  */
@@ -136,7 +135,7 @@ class Auth
     }
 
     /**
-     * Enforces admin authentication for protected routes (e.g. /admin/stats).
+     * Enforces admin authentication for protected routes (e.g. an admin page).
      *
      * Exits with a 401 if the credentials do not match. Unlike the site gate there is no absent-file
      * case: a missing `data/admin.php` is a broken deployment, and `require` says so loudly rather

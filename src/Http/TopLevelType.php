@@ -38,7 +38,7 @@ enum TopLevelType: string
     /** Several bodies in one, each with a media type of its own — a form upload, a MIME email. */
     case Multipart = 'multipart';
 
-    /** Anything a person can read as characters. Everything this site sends. */
+    /** Anything a person can read as characters. Everything a view renders. */
     case Text = 'text';
 
     case Video = 'video';

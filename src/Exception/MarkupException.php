@@ -7,32 +7,31 @@ namespace Phpanta\Exception;
 use LogicException;
 
 /**
- * The MarkupException class. What the markup tree throws, in three kinds.
+ * The MarkupException class. What the markup tree throws, in two kinds, and what a site's own
+ * markup refusals extend.
  *
- * **Abstract, because nothing throws this one.** It is what {@link ElementException},
- * {@link ParserException} and {@link TerminalException} have in common, and saying so in the
- * language is what stops a fourth kind arriving as a bare `MarkupException` — which would read as
- * "one of those three" and be none of them. A `catch` or an `@throws` naming this still means what
- * it always did: any of the three.
+ * **Abstract, because nothing throws this one.** It is what {@link ElementException} and
+ * {@link ParserException} have in common, and saying so in the language is what stops a further
+ * kind arriving as a bare `MarkupException` — which would read as "one of those" and be none of
+ * them. A site whose own code refuses to build markup adds its kind as a subclass here. A `catch`
+ * or an `@throws` naming this still means what it always did: any of them.
  *
- * The split is along the one line worth drawing here — an element being *built* against markup
- * being *read* — and it was a split before it was three classes:
+ * The framework's split is along the one line worth drawing here — an element being *built*
+ * against markup being *read*:
  *
  * - {@link ElementException} — {@link \Phpanta\View\Html\Element} refusing to be something no
- *   element can be: a void element with children, a URL naming a scheme the site does not emit.
+ *   element can be: a void element with children, a URL naming a scheme the tree does not emit.
  * - {@link ParserException} — {@link \Phpanta\View\Html\MarkupParser} refusing markup that names an
- *   element or an attribute this site does not have, or that does not parse cleanly at all.
- * - {@link TerminalException} — `Terminal` unable to hand its rows to
- *   the element that draws them.
+ *   element or an attribute the app does not have, or that does not parse cleanly at all.
  *
- * **The parser's kind is the same category as the others, which is worth saying rather than
+ * **The parser's kind is the same category as the other, which is worth saying rather than
  * assuming.** A parse failure looks at first like bad input, and bad input is a condition a caller
- * recovers from — but the only markup this parser is ever handed is `data/privacy.*.html`, which is
- * checked into this repository beside the code that reads it. A refusal there means a file in this
- * repo is written wrong, exactly as a void element with children does.
+ * recovers from — but the only markup the parser may be handed is hand-authored, checked into the
+ * repository beside the code that reads it. A refusal there means a file in the repository is
+ * written wrong, exactly as a void element with children does.
  *
- * **Extends `LogicException`, and that is the classification rather than a detail.** Nothing on
- * this site recovers from it and nothing should try: this is not a condition a caller acts on, it is
+ * **Extends `LogicException`, and that is the classification rather than a detail.** Nothing
+ * recovers from it and nothing should try: this is not a condition a caller acts on, it is
  * "something in this repository is written wrong, go and fix it" — which is what SPL's
  * `LogicException` means. Saying it in the type rather than only the prose also settles a question
  * that would otherwise follow it around: whether every `containing()` and every `render()` owes an

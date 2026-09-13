@@ -32,10 +32,10 @@ use PHPUnit\Framework\TestCase;
 /**
  * The requirement core: what a requirement is, what it comes to, and how a set of them reads.
  *
- * **Nothing here knows this site.** Every requirement below is either a built-in kind or a stub
- * declared in this file, and no test reads `Config`, a `DataFile` or the declared set — which is the
- * property that lets the core be lifted out whole, asserted from the outside. The site's own
- * declarations are {@link HealthTest}'s subject.
+ * **Nothing here knows a site.** Every requirement below is either a built-in kind or a stub
+ * declared in this file, and no test reads a site's app, its data files or the declared set — which
+ * is the property that lets the core be lifted out whole, asserted from the outside. A site's own
+ * declarations are its own suite's subject.
  *
  * The stub in {@link self::stub()} is also the smallest honest example of the extension point: a
  * requirement written by hand, which is what a user of the core does when no built-in kind fits.
@@ -204,7 +204,7 @@ final class RequirementTest extends TestCase
      * A switch reads like PHP reads a boolean directive — and `stderr` is neither on nor off.
      *
      * `display_errors = stderr` prints diagnostics somewhere other than the response, which is not
-     * what this site means by off. Reading it as off would pass exactly the host this check is for.
+     * what a site means by off. Reading it as off would pass exactly the host this check is for.
      *
      * @param Toggle $toggle
      * @param string $configured
@@ -433,7 +433,7 @@ final class RequirementTest extends TestCase
      * A fact's value is rendered unless there is genuinely none.
      *
      * **`'0'` is the row that matters.** `max_execution_time` is `0` on a runtime with no limit —
-     * a real answer — and a falsy test prints it as nothing. See docs/history/coverage.md.
+     * a real answer — and a falsy test prints it as nothing.
      *
      * @param string $value
      * @param string $expected

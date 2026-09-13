@@ -8,7 +8,7 @@ namespace Phpanta\View\Html;
  * The AttributeValue interface. What goes inside the quotes of one attribute.
  *
  * The other half of {@link AttributeName}, and it arrived second for the reason
- * {@link \Phpanta\Http\HeaderValue} did on the other side of the site: the name was typed first
+ * {@link \Phpanta\Http\HeaderValue} did on the other side of the framework: the name was typed first
  * because a misspelled attribute name is silent, and the value was left a string on the reasoning
  * that a value is just text. So is a name.
  *
@@ -33,7 +33,7 @@ interface AttributeValue
      * The value as it appears between the quotes, before escaping.
      *
      * Before, not after: what comes back goes through {@link Element::render()} like any other
-     * value, so it is escaped once, in the site's one call to `htmlspecialchars`, and a URL-shaped
+     * value, so it is escaped once, in the framework's one call to `htmlspecialchars`, and a URL-shaped
      * attribute is scheme-checked on the same way out. An implementation that escaped its own
      * output would be escaping it twice.
      *

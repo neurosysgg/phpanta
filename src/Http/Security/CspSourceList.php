@@ -9,7 +9,7 @@ use Phpanta\Support\Collection;
 /**
  * The CspSourceList class. One directive's source list, as a collection that names its own element.
  *
- * **This exists because PHP has no nested generics, and it is the one place on this site where that
+ * **This exists because PHP has no nested generics, and it is the one place in the framework where that
  * costs something.** {@link ContentSecurityPolicy} holds source lists keyed by directive — a map of
  * lists — and a collection is defined by a `class-string`, so the outer
  * {@link \Phpanta\Support\SearchableCollection} has to be told what its *values* are. Told

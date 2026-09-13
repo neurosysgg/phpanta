@@ -65,7 +65,7 @@ final readonly class UpdateApplier
     public const int MAX_EXPANDED = 2 * ApiGate::MAX_BODY;
 
     /**
-     * A member name this site will write.
+     * A member name this class will write.
      *
      * Deliberately narrower than "a path without `..` in it". Only these characters, no leading
      * slash, no empty segment, no backslash, nothing outside printable ASCII. Everything the
@@ -96,7 +96,7 @@ final readonly class UpdateApplier
      * @param UpdateManifest $manifest
      * @return UpdateReport
      *
-     * @throws UpdateException if the archive cannot be expanded, or holds a member this site will
+     * @throws UpdateException if the archive cannot be expanded, or holds a member this class will
      *                         not write. Nothing has been written when this throws.
      */
     #[NoDiscard('the report is the endpoint\'s entire response; dropping it sends an empty 200')]
@@ -114,7 +114,7 @@ final readonly class UpdateApplier
             ));
         }
 
-        // Names are checked before the deployment is resolved, so a payload this site would refuse
+        // Names are checked before the deployment is resolved, so a payload this class would refuse
         // is refused on a machine that has no webroot at all — which is every CLI run.
         $files = $this->validated(TarArchive::parse($tar));
 
@@ -134,7 +134,7 @@ final readonly class UpdateApplier
         // a change on the understanding that the new half is already there, and a failed write is
         // exactly the case where it is not — a stylesheet that did not land, its predecessor then
         // deleted, and a site serving neither. The report names what failed; the next push, or
-        // deploy.sh, finishes the job with both halves still on disk.
+        // a full deploy, finishes the job with both halves still on disk.
         if (!$report->isComplete()) {
             return $report->noted('the mirror did not run, because a write failed — nothing was deleted');
         }
@@ -196,7 +196,7 @@ final readonly class UpdateApplier
     }
 
     /**
-     * Refuses a member name this site will not write, saying which rule it broke.
+     * Refuses a member name this class will not write, saying which rule it broke.
      *
      * **It takes the entry rather than the name, because two of the rules are about the pair.** A
      * name is only half of what a member is, and a regular file may not be named as a directory or
@@ -363,7 +363,7 @@ final readonly class UpdateApplier
      * `public/index.php` while the request is executing out of it makes the NFS client silly-rename
      * the open inode aside as `.nfsXXXXXXXX` instead of unlinking it. The mirror then meets that
      * stray as a surplus path in the same request and cannot remove it, because the handle holding
-     * it open is this very process. See docs/history/api.md.
+     * it open is this very process.
      *
      * A file the payload does not change is therefore left strictly alone — not rewritten with the
      * same bytes, not touched, not chmodded. Permissions are not reconciled, deliberately: matching
@@ -478,7 +478,7 @@ final readonly class UpdateApplier
 
             // The pattern is asked again on the way out, not because the payload could have put
             // this name here — it could not, these are files already on disk — but because a name
-            // this site would refuse to *write* is one it must refuse to *delete*. That symmetry
+            // this class would refuse to *write* is one it must refuse to *delete*. That symmetry
             // is what keeps the mirror from being a second, weaker path to unlink().
             if (!isset($packed[$name]) && preg_match(self::SAFE_NAME, $name) === 1) {
                 $surplus[] = $name;

@@ -8,15 +8,15 @@ use Attribute;
 use Phpanta\Exception\TranslationException;
 
 /**
- * The Translation class. One text, as written in each language the site is written in.
+ * The Translation class. One text, as written in each language the app is written in.
  *
  * **Two uses, one class**, and that is the design rather than a coincidence:
  *
  * - **On a catalog case**, as an attribute, so both languages sit beside the case they belong to:
  *   `#[Translation(en: 'downloads', de: 'Downloads')] case Downloads = 'downloads';`. See
  *   {@link Translated}.
- * - **Inline**, as a value, for text that belongs to one entry rather than to the site — what a
- *   data file writes: `description: new Translation(en: 'wub wub', de: 'wabbel wabbel')`.
+ * - **Inline**, as a value, for text that belongs to one entry rather than to the app — what a
+ *   data file writes: `summary: new Translation(en: 'hello', de: 'hallo')`.
  *
  * **English is required and German is not.** A missing German text falls back to the English,
  * which is honest — the page says what it has — where an empty string would be a gap nobody sees.
@@ -34,8 +34,8 @@ final readonly class Translation implements Translatable
     /**
      * Constructs an instance of {@link self}.
      *
-     * @param string      $en The English text. Required: it is the site's own language, and what
-     *                        every other falls back to.
+     * @param string      $en The English text. Required: it is the one language every translation
+     *                        has, and what every other falls back to.
      * @param string|null $de The German text, or null where there is none yet.
      * @throws TranslationException if $en is blank.
      */

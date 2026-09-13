@@ -24,7 +24,7 @@ use Phpanta\Support\Collection;
  *
  * {@link self::facts()} takes a collection and {@link self::lines()} takes a variadic, and the
  * difference is not inconsistency: most fact sections are built by filtering and mapping an
- * existing set — the declared requirements, `DataFile::cases()`, what the engine
+ * existing set — the declared requirements, the app's data files, what the engine
  * lists — so a variadic there would mean spreading a collection only to have it rebuilt, where the
  * log's lines are written out at their one call site and a variadic is a check PHP makes for free.
  *
@@ -99,7 +99,7 @@ final readonly class HealthSection
 
     /**
      * A whole response body of sections: each rendered, a blank line between them, and the newline
-     * every body on this site ends in.
+     * every body here ends in.
      *
      * @param self ...$sections
      * @return string

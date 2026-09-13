@@ -49,7 +49,7 @@ A site is laid out by convention rather than configuration:
 site/
 ├── autoload.php          ← require_once phpanta/autoload.php, then the site's own prefix, then boot
 ├── composer.json         ← psr-4: the site's namespace → src/<Ns>/, and Phpanta\ → phpanta/src/
-├── public/index.php      ← require the autoloader, install a last-resort handler, <Site>::current()->run()
+├── public/index.php      ← require the autoloader, install a last-resort handler, <App>::current()->run()
 ├── src/<Ns>/             ← the site: its App subclass, controllers, views, models, words
 ├── data/                 ← what the site reads at runtime, outside the webroot
 ├── assets/ts/phpanta     ← a symlink to ../../phpanta/assets/ts; tsconfig sets preserveSymlinks
@@ -68,7 +68,7 @@ ln -s ../../phpanta/assets/ts assets/ts/phpanta
 // autoload.php
 require_once __DIR__ . '/phpanta/autoload.php';
 // … the site's own spl_autoload_register for its namespace …
-Acme\Site::boot();
+Acme\Blog::boot();
 ```
 
 ### Working in a vendored copy

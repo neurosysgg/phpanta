@@ -30,7 +30,7 @@ use Phpanta\Service\UpdateApplier;
  * two together. Both are code for the same reason: code ships with the code — `src/` is in every
  * push, `data/` is in none —
  * and a requirement exists because some code needs it, so the two have to arrive together. A floor
- * declared in a data file would reach the server only with `deploy.sh`, and could be in force a week
+ * declared in a data file would reach the server only with a full deploy, and could be in force a week
  * before or after the code that set it.
  *
  * The built-in kinds cover the common cases without a class; see `docs/health.md` for them, for
@@ -39,7 +39,7 @@ use Phpanta\Service\UpdateApplier;
 final class RequirementInitialization
 {
     /**
-     * The oldest PHP this site runs on — `composer.json`'s `"php": "^8.5"`, which `HealthTest`
+     * The oldest PHP the framework runs on — `composer.json`'s `"php": "^8.5"`, which `HealthTest`
      * holds this to. 8.5 is load-bearing three times over; see CLAUDE.md's Stack.
      */
     private const string PHP = '8.5';
@@ -75,7 +75,7 @@ final class RequirementInitialization
     {
         return new Collection(Requirement::class)
             ->with(new VersionRequirement(self::PHP))
-            // The five extensions the site is a fatal without, each proved by being used rather
+            // The five extensions the framework is a fatal without, each proved by being used rather
             // than by its name being registered. PhpExtension is the vocabulary, and the one
             // statement of the list that is compared with composer.json in code.
             ->with(...new Collection(PhpExtension::class)
@@ -92,11 +92,11 @@ final class RequirementInitialization
                 new SettingRequirement(PhpSetting::PostMaxSize->value, new ByteFloor(ApiGate::MAX_BODY, 0)),
                 new SettingRequirement(PhpSetting::MemoryLimit->value, new ByteFloor(self::PUSH_MEMORY, -1)),
                 new SettingRequirement(PhpSetting::MaxExecutionTime->value, new SecondsFloor(self::PUSH_SECONDS, 0)),
-                // The pair five docblocks once asserted of the live host. A diagnostic printed into
-                // a response lands inside a page already being written; one not logged goes nowhere.
+                // A diagnostic printed into a response lands inside a page already being written;
+                // one not logged goes nowhere.
                 new SettingRequirement(PhpSetting::DisplayErrors->value, Toggle::Off),
                 new SettingRequirement(PhpSetting::LogErrors->value, Toggle::On),
-                // Optional: the site is correct without the opcode cache, only slower.
+                // Optional: an app is correct without the opcode cache, only slower.
                 new SettingRequirement(PhpSetting::OpcacheEnable->value, Toggle::On, Level::Optional),
                 // Optional: on, it is a deprecation raised on every request and nothing worse.
                 // public/.user.ini turns it off; this is what says whether the host took it.
@@ -107,7 +107,7 @@ final class RequirementInitialization
                 ->where(static fn(DataFileName $file): bool => $file->isTracked())
                 ->map(static fn(DataFileName $file): Requirement => new DataFileRequirement($file))
                 ->toValues())
-            // Optional: without it the site is correct and its diagnostics go where nobody reads.
+            // Optional: without it an app is correct and its diagnostics go where nobody reads.
             ->with(new LogDirectoryRequirement($app->logs()));
     }
 }

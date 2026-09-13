@@ -14,7 +14,7 @@ enum CspScheme: string implements CspSource
     /**
      * Inline `data:` URIs.
      *
-     * Nothing on this site emits one, and `img-src` deliberately does not allow it — see
+     * Nothing the framework emits is one, and `img-src` deliberately does not allow it — see
      * {@link \Phpanta\Http\SecurityHeaders::contentSecurityPolicy()}. The case stays because
      * this enum is the vocabulary a policy may be written in, not a list of what is switched on.
      */

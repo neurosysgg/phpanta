@@ -8,7 +8,7 @@ use Phpanta\Http\HttpStatusCode;
 use ReflectionProperty;
 
 /**
- * What {@link UpdateTest} and {@link ApiTest} both have to be able to do, in one place.
+ * What {@link UpdateTest} and a site's own API suite both have to be able to do, in one place.
  *
  * The two files were one before `/update` became `/api/update/v1/patch`, and splitting them left
  * four helpers wanted on both sides. Copying them would have been the smaller diff and the exact

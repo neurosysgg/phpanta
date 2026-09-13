@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\View\Html;
 
 /**
- * The LinkAttribute enum. The attributes this site puts on an `<a>` that change how it behaves.
+ * The LinkAttribute enum. The attributes the framework puts on an `<a>` that change how it behaves.
  *
  * Only one so far, and it is load-bearing: without `data-no-spa` the SPA router fetches a download
  * link, gets the 303 and swallows it, and downloads silently stop working while every page still

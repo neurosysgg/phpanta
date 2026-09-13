@@ -96,10 +96,10 @@ final class BasePathTest extends TestCase
     {
         self::assertSame(
             '<meta name="x" content="/not/an/address"><a title="/ and so on" href="/phpanta/guide">g</a>'
-            . '<cover-art fallback="/phpanta/cover.png"></cover-art>',
+            . '<hero-image fallback="/phpanta/cover.png"></hero-image>',
             new BasePath('/phpanta/', ['href', 'src', 'fallback'])->html(
                 '<meta name="x" content="/not/an/address"><a title="/ and so on" href="/guide">g</a>'
-                . '<cover-art fallback="/cover.png"></cover-art>',
+                . '<hero-image fallback="/cover.png"></hero-image>',
             ),
         );
     }

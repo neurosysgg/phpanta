@@ -12,10 +12,10 @@ use Phpanta\Support\File;
  * The FileResponse class. Sends a file from disk, in whole or in the part that was asked for.
  *
  * The only response here whose body is not something this code rendered a moment earlier, and it
- * exists for one reason: a demo's audio lives under `data/`, outside the webroot, so the gate that
- * covers the page covers the bytes too. Apache never sees those files; this is the only way to
- * them. That is the difference between a demo and a release — a release redirects to a HiDrive
- * share URL, which keeps working for whoever it is forwarded to, long after the password changed.
+ * exists for one reason: a file kept under `data/`, outside the webroot, is covered by the gate
+ * that covers the page linking to it. The web server never sees such a file; this is the only way
+ * to it. That is the difference from redirecting to a file host, whose share URL keeps working for
+ * whoever it is forwarded to, long after the password changed.
  *
  * **Ranges are the reason this is more than `readfile()`.** An `<audio>` element seeks by asking
  * for a byte range, so a server that answers every request with the whole file gives you a player
@@ -23,8 +23,8 @@ use Phpanta\Support\File;
  * {@link ByteRange} reads the ask, {@link ContentRange} states the answer, and
  * {@link ResponseHeader::AcceptRanges} is what tells the element to offer the scrubber at all.
  *
- * **It never sends a validator and never answers a 304**, the same decision
- * `StatsController` takes for the same reason: this is reached by
+ * **It never sends a validator and never answers a 304**, the same decision any page behind a
+ * password takes for the same reason: this is reached by
  * handing over a password, so it says `no-store, private` and there is nothing to revalidate
  * against. Adding an `ETag` to a response we just asked not to be stored would be arguing with
  * ourselves — and here it would also be arguing with the range, since a validator on a partial
@@ -36,7 +36,7 @@ readonly class FileResponse implements Response
      * How much is read from disk and flushed at a time.
      *
      * The whole point of a chunk is that a 6 MB body never exists in PHP's memory as a string; 256
-     * KB is small enough for that to hold on the shared host this deploys to and large enough that
+     * KB is small enough for that to hold on a shared host and large enough that
      * a full file is a couple of dozen reads rather than thousands.
      */
     private const int CHUNK = 262144;
@@ -45,12 +45,12 @@ readonly class FileResponse implements Response
      * Constructs an instance of {@link self}.
      *
      * @param File     $file    The file to send. Must exist — the caller decides what an absent
-     *                          one means, and for a demo track that is a 404 rather than a 500.
+     *                          one means, and for a gated file that is a 404 rather than a 500.
      * @param MimeType $type    What the bytes are. {@link MimeType::forAudio()} builds it from the
      *                          extension and refuses one it does not know, because `nosniff` means
      *                          a wrong answer here cannot be corrected by the browser.
      * @param Collection<Header> $headers Extra headers, in the position every other response here takes
-     *                          them. The demo routes pass {@link RobotsPolicy}.
+     *                          them. A gated route passes {@link RobotsPolicy::hide()}.
      */
     public function __construct(
         private File     $file,

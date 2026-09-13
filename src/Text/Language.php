@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Phpanta\Text;
 
 /**
- * The Language enum. A language this site is written in.
+ * The Language enum. A language the framework can write, and an app may be written in.
  *
  * **Decided once per request**, by {@link \Phpanta\Http\Request::language()}: the visitor's `lang`
- * cookie where it names a language this site has, else their `Accept-Language`, else English. It
+ * cookie where it names a language the app offers, else their `Accept-Language`, else the app's
+ * default — see {@link Languages}. It
  * lives under `Text` rather than beside the markup vocabulary it began in, because it stopped being
  * only an attribute value: the request decides it, and the pages are written in it.
  *
@@ -21,31 +22,30 @@ namespace Phpanta\Text;
  * appears. Every one of those is discovered by somebody who is not looking at the markup.
  *
  * Bare primary subtags, deliberately — `en` rather than `en-GB`. A region says something about
- * spelling and date order that this site does not make good on, and a tag claiming more than it
+ * spelling and date order that no page here makes good on, and a tag claiming more than it
  * delivers is worse than one claiming less.
  *
- * **Mirrored in `assets/ts/model/Language.ts`**, because the client writes a few words of its own —
- * the consent gate, the title of a player — and reads the language of the page off `<html lang>`
- * to write them in. `enum-parity.test.mjs` compares the two case for case.
+ * **Mirrored in `assets/ts/model/Language.ts`**, because the client writes a few words of its own
+ * and reads the language of the page off `<html lang>` to write them in. `enum-parity.test.mjs`
+ * compares the two case for case.
  */
 enum Language: string
 {
-    /** The site's own language, and the answer to every request that asks for neither. */
+    /** English: the text every {@link Translation} is required to have, and falls back to. */
     case English = 'en';
 
     /**
-     * The site's second language, and the one its legal obligations are met in.
+     * German, which a {@link Translation} may carry beside the English.
      *
-     * § 5 DDG and § 18 Abs. 2 MStV are met in German, which is why the imprint and the privacy
-     * policy always carry their German half, whichever language leads. See
-     * `ImprintView`.
+     * A site that owes legal notices in German — an imprint, a privacy policy — keeps their German
+     * half whichever language leads, by marking that half with its own `lang`.
      */
     case German = 'de';
 
     /**
-     * The language's name in itself — `deutsch`, `english` — which is how the switch in the footer
-     * names it, so a visitor who cannot read the page can still find their own language on it.
-     * Lower case, the way the site writes its navigation.
+     * The language's name in itself — `deutsch`, `english` — which is how a language switch names
+     * it, so a visitor who cannot read the page can still find their own language on it. Lower
+     * case; a site that wants capitals styles them.
      *
      * @return string
      */

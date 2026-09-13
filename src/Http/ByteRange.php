@@ -7,10 +7,10 @@ namespace Phpanta\Http;
 /**
  * The ByteRange class. One `Range: bytes=…` request, resolved against the size of what was asked for.
  *
- * The site had no reason for this until a demo's audio started being served by PHP rather than
- * redirected to a file host. It is not an optimisation: an `<audio>` element **seeks** by asking
- * for a byte range, so without this a listener can play a demo and cannot skip to the drop. That is
- * the quiet kind of broken — the page works, the control just does not.
+ * Needed the moment media is served by PHP rather than redirected to a file host, and not as an
+ * optimisation: an `<audio>` element **seeks** by asking for a byte range, so without this a
+ * listener can play a track and cannot skip ahead. That is the quiet kind of broken — the page
+ * works, the control just does not.
  *
  * **Understanding a header and being able to satisfy it are different questions**, and this answers
  * them separately because they have different status codes. {@link self::parse()} returns null for

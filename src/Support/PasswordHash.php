@@ -10,7 +10,7 @@ use Phpanta\Exception\InvalidValueException;
  * The PasswordHash class. A bcrypt digest, checked to be one.
  *
  * It sits in `Support/` for the reason {@link Charset} does: two layers read it and neither owns
- * it. `Demo` declares one in `data/demos.php`, and
+ * it. A site's model declares one in its data, and
  * {@link \Phpanta\Service\Auth} is what compares against it — so it belongs to neither
  * `Model/` nor `Service/`.
  *
@@ -19,7 +19,7 @@ use Phpanta\Exception\InvalidValueException;
  * the same face: one is a visitor typing the wrong thing, the other is a credential that will never
  * open for anybody and says so to nobody. A truncated paste is the ordinary way to get the second,
  * and it presents as a password that "stopped working". So the shape is asked about once, where it
- * is written down, the way `HiDriveLink` asks about a share id.
+ * is written down, the way any value with a grammar is asked about at its constructor.
  *
  * Bcrypt specifically rather than "any algorithm PHP knows": it is what
  * `password_hash($p, PASSWORD_BCRYPT)` produces, which is what every credential here is minted
@@ -61,7 +61,7 @@ final readonly class PasswordHash
     /**
      * A digest nobody has the password to, for spending the time a real comparison would have.
      *
-     * **It exists so that "no such demo" and "wrong password" cost the same.** A gate that returns
+     * **It exists so that "no such item" and "wrong password" cost the same.** A gate that returns
      * early when there is nothing to compare against answers in microseconds where a real
      * comparison pays bcrypt's ~100 ms, and that difference is measurable across a network — so a
      * uniform 401 is undone by a stopwatch, and anyone can read off which slugs exist. The fix is
@@ -97,8 +97,8 @@ final readonly class PasswordHash
     /**
      * The digest, for writing down.
      *
-     * The one way the string leaves this class, and it has one caller:
-     * `tools/lib/Demo/DemoEntryWriter`, which puts it into `data/demos.php`. Reading a digest is
+     * The one way the string leaves this class, and it is for tooling: whatever mints a credential
+     * and writes it into a data file. Reading a digest is
      * not the risk a digest carries — being readable and useless to a reader is the whole idea —
      * and what this class actually keeps to itself is the *comparison*, which stays in
      * {@link self::matches()}.

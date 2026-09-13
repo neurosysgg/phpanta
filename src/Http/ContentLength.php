@@ -15,7 +15,7 @@ use Phpanta\Exception\SecurityPolicyException;
  * to get one is arithmetic on a range that went wrong, which is precisely the code this ships
  * alongside.
  *
- * The site's other responses do not send this at all; PHP works it out from what is echoed. A
+ * The framework's other responses do not send this at all; PHP works it out from what is echoed. A
  * ranged response has to say it explicitly, because the number is the length of the *part* and not
  * of the file.
  */

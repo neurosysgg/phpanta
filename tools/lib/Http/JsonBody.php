@@ -15,21 +15,20 @@ use BackedEnum;
  * is_string($body['permalink_url'] ?? null) ? $body['permalink_url'] : ''
  * ```
  *
- * That shape appeared nine times across `UploadedTrack` and
- * `AccessToken`, spelling the key twice each time, and it is the
- * kind of repetition {@link \Phpanta\Support\TypedItems}'s `guard()` was written to end elsewhere.
+ * That shape appeared nine times across the first API client's response readers, spelling the key
+ * twice each time, and it is the kind of repetition {@link \Phpanta\Support\TypedItems}'s `guard()`
+ * was written to end elsewhere.
  *
  * **The key is a {@link BackedEnum} and never a string**, which is the whole point rather than a
  * convenience: `FormField::of()` accepts either because a field name is sometimes an OAuth parameter
- * this repo deliberately leaves as a literal, but a response key has no such case — every one is
- * named by `TrackKey` or
- * `TokenKey`. Accepting a string would reopen exactly the hole those
- * two enums were written to close.
+ * a client deliberately leaves as a literal, but a response key has no such case — every one is
+ * named by a case of the client's own key enum. Accepting a string would reopen exactly the hole
+ * those enums are written to close.
  *
  * **Two readers, not three.** An `enum()` would need a `class-string` argument to say what it
  * returns and would still hand back something the caller had to narrow, which reads worse than the
- * `tryFrom()` it would replace. So `TrackSharing::tryFrom($body->string(TrackKey::Sharing))` stays
- * at its one call site.
+ * `tryFrom()` it would replace. So `Visibility::tryFrom($body->string(PostKey::Visibility))` stays
+ * at its call site.
  *
  * The defaults — `''` and `0` — are what every caller was already collapsing an absent, a null and a
  * wrongly-typed value to. Nothing about a malformed response reads differently than it did.

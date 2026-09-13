@@ -16,14 +16,14 @@ use Phpanta\Support\File;
  *
  * It exists because "did my push land" had no cheap answer. The old one was to `curl` the home page
  * and read the build stamp out of a `<script src>` — which works, needs no key, and tells you
- * nothing at all when the site is behind the pre-launch gate or when the thing that broke is why
+ * nothing at all when the app is behind the pre-launch gate or when the thing that broke is why
  * the home page will not render.
  *
  * **Three facts, chosen because between them they answer that question and no more.** The serial
  * says which push was last accepted; the entry URL carries the build stamp, which is the one thing
  * that distinguishes a deploy that wrote from one that found every file already current; and the
- * PHP version is the fact this repository has twice had to check on the live host by hand, both
- * times before relying on an extension.
+ * PHP version is the fact most often checked on a host by hand, usually before relying on an
+ * extension.
  *
  * **It reports the entry URL rather than the stamp inside it**, deliberately. Extracting the stamp
  * means a pattern here that has to agree with the one `tools/build-assets.mjs` writes, in another

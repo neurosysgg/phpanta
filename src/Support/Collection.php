@@ -18,8 +18,8 @@ use Traversable;
  *
  * Immutable: {@link self::with()} returns a new instance rather than mutating this one, which is
  * what makes a collection safe to hold inside a readonly value object. `readonly` protects the
- * reference, not what it points at, so a mutable collection would leave every Release, Terminal and
- * SoundCloudEmbed appendable from anywhere holding one. Same shape as
+ * reference, not what it points at, so a mutable collection would leave every value object that
+ * holds one appendable from anywhere holding it. Same shape as
  * {@link \Phpanta\Http\Security\ContentSecurityPolicy::allow()}, and named for it: `with` reads
  * as a copy where `add` would read as a mutation, so a discarded return value looks wrong.
  *

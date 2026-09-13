@@ -25,16 +25,16 @@ readonly class Router
     public function __construct(private Collection $routes) {}
 
     /**
-     * Dispatches the given {@link Request} to the appropriate {@link Controller}.
+     * Dispatches the given {@link Request} to the appropriate {@link \Phpanta\Controller\Controller}.
      * @param Request $request
      * @return Response
      */
     public function dispatch(Request $request): Response
     {
         // The path is asked first and the method second, because the method question belongs to
-        // the route: each Route carries a MethodPolicy. Nine of the ten are read-only, so POST to a
-        // download route 405s with `Allow: GET, HEAD` rather than 303'ing like a GET; ApiPath::Api
-        // delegates the question to its own controller. See docs/history/api.md.
+        // the route: each Route carries a MethodPolicy. A read-only one answers POST with a 405 and
+        // `Allow: GET, HEAD` rather than handling it like a GET; ApiPath::Api delegates the question
+        // to its own controller. See docs/security.md.
         foreach ($this->routes as $route) {
             if (($params = $route->matches($request->path())) !== false) {
                 return $route->accepts($request->method())
@@ -52,8 +52,8 @@ readonly class Router
     /**
      * The 405, naming the methods that would have worked.
      *
-     * The `Allow` is always the read-only set, never the matched route's own. Nine routes have no
-     * other set to name; the tenth has one it must not name, because `Allow: GET, HEAD, POST` on
+     * The `Allow` is always the read-only set, never the matched route's own. A site's routes have
+     * no other set to name; the API has one it must not name, because `Allow: GET, HEAD, POST` on
      * `/api` announces the endpoint that exists to be unannounceable — so it never reaches here
      * at all, having {@link \Phpanta\Support\MethodPolicy::Delegated} instead.
      *

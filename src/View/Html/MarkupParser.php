@@ -16,8 +16,8 @@ use Phpanta\Support\Diagnostics;
 /**
  * The MarkupParser class. Reads the grammar {@link Element} writes, back into the tree.
  *
- * It exists for the two halves of `data/privacy.*.html` — a hand-authored document rather than
- * markup a view assembles — so that they do not need a node that emits a trusted string verbatim,
+ * It exists for hand-authored documents — a legal page in two languages, say, rather than markup
+ * a view assembles — so that they do not need a node that emits a trusted string verbatim,
  * guarded by nothing but a docblock and a test pinning its call sites. A convention with a test
  * behind it is not a guarantee, and it would leave one place where the four mistakes
  * {@link Element} exists to remove were all possible again. See docs/history/markup.md.
@@ -27,7 +27,8 @@ use Phpanta\Support\Diagnostics;
  * {@link AttributeName} case, text is escaped by {@link Text::render()}, and a URL attribute is
  * scheme-checked by {@link Element::render()} like any other. Nothing is trusted for where it came
  * from. Because the vocabulary is closed, an `onerror=` or a `<form>` that appears in a future
- * re-export is a {@link MarkupException} when the file loads rather than markup nobody read.
+ * re-export is a {@link \Phpanta\Exception\MarkupException} when the file loads rather than markup
+ * nobody read.
  *
  * **The refusals are the point, so they are exhaustive rather than illustrative** — the same stance
  * {@link \Phpanta\Support\TarArchive} takes about a member name that came off the network. An
@@ -36,16 +37,14 @@ use Phpanta\Support\Diagnostics;
  * each refused rather than skipped, because a document this class quietly dropped half of is worse
  * than one it would not read.
  *
- * **What it costs, measured rather than assumed.** Per half of the policy, with no Xdebug loaded:
- * 0.071 ms to parse, 0.242 ms to walk into the tree, 0.262 ms for {@link Element::render()} to write
- * it back out. So `/privacy` pays about
- * **+1.14 ms** for both halves, which is the largest single cost this site has taken for a
- * guarantee. It is affordable because it is one route out of ten and the least-visited page on the
- * site; it would not be affordable on a page anyone loads twice.
+ * **What it costs, measured rather than assumed.** Per half of a two-language privacy policy, with
+ * no Xdebug loaded: 0.071 ms to parse, 0.242 ms to walk into the tree, 0.262 ms for
+ * {@link Element::render()} to write it back out. So such a page pays about **+1.14 ms** for both
+ * halves, which is a large cost to take for a guarantee. It is affordable on a legal page, which
+ * is among the least-visited on any site; it would not be affordable on a page anyone loads twice.
  *
- * The walk is **three times** that under Xdebug, which is the environment `docs/performance.md`
- * measures in and why the figure there is +3.4 ms rather than +1.1. Worth knowing before either
- * number is quoted at the other: the parse itself barely moves, because it happens in C.
+ * The walk is **three times** that under Xdebug, which is worth knowing before a profiled figure
+ * is quoted against an unprofiled one: the parse itself barely moves, because it happens in C.
  *
  * **No network flag is needed and none is expressible.** `createFromString()` accepts only
  * `LIBXML_NOERROR`, `LIBXML_COMPACT`, `LIBXML_HTML_NOIMPLIED` and `Dom\HTML_NO_DEFAULT_NS`, and
@@ -79,12 +78,12 @@ final readonly class MarkupParser
     /**
      * Parses $html into nodes, refusing anything the tree cannot hold.
      *
-     * Answers with a collection rather than a single node because a document is not an element: the
-     * German policy is 140 top-level nodes. {@link Element::containingHtml()} is what puts them
-     * somewhere, and is the only caller — a fact `HtmlTest` pins. **Never parse anything a request
-     * can influence.** Not because this would let it
-     * through — that is the whole point of the refusals — but because the vocabulary is this site's
-     * own, so a visitor could otherwise decide which of our elements to build.
+     * Answers with a collection rather than a single node because a document is not an element: a
+     * legal page can run to well over a hundred top-level nodes. {@link Element::containingHtml()}
+     * is what puts them somewhere, and is the only caller. **Never parse anything a request can
+     * influence.** Not because this would let it through — that is the whole point of the
+     * refusals — but because the vocabulary is the app's own, so a visitor could otherwise decide
+     * which of its elements to build.
      *
      * @param string $html Markup, hand-authored and read from a file next to the code.
      * @return Collection<Node>
@@ -99,8 +98,8 @@ final readonly class MarkupParser
         $hoisted  = $document->head?->firstChild;
 
         // A <title> or a <meta> in the fragment is not a parse error — the parser moves it into the
-        // head, where a view cannot reach it and where it would vanish without a word. Both halves
-        // of the policy leave the head empty, which is what makes this a check rather than a guess.
+        // head, where a view cannot reach it and where it would vanish without a word. Content
+        // markup leaves the head empty, which is what makes this a check rather than a guess.
         if ($hoisted !== null) {
             // strtolower() because nodeName shouts an HTML element's name — `TITLE`, not `title` —
             // and localName, which would not, is an Element member where this is still a Node.
@@ -136,7 +135,8 @@ final readonly class MarkupParser
      * **The errors are trapped rather than ignored.** `Dom\HTMLDocument` reports HTML5 tokenizer and
      * tree errors as PHP warnings and then recovers silently, which is exactly the wrong behaviour
      * for a hand-edited legal document: a stray `</div>` swallows the rest of the policy and nothing
-     * anywhere says so. Both halves parse with no errors at all, so refusing on any is affordable.
+     * anywhere says so. A document written with care parses with no errors at all, so refusing on
+     * any is affordable.
      *
      * Note the one offset in what a message reports: the doctype is prepended without a newline, so
      * a reported line number matches the file, and only a column on line 1 is out by its length.

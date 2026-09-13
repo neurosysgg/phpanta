@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Phpanta\Http;
 
 /**
- * The CacheDirective enum. The `Cache-Control` directives this site sends.
+ * The CacheDirective enum. The `Cache-Control` directives the framework sends.
  *
  * Only the three it actually uses, which is the same rule {@link Security\PermissionsPolicyFeature}
- * follows: the enum is the list of things the site says, not a catalogue of what exists. Notably
- * absent is `max-age`, and not by oversight — it carries a number, so it could not be a case, and
- * nothing here sends one anyway. Freshness lifetimes on this site belong to `public/.htaccess`,
+ * follows: the enum is the list of things the framework says, not a catalogue of what exists.
+ * Notably absent is `max-age`, and not by oversight — it carries a number, so it could not be a
+ * case, and nothing here sends one anyway. Freshness lifetimes belong to a site's `public/.htaccess`,
  * where they are attached to file extensions; a document answers with a validator instead.
  */
 enum CacheDirective: string

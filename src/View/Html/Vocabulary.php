@@ -21,14 +21,14 @@ use Phpanta\Support\Collection;
  * it says so.
  *
  * **Listed rather than discovered by reflection**, so that the set is a decision somebody made —
- * and `HtmlTest` pins the site's against reflection in both directions, so an implementation nobody
- * adds is a failing test rather than an element that mysteriously will not parse. Order means
+ * and a site's test can pin its own against reflection in both directions, so an implementation
+ * nobody adds is a failing test rather than an element that mysteriously will not parse. Order means
  * nothing: a name resolves through whichever enum spells it, and no two of them spell the same one.
  */
 #[BareString(
     'string',
-    'the declared type of the two collections this holds, whose items are enum class names; see '
-    . 'TerminalCommand, which writes it for the same reason',
+    'the declared type of the two collections this holds, whose items are enum class names, which '
+    . 'a collection can only declare as string',
 )]
 final readonly class Vocabulary
 {
