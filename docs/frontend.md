@@ -318,7 +318,9 @@ the page that belongs there has been fetched, so it would scroll the page being 
 carries a key in `history.state`, and where the visitor left it is kept in two ways:
 
 - **on the entry itself, while it can still be written.** That happens before a click moves off it,
-  and on `pagehide`, so a reload or a return from another site lands where it was;
+  and on `pagehide`, so a reload or a return from another site lands where it was. An entry with no
+  position on it lands on the element its fragment names, because a browser told to leave the
+  scroll alone on a reload skips the fragment as well;
 - **in memory, once back or forward has already moved off it.** That is what the forward button
   returns to.
 

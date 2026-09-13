@@ -148,10 +148,11 @@ export class Navigation {
     this.shown = Navigation.documentOf(location.href);
     this.adopt();
 
-    // A reload, or a return from another site, lands on an entry this file wrote on the way out.
-    const position = Navigation.entryOf(history.state)?.scrollY;
-
-    if (position !== undefined) window.scrollTo(0, position);
+    // A reload, or a return from another site, lands on an entry this file wrote on the way out, and
+    // goes back to where it was left. Failing that, to the element the fragment names: manual
+    // restoration tells the browser to leave the scroll alone on a reload, and it then skips the
+    // fragment too — so `/rules#five-habits`, reloaded, would otherwise open at the top.
+    Navigation.land(location.hash, Navigation.entryOf(history.state)?.scrollY);
 
     document.addEventListener('click', (e) => { this.onClick(e); });
     window.addEventListener('popstate', () => { this.onPopState(); });
