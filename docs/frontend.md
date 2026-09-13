@@ -167,6 +167,9 @@ not worth a second thought.
 
 **`.htaccess` and `dev-router.php` are a mirror** — one rule, two languages — so the verify script
 pins that they strip the same pattern, and that *both* `php -S` invocations in it load the router.
+The router also sends every dot segment — `.user.ini`, `.htaccess`, `..`, plain or percent-encoded
+— to the site's own 404, and serves a stamped file only from inside its own `assets/js/` or
+`assets/css/`: the built-in server refuses nothing and resolves `..` itself, where Apache does both.
 
 **Images are deliberately not versioned.** They are vendored and hand-placed, and reached through
 `Platform::icon()` and `Config::COVER_PLACEHOLDER` as plain constants — teaching a Model enum to

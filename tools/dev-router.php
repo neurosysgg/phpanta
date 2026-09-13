@@ -43,32 +43,45 @@ require_once dirname($public) . '/autoload.php';
 /** The version segment, directly under the asset root. Mirrored in public/.htaccess. */
 const VERSION_SEGMENT = '#^/assets/(js|css)/v-[0-9a-f]{8}/#';
 
-/** PHP's per-directory php.ini, a real file the web must never read. Mirrored in public/.htaccess. */
-const USER_INI = '/.user.ini';
+/**
+ * A path segment that starts with a dot, written plainly or percent-encoded: `.user.ini`, `.htaccess`,
+ * `..`. None of them names anything the web should read — PHP's per-directory php.ini, Apache's own
+ * configuration, a step out of the webroot — and the built-in server would hand every one of them
+ * out, since it neither refuses `.ht*` nor resolves `..` the way Apache does. So they all go to the
+ * site. `public/.htaccess` hides `.user.ini` the same way; the verify script pins both.
+ */
+const DOT_SEGMENT = '#(?:^|/)(?:\.|%2e)#i';
 
-$path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$target = $_SERVER['REQUEST_URI'] ?? '/';
+
+// Uri rather than parse_url(), for the reasons Request gives: parse_url() fails with false where
+// this wants null, and reads `//x/y` as a host. A target that opens with `//`, or that does not parse
+// at all, is the site's to answer — the answer it gives it in production.
+$path = str_starts_with($target, '//') ? null : Uri\Rfc3986\Uri::parse($target)?->getRawPath();
 
 // Handed to the site rather than refused here, so it gets exactly the 404 an address that does not
 // exist gets. Returning false would have the built-in server serve the file as it stands.
-if ($path === USER_INI) {
+if ($path === null || preg_match(DOT_SEGMENT, $path) === 1) {
     require $public . '/index.php';
 
     return true;
 }
 
-$bare = preg_replace(VERSION_SEGMENT, '/assets/$1/', $path, 1, $stripped);
-
 // Not a versioned URL — hand it back to the built-in server, which serves real files and falls
 // through to index.php for everything else. That is the whole of the normal path.
-if ($stripped !== 1) {
+if (preg_match(VERSION_SEGMENT, $path, $stamped) !== 1) {
     return false;
 }
 
-$file   = realpath($public . $bare);
+// Only the stamped kind's own directory, and nothing outside it. Everything after the stamp came out
+// of a URL, and is decoded here, so an encoded slash would otherwise walk it anywhere the process can
+// read — realpath before is_file, and containment in public/assets/js/ or css/ before either.
+$assets = realpath($public . '/assets/' . $stamped[1]);
+$file   = realpath($public . '/assets/' . $stamped[1] . '/' . rawurldecode(substr($path, strlen($stamped[0]))));
 
-// realpath before is_file, and containment before either: everything after the version segment came
-// out of a URL, so `..` in it would otherwise read whatever the process can reach.
-if ($file === false || !str_starts_with($file, $public . DIRECTORY_SEPARATOR) || !is_file($file)) {
+$inside = $assets !== false && $file !== false && str_starts_with($file, $assets . DIRECTORY_SEPARATOR);
+
+if (!$inside || !is_file($file)) {
     http_response_code(404);
 
     return true;

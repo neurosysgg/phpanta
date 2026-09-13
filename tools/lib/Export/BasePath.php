@@ -7,6 +7,7 @@ namespace Phpanta\Tool\Export;
 use Dom\HTMLDocument;
 use Phpanta\Support\Collection;
 use Phpanta\Tool\Cli\UsageException;
+use Phpanta\View\Html\Vocabulary;
 
 /**
  * The BasePath class. The path a static export is served under, and the rewrite that puts it there.
@@ -22,33 +23,50 @@ use Phpanta\Tool\Cli\UsageException;
  *
  * - **The rewrite** is textual and narrow. Every attribute the markup tree writes has the one shape
  *   {@link \Phpanta\View\Html\Element} renders — `name="value"`, the value escaped — so a value that
- *   starts with one slash gets the base in front of it, whatever the attribute is called. A
- *   stylesheet's `url()`s get the same. Scripts are not touched: a string in a script is not known
- *   to be an address, and a script that builds one from the root has to build it from the page's.
+ *   starts with one slash gets the base in front of it, **if the attribute is one the app's
+ *   vocabulary says holds a URL**: a `title` or a `content` that happens to start with a slash is
+ *   text, and moving it would change what the page says. A stylesheet's `url()`s, `@import`
+ *   strings and `image-set()` strings get the same. Scripts are not touched: a string in a script
+ *   is not known to be an address, and a script that builds one from the root has to build it from
+ *   the page's.
  * - **The check** reads what was written with a real HTML parser, and lists every root-absolute
- *   address that still lacks the base — a `srcset` candidate after the first, a `url()` in a
- *   `style` attribute, anything the rewrite's one shape did not cover. The export fails on any.
+ *   address that still lacks the base — a `srcset` candidate, a `url()` in a `style` attribute, an
+ *   attribute no vocabulary calls a URL, anything the rewrite did not cover. The export fails on any.
  */
 final readonly class BasePath
 {
     /** A path of plain segments, starting and ending with a slash: `/`, `/phpanta/`, `/a/b/`. */
     private const string SHAPE = '#^/(?:[A-Za-z0-9._~-]+/)*\z#';
 
-    /** An attribute whose value starts with exactly one slash, as Element renders one. */
-    private const string ATTRIBUTE = '#(\s[A-Za-z][A-Za-z0-9:._-]*=")/(?!/)#';
+    /** An attribute whose value starts with exactly one slash, as Element renders one; 2 is its name. */
+    private const string ATTRIBUTE = '#(\s([A-Za-z][A-Za-z0-9:._-]*)=")/(?!/)#';
 
     /** A stylesheet `url()` whose address starts with exactly one slash, quoted or not. */
     private const string CSS_URL = '#(url\(\s*[\'"]?)/(?!/)#i';
 
+    /** An `@import` written as a bare string rather than a `url()`. */
+    private const string CSS_IMPORT = '#(@import\s+[\'"])/(?!/)#i';
+
+    /** An `image-set()`, prefixed or not; 2 is what is between its parentheses. */
+    private const string IMAGE_SET = '#((?:-webkit-)?image-set\()((?:[^()]|\([^()]*\))*)(\))#i';
+
+    /**
+     * Inside an `image-set()`: a `url()`, which {@link self::CSS_URL} moves, or a string starting
+     * with one slash, which is an address written without one. 1 is set only for the second.
+     */
+    private const string IMAGE_SET_ENTRY = '#url\([^)]*\)|([\'"])/(?!/)#i';
+
     /**
      * Constructs an instance of {@link self}.
      *
-     * @param string $path Where the export is served: `/` for a host's root, `/phpanta/` for a
-     *                     project page.
+     * @param string       $path          Where the export is served: `/` for a host's root,
+     *                                    `/phpanta/` for a project page.
+     * @param list<string> $urlAttributes The attribute names whose values are addresses — see
+     *                                    {@link self::urlAttributesOf()}.
      *
      * @throws UsageException if $path is not a path of plain segments with a slash at each end.
      */
-    public function __construct(public string $path)
+    public function __construct(public string $path, private array $urlAttributes)
     {
         if (preg_match(self::SHAPE, $path) !== 1) {
             throw new UsageException(sprintf(
@@ -59,32 +77,82 @@ final readonly class BasePath
     }
 
     /**
-     * $markup with the base in front of every attribute value that starts at the root.
+     * Every attribute name $vocabulary holds whose value is an address — `href` and `src`, and
+     * whatever a site's own elements add, such as a `fallback` image.
+     *
+     * @param Vocabulary $vocabulary
+     * @return list<string>
+     */
+    public static function urlAttributesOf(Vocabulary $vocabulary): array
+    {
+        $names = [];
+
+        foreach ($vocabulary->attributes() as $enum) {
+            foreach ($enum::cases() as $case) {
+                if ($case->isUrl()) {
+                    $names[] = $case->attribute();
+                }
+            }
+        }
+
+        return array_values(array_unique($names));
+    }
+
+    /**
+     * $markup with the base in front of every address attribute that starts at the root.
      *
      * @param string $markup
      * @return string
      */
     public function html(string $markup): string
     {
-        return $this->path === '/' ? $markup : (string) preg_replace(self::ATTRIBUTE, '$1' . $this->path, $markup);
+        if ($this->path === '/') {
+            return $markup;
+        }
+
+        return (string) preg_replace_callback(
+            self::ATTRIBUTE,
+            fn(array $match): string => in_array($match[2], $this->urlAttributes, true)
+                ? $match[1] . $this->path
+                : $match[0],
+            $markup,
+        );
     }
 
     /**
-     * $css with the base in front of every `url()` that starts at the root.
+     * $css with the base in front of every `url()`, `@import` string and `image-set()` string that
+     * starts at the root.
      *
      * @param string $css
      * @return string
      */
     public function css(string $css): string
     {
-        return $this->path === '/' ? $css : (string) preg_replace(self::CSS_URL, '$1' . $this->path, $css);
+        if ($this->path === '/') {
+            return $css;
+        }
+
+        // image-set()'s strings first, leaving its url()s for the pass below — moving one twice would
+        // put the base in front of itself.
+        $css = (string) preg_replace_callback(
+            self::IMAGE_SET,
+            fn(array $set): string => $set[1] . preg_replace_callback(
+                self::IMAGE_SET_ENTRY,
+                fn(array $entry): string => ($entry[1] ?? '') !== '' ? $entry[1] . $this->path : $entry[0],
+                $set[2],
+            ) . $set[3],
+            $css,
+        );
+        $css = (string) preg_replace(self::CSS_IMPORT, '$1' . $this->path, $css);
+
+        return (string) preg_replace(self::CSS_URL, '$1' . $this->path, $css);
     }
 
     /**
      * Every root-absolute address $markup's elements carry, as a parser reads them.
      *
-     * An attribute value that starts with one slash; each candidate of a `srcset`; each `url()` in a
-     * `style` attribute or a `<style>` element. Whether each carries the base, and whether the file
+     * An attribute value that starts with one slash; each candidate of a `srcset`; each address in
+     * a `style` attribute or a `<style>` element. Whether each carries the base, and whether the file
      * it names was written, is the caller's question — see {@link self::lacksBase()}.
      *
      * @param string $markup
@@ -121,7 +189,7 @@ final readonly class BasePath
     }
 
     /**
-     * Every root-absolute `url()` address in $css.
+     * Every root-absolute address in $css.
      *
      * @param string $css
      * @return Collection<string>
@@ -182,15 +250,25 @@ final readonly class BasePath
     }
 
     /**
-     * The root-absolute addresses of $css's `url()`s.
+     * The root-absolute addresses in $css: its `url()`s, its `@import` strings, and the strings of
+     * its `image-set()`s — each once, however many of those spell it.
      *
      * @param string $css
      * @return list<string>
      */
     private static function cssAddresses(string $css): array
     {
-        preg_match_all('#url\(\s*[\'"]?(/(?!/)[^\'")\s]*)#i', $css, $matches);
+        preg_match_all('#url\(\s*[\'"]?(/(?!/)[^\'")\s]*)#i', $css, $urls);
+        preg_match_all('#@import\s+[\'"](/(?!/)[^\'"]*)#i', $css, $imports);
+        preg_match_all(self::IMAGE_SET, $css, $sets);
 
-        return $matches[1];
+        $addresses = [...$urls[1], ...$imports[1]];
+
+        foreach ($sets[2] as $set) {
+            preg_match_all('#([\'"])(/(?!/)[^\'"]*)\1#', $set, $strings);
+            array_push($addresses, ...$strings[2]);
+        }
+
+        return array_values(array_unique($addresses));
     }
 }

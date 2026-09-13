@@ -31,10 +31,11 @@ declare(strict_types=1);
 
     xdebug_start_code_coverage();
 
-    // The project is the one the server was started on — the parent of its webroot — not the
-    // directory this file sits in, which is the framework's tooling.
+    // The project is the one the server was started on — the parent of its webroot — and the
+    // framework is the one this file belongs to, wherever it is vendored: its tooling's parent.
+    // Real paths both, because those are what Xdebug reports.
     $root    = dirname((string) realpath($_SERVER['DOCUMENT_ROOT'] ?? ''));
-    $sources = [$root . '/src/', $root . '/phpanta/src/'];
+    $sources = [$root . '/src/', (string) realpath(dirname(__DIR__) . '/src') . '/'];
 
     register_shutdown_function(static function () use ($directory, $sources): void {
         // Only this site's own code: the dumps are written per request, and carrying the whole

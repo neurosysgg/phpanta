@@ -26,18 +26,21 @@ use Phpanta\Tool\Export\BasePath;
  * {@link ViewResponse::send()} would have — so there is no second renderer to drift. Which routes
  * are pages is the route's to say, see {@link \Phpanta\Support\Route::exportedPaths()}; the rest —
  * the API, a download's redirect, anything behind a password — has no business on a static host,
- * and a route that claims to be a page and answers with something else fails the export.
+ * and a route that claims to be a page and answers with something else fails the export — as does
+ * one whose controller ends the process, which a route behind a password does.
  *
  * What it writes, for a host that can only serve files:
  *
  * - `index.html` for `/`, `x.html` for `/x` and `a/b.html` for `/a/b` — the name a static host
- *   finds for an address with no extension — and `404.html`, the app's own not-found page, which
- *   is the name GitHub Pages serves for any address it does not have. In the app's default language.
+ *   finds for an address with no extension, under the path **decoded**, since that is what a host
+ *   looks for — and `404.html`, the app's own not-found page, which is the name GitHub Pages serves
+ *   for any address it does not have. In the app's default language.
  * - The webroot's files, less what only a PHP host reads (`*.php`, `.htaccess`, `.user.ini`).
  * - **The stamped asset directories, as directories.** A page names `/assets/js/v-a1b2c3d4/main.js`,
  *   and on the site a rewrite strips the stamp; a static host has no rewrite, so the tree is
  *   written under the stamp and the URLs in the manifest resolve exactly as they are.
- * - `.nojekyll`, or GitHub Pages hides every file whose name starts with an underscore.
+ * - `.nojekyll`, or GitHub Pages hides every file whose name starts with an underscore, and
+ *   {@link self::MARKER}, which is how a later export knows the directory is one it may empty.
  *
  * Then {@link BasePath} moves every address under `--base`, and **the export fails** on any
  * root-absolute address that still lacks the base, and on any that names a file it did not write —
@@ -50,6 +53,14 @@ final readonly class Export implements Command
 
     /** What only a PHP host reads, and so nothing a static one should be handed. */
     private const string SERVER_ONLY = '#(\.php|^\.htaccess|^\.user\.ini)\z#';
+
+    /**
+     * The file that says a directory holds an export, and so may be emptied by the next one.
+     *
+     * A name only this command writes. `.nojekyll` used to do the job and cannot: any GitHub Pages
+     * directory may carry one, including one somebody made by hand.
+     */
+    private const string MARKER = '.phpanta-export';
 
     /**
      * Constructs an instance of {@link self}.
@@ -107,7 +118,10 @@ final readonly class Export implements Command
     {
         try {
             $out  = $this->out($input);
-            $base = new BasePath($input->value(ExportOption::Base) ?? '/');
+            $base = new BasePath(
+                $input->value(ExportOption::Base) ?? '/',
+                BasePath::urlAttributesOf($this->app->vocabulary()),
+            );
         } catch (UsageException $exception) {
             $output->error($this->name() . ': ' . $exception->getMessage() . "\n");
 
@@ -154,7 +168,30 @@ final readonly class Export implements Command
             return $failure;
         }
 
+        // Marked before anything else is written, so an export that fails half way is still one the
+        // next may empty.
+        $out->file(self::MARKER)->write(
+            "Written by Phpanta's export, which empties a directory only when this file is in it.\n",
+        );
+
         // ── the pages ──
+
+        // A controller that ends the process — one behind a password does, under the CLI — would take
+        // the export down with it, half written and with status 0. So the path being answered is
+        // kept while it is, and if the process ends there, the export says which and fails.
+        $answering = null;
+
+        register_shutdown_function(static function () use (&$answering, $output): void {
+            if ($answering !== null) {
+                $output->error(sprintf(
+                    "export: the controller for %s ended the process, so nothing after it was written."
+                    . " Keep the route out of the export with an \$exports closure answering [].\n",
+                    $answering,
+                ));
+
+                exit(ExitCode::Failure->value);
+            }
+        });
 
         $language = $this->app->languages()->default();
         $pages    = [];
@@ -171,8 +208,14 @@ final readonly class Export implements Command
                     );
                 }
 
-                $request  = Request::synthetic($path, $language);
-                $response = $route->createController($params)->handle($request);
+                $request   = Request::synthetic($path, $language);
+                $answering = $path;
+
+                try {
+                    $response = $route->createController($params)->handle($request);
+                } finally {
+                    $answering = null;
+                }
 
                 if (!$response instanceof ViewResponse || $response->status() !== HttpStatusCode::Ok) {
                     return sprintf(
@@ -183,7 +226,15 @@ final readonly class Export implements Command
                     );
                 }
 
-                $file = $path === '/' ? 'index.html' : ltrim($path, '/') . '.html';
+                $file = self::pageFile($path);
+
+                if ($file === null) {
+                    return sprintf(
+                        '%s has a segment that decodes to nothing, to a dot segment, or to a slash, so no'
+                        . ' static host could serve it from a file.',
+                        $path,
+                    );
+                }
 
                 if (isset($pages[$file])) {
                     return sprintf('%s and %s would both be written to %s.', $pages[$file][0], $path, $file);
@@ -191,6 +242,13 @@ final readonly class Export implements Command
 
                 $pages[$file] = [$path, $response->render($request)];
             }
+        }
+
+        if (isset($pages['404.html'])) {
+            return sprintf(
+                '%s would be written to 404.html, which is where the not-found page goes.',
+                $pages['404.html'][0],
+            );
         }
 
         $missing = $this->app->notFound(Request::synthetic('/404', $language));
@@ -325,8 +383,10 @@ final readonly class Export implements Command
     /**
      * Makes $out an empty directory — refusing one that holds anything an export did not write.
      *
-     * An export's own output carries `.nojekyll`, so a directory with one is emptied; anything else
-     * that is not empty is somebody's, and a mistyped `--out .` must not delete a repository.
+     * An export's own output carries {@link self::MARKER}, so a directory with one is emptied;
+     * anything else that is not empty is somebody's, and a mistyped `--out .` must not delete a
+     * repository. A `.git` is refused whatever else is there — a repository with a marker copied
+     * into it is still a repository.
      *
      * @param Directory $out
      * @return string|null
@@ -343,9 +403,18 @@ final readonly class Export implements Command
             return null;
         }
 
-        if (!$out->file('.nojekyll')->exists()) {
-            return "{$out->path} is not empty and is not an earlier export (it has no .nojekyll)"
-                . ' — refusing to empty it.';
+        // file_exists rather than is_dir: in a worktree or a submodule, .git is a file.
+        if (file_exists($out->path . '/.git')) {
+            return "{$out->path} holds .git — refusing to empty a repository.";
+        }
+
+        if (!$out->file(self::MARKER)->exists()) {
+            return sprintf(
+                '%s is not empty and is not an earlier export (it has no %s) — refusing to empty it. An'
+                . ' export written before the marker existed has only .nojekyll; delete that one by hand.',
+                $out->path,
+                self::MARKER,
+            );
         }
 
         foreach ($entries as $entry) {
@@ -375,6 +444,38 @@ final readonly class Export implements Command
         }
 
         unlink($path);
+    }
+
+    /**
+     * The file a page is written to: `index.html` for `/`, and otherwise its path **decoded**, with
+     * `.html` on the end — decoded because a static host decodes the address it is asked for before
+     * it looks for a file, so `/pages/caf%C3%A9` is served from `pages/café.html`.
+     *
+     * Null for a path whose segments do not decode into names a file can have: empty, `.` or `..`,
+     * or holding a slash or a NUL. Each would put the page somewhere its address does not lead.
+     *
+     * @param string $path
+     * @return string|null
+     */
+    private static function pageFile(string $path): ?string
+    {
+        if ($path === '/') {
+            return 'index.html';
+        }
+
+        $names = [];
+
+        foreach (explode('/', substr($path, 1)) as $segment) {
+            $name = rawurldecode($segment);
+
+            if (in_array($name, ['', '.', '..'], true) || strpbrk($name, "/\0") !== false) {
+                return null;
+            }
+
+            $names[] = $name;
+        }
+
+        return implode('/', $names) . '.html';
     }
 
     /**
@@ -452,7 +553,8 @@ final readonly class Export implements Command
 
     /**
      * Whether an address under the export names a file it wrote — `x` as `x.html`, `` as
-     * `index.html`, anything with an extension as itself — ignoring a query or a fragment.
+     * `index.html`, anything with an extension as itself — ignoring a query or a fragment, and
+     * decoded, the way the host will decode it.
      *
      * @param Directory $out
      * @param string    $address
@@ -460,7 +562,7 @@ final readonly class Export implements Command
      */
     private static function resolves(Directory $out, string $address): bool
     {
-        $path = rtrim(substr($address, 0, strcspn($address, '?#')), '/');
+        $path = rawurldecode(rtrim(substr($address, 0, strcspn($address, '?#')), '/'));
 
         return match (true) {
             $path === ''                               => $out->file('index.html')->exists(),

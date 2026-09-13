@@ -23,7 +23,7 @@ final readonly class Runner
      */
     public static function run(Command $command, array $argv): never
     {
-        exit(self::execute($command, array_slice($argv, 1), Output::standard())->value);
+        exit(self::execute($command, array_slice($argv, 1), Output::standard(), $argv[0] ?? null)->value);
     }
 
     /**
@@ -32,15 +32,20 @@ final readonly class Runner
      * @param Command      $command
      * @param list<string> $arguments Everything after the script name.
      * @param Output       $output
+     * @param string|null  $script    The script as it was run, for the usage line — see usage().
      * @return ExitCode
      */
-    public static function execute(Command $command, array $arguments, Output $output): ExitCode
-    {
+    public static function execute(
+        Command $command,
+        array $arguments,
+        Output $output,
+        ?string $script = null,
+    ): ExitCode {
         try {
             $input = Input::parse($arguments, $command);
         } catch (UsageException $exception) {
             $output->error(sprintf("%s: %s\n", $command->name(), $exception->getMessage()));
-            $output->error(self::usage($command));
+            $output->error(self::usage($command, $script));
 
             return ExitCode::Usage;
         }
@@ -51,11 +56,20 @@ final readonly class Runner
     /**
      * The usage line, built from what the command says about itself.
      *
-     * @param Command $command
+     * It names the script as it was run when that is known, which is the one spelling certain to be
+     * right: a site's commands run as `php tools/<name>.php`, and the framework's export, which has
+     * no copy in the site, as `php phpanta/tools/export.php`. Without it, the site's spelling.
+     *
+     * @param Command     $command
+     * @param string|null $script
      * @return string
      */
-    public static function usage(Command $command): string
+    public static function usage(Command $command, ?string $script = null): string
     {
-        return sprintf("usage: php tools/%s.php %s\n", $command->name(), $command->usage());
+        return sprintf(
+            "usage: php %s %s\n",
+            $script ?? sprintf('tools/%s.php', $command->name()),
+            $command->usage(),
+        );
     }
 }

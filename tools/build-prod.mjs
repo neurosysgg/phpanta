@@ -55,7 +55,7 @@
  *
  * Usage:
  *   node tools/build-prod.mjs                # build/dist/, from the committed public/
- *   node tools/build-prod.mjs --out <dir>    # elsewhere
+ *   node tools/build-prod.mjs --out <dir>    # elsewhere — never the project, above it, or in public/
  *
  * Assumes `public/` is current — `npm run build:prod` runs `npm run build` first rather than
  * trusting that. Exits non-zero with the reason on stderr; it clears the tree before it starts, so
@@ -66,7 +66,7 @@ import { build as esbuild } from 'esbuild';
 import { minify } from 'terser';
 import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync }
   from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 
@@ -80,6 +80,30 @@ const JS     = join(PUBLIC, 'assets/js');
 const DIST     = path('out', join(ROOT, 'build/dist'));
 const DIST_PUB = join(DIST, 'public');
 const DIST_JS  = join(DIST_PUB, 'assets/js');
+
+/**
+ * Whether `path` is `directory` itself or somewhere under it.
+ *
+ * @param {string} path
+ * @param {string} directory
+ * @returns {boolean}
+ */
+function within(path, directory) {
+  const rel = relative(directory, path);
+
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+}
+
+// --out is deleted before anything is built into it, so where it points is settled before that
+// happens. The project, or any directory above it, would take the working tree with it; anywhere in
+// public/ is the tree the build copies from, deleted and then copied into itself.
+if (within(ROOT, DIST)) {
+  fail(`--out ${DIST} is the project or a directory above it, and the build deletes --out first.`);
+}
+
+if (within(DIST, PUBLIC)) {
+  fail(`--out ${label(DIST)} is inside public/, which the build copies from.`);
+}
 
 /**
  * Every file under `dir` whose name ends in `suffix`, as absolute paths, sorted.

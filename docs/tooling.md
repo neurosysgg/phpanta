@@ -57,19 +57,32 @@ command the framework has an entry point for, because the booted app is all it n
   controller for a `Request::synthetic()` in the app's default language, and written with
   `ViewResponse::render()`, `send()`'s public twin, so there is no second renderer to drift. A
   route that claims to be a page and answers with anything but a `ViewResponse` and a 200 fails the
-  export: a static host would serve whatever was written there as a 200.
+  export: a static host would serve whatever was written there as a 200. **A route behind a
+  password has to say `fn() => []`**, because its controller ends the process under the CLI; the
+  export notices, names the path and exits 1, where it would otherwise stop half written with
+  status 0.
 - **`x.html` for `/x`, `index.html` for `/`, `404.html` for the app's not-found page** — the names
-  a static host, and GitHub Pages in particular, looks for.
+  a static host, and GitHub Pages in particular, looks for. A page is written under its path
+  **decoded**, because a host decodes the address before it looks for a file: `/pages/caf%C3%A9` is
+  `pages/café.html`. A segment that decodes to nothing, to `.` or `..`, or to something holding a
+  slash is refused, and so is a routed `/404`, which would fight the not-found page for its file.
 - **The prod tree by default.** It exports `build/dist/public/`, and loads `build/dist/`'s manifest
   before anything can autoload the working tree's, so every page names the bundled assets it ships
   with; `--debug` exports `public/` as it stands.
 - **The stamped asset directories are written as directories**, because a static host has no
-  rewrite to strip the stamp — and `.nojekyll`, because Pages otherwise hides every file whose
-  name starts with an underscore. `*.php`, `.htaccess` and `.user.ini` stay behind.
+  rewrite to strip the stamp — `.nojekyll`, because Pages otherwise hides every file whose name
+  starts with an underscore, and `.phpanta-export`, the marker below. `*.php`, `.htaccess` and
+  `.user.ini` stay behind.
 - **The base path is applied to what was written, not at runtime.** `BasePath` puts `--base` in
-  front of every attribute value and stylesheet `url()` that starts at the root, then reads every
-  page back with a real HTML parser; an address still without the base, or one naming a file the
-  export did not write, fails the export. Scripts are not rewritten — a script that builds an
-  address from the root has to build it from a link on the page instead.
-- **It empties `--out` only if an export wrote it**, which is what `.nojekyll` marks. Anything else
-  that is not empty is refused, so a mistyped `--out .` cannot delete a repository.
+  front of every root-absolute value of an attribute the app's vocabulary says holds a URL — each
+  `AttributeName::isUrl()`, so a site's own `<cover-art fallback>` moves and a `title` that happens
+  to start with a slash does not — and of every stylesheet `url()`, `@import` string and
+  `image-set()` string. Then it reads every page back with a real HTML parser; an address still
+  without the base, in any attribute, or one naming a file the export did not write, fails the
+  export. Scripts are not rewritten — a script that builds an address from the root has to build it
+  from a link on the page instead.
+- **It empties `--out` only if an export wrote it**, which is what `.phpanta-export` marks — a name
+  only the export writes, where `.nojekyll` can be in any Pages directory. It is written before the
+  first page, so an export that failed half way is still one the next may empty. Anything else that
+  is not empty is refused, and so is a directory holding `.git` whatever else it holds, so a
+  mistyped `--out .` cannot delete a repository.

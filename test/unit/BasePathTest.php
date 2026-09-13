@@ -6,6 +6,7 @@ namespace Phpanta\Test\Unit;
 
 use Phpanta\Tool\Cli\UsageException;
 use Phpanta\Tool\Export\BasePath;
+use Phpanta\View\Html\Vocabulary;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -40,7 +41,7 @@ final class BasePathTest extends TestCase
     {
         $this->expectException(UsageException::class);
 
-        (void) new BasePath($path);
+        (void) new BasePath($path, ['href', 'src']);
     }
 
     /**
@@ -51,7 +52,7 @@ final class BasePathTest extends TestCase
      */
     public function testTheBaseGoesInFrontOfEveryAddressFromTheRoot(): void
     {
-        $base = new BasePath('/phpanta/');
+        $base = new BasePath('/phpanta/', ['href', 'src']);
 
         self::assertSame(
             '<a href="/phpanta/guide">g</a><a href="/phpanta/">home</a>'
@@ -77,11 +78,66 @@ final class BasePathTest extends TestCase
         self::assertSame(
             'a{background:url(/phpanta/a.svg)}b{src:url("/phpanta/b.woff2")}c{x:url(\'/phpanta/c\')}'
             . 'd{x:url(//cdn/d)}e{x:url(data:image/png;base64,AA)}',
-            new BasePath('/phpanta/')->css(
+            new BasePath('/phpanta/', ['href', 'src'])->css(
                 'a{background:url(/a.svg)}b{src:url("/b.woff2")}c{x:url(\'/c\')}'
                 . 'd{x:url(//cdn/d)}e{x:url(data:image/png;base64,AA)}',
             ),
         );
+    }
+
+    /**
+     * Only an attribute that holds an address moves. A `title` or a `content` that starts with a
+     * slash is text, and moving it would change what the page says; the check still reads it, so an
+     * address hiding in one fails the export rather than shipping unmoved.
+     *
+     * @return void
+     */
+    public function testOnlyAnAttributeThatHoldsAnAddressMoves(): void
+    {
+        self::assertSame(
+            '<meta name="x" content="/not/an/address"><a title="/ and so on" href="/phpanta/guide">g</a>'
+            . '<cover-art fallback="/phpanta/cover.png"></cover-art>',
+            new BasePath('/phpanta/', ['href', 'src', 'fallback'])->html(
+                '<meta name="x" content="/not/an/address"><a title="/ and so on" href="/guide">g</a>'
+                . '<cover-art fallback="/cover.png"></cover-art>',
+            ),
+        );
+    }
+
+    /**
+     * Which attributes hold an address is the vocabulary's to say, through each name's isUrl().
+     *
+     * @return void
+     */
+    public function testTheAddressAttributesAreTheOnesTheVocabularyCallsUrls(): void
+    {
+        self::assertSame(['href', 'src'], BasePath::urlAttributesOf(Vocabulary::standard()));
+    }
+
+    /**
+     * An `@import` written as a string and an `image-set()` written with strings are addresses as
+     * much as a `url()` is, and the check finds them too — each once, however many forms spell it.
+     *
+     * @return void
+     */
+    public function testImportsAndImageSetsMoveAndAreChecked(): void
+    {
+        $base = new BasePath('/phpanta/', ['href', 'src']);
+        $css  = '@import "/base.css";@import url(/u.css);'
+            . 'x{background:image-set("/a.png" 1x, url("/b.png") 2x, "//cdn/c.png" 3x)}'
+            . "y{background:-webkit-image-set('/d.png' 1x)}z{content:\"/\"}";
+
+        self::assertSame(
+            '@import "/phpanta/base.css";@import url(/phpanta/u.css);'
+            . 'x{background:image-set("/phpanta/a.png" 1x, url("/phpanta/b.png") 2x, "//cdn/c.png" 3x)}'
+            . "y{background:-webkit-image-set('/phpanta/d.png' 1x)}z{content:\"/\"}",
+            $base->css($css),
+        );
+
+        $found = $base->stylesheetAddresses($css)->toValues();
+        sort($found);
+
+        self::assertSame(['/a.png', '/b.png', '/base.css', '/d.png', '/u.css'], $found);
     }
 
     /**
@@ -91,7 +147,7 @@ final class BasePathTest extends TestCase
      */
     public function testAtTheRootNothingMoves(): void
     {
-        $base = new BasePath('/');
+        $base = new BasePath('/', ['href', 'src']);
 
         self::assertSame('<a href="/guide">g</a>', $base->html('<a href="/guide">g</a>'));
         self::assertSame('a{b:url(/c)}', $base->css('a{b:url(/c)}'));
@@ -105,7 +161,7 @@ final class BasePathTest extends TestCase
      */
     public function testTheCheckFindsEveryAddressFromTheRoot(): void
     {
-        $base      = new BasePath('/phpanta/');
+        $base      = new BasePath('/phpanta/', ['href', 'src']);
         $addresses = $base->addresses(
             '<!DOCTYPE html><html><head><style>h1{background:url(/in-style.png)}</style></head><body>'
             . '<a href="/phpanta/guide">g</a><a href="//example.org/">x</a>'
@@ -130,7 +186,7 @@ final class BasePathTest extends TestCase
      */
     public function testAnAddressIsUnderTheBaseOrMissed(): void
     {
-        $base = new BasePath('/phpanta/');
+        $base = new BasePath('/phpanta/', ['href', 'src']);
 
         self::assertFalse($base->lacksBase('/phpanta/guide'));
         self::assertTrue($base->lacksBase('/guide'));
