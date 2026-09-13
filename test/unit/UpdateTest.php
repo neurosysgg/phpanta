@@ -523,6 +523,26 @@ final class UpdateTest extends TestCase
     }
 
     /**
+     * A root the push carries but the deployment does not have yet has nothing to sweep, and a dry
+     * run over it plans no deletion.
+     *
+     * @return void
+     */
+    public function testACarriedRootNotYetOnDiskPlansNoDeletion(): void
+    {
+        self::assertFalse(new Directory($this->sandbox . '/src')->exists());
+
+        $planned = $this->applier()->apply(
+            UpdateFixture::archive(['src/New.php' => '<?php // new']),
+            self::manifest(apply: false, mirror: true),
+        );
+
+        self::assertTrue($planned->isComplete(), $planned->render());
+        self::assertStringNotContainsString("\n- ", $planned->render());
+        self::assertFalse(new Directory($this->sandbox . '/src')->exists(), 'a dry run created a directory');
+    }
+
+    /**
      * The mirror never deletes *through* a symlink.
      *
      * A push cannot introduce one — {@link TarArchive} refuses the member type — so a symlink under

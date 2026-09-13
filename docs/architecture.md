@@ -118,7 +118,7 @@ file is gitignored precisely so the repo copy cannot switch it on. It is also wh
 [`Router::dispatch()`](../src/Router.php) does two things, in order:
 
 1. **The match.** Each [`Route`](../src/Support/Route.php) is a
-   [`SitePath`](https://github.com/neurosysgg/neurosys-webspace/blob/master/src/NeuroSYS/Support/SitePath.php) case, a factory closure and a
+   [`Path`](../src/Support/Path.php) case, a factory closure and a
    [`MethodPolicy`](../src/Support/MethodPolicy.php). `{param}` compiles to `([^/]+)`, and
    captures are passed positionally to the factory.
 2. **The method gate**, asked of the matched route rather than globally. Nine routes are
@@ -134,9 +134,8 @@ An unmatched path falls through to
 read verb and the 405 for a write one — and is the same object `ApiController` delegates to, so
 that no address under `/api` and an address that does not exist can answer differently.
 
-The route table is built in
-[`RouteInitialization::routes()`](https://github.com/neurosysgg/neurosys-webspace/blob/master/src/NeuroSYS/Support/RouteInitialization.php) — ten entries,
-one per `SitePath` case, in match order.
+The route table is the app's — [`App::routeTable()`](../src/App.php) — one entry per `Path` case,
+in match order.
 
 **Every address the site has is a `SitePath` case, and that is one vocabulary rather than two.** A
 view naming a path the router does not have would render a link that looks perfectly fine and answers
@@ -157,7 +156,7 @@ real URLs.
 ### ⑤ The controller, the view, the response
 
 A controller fetches its own data. Nothing is injected for it, and there is no shared context object
-— [`ReleaseController`](https://github.com/neurosysgg/neurosys-webspace/blob/master/src/NeuroSYS/Controller/ReleaseController.php) constructs a
+— a release page's controller, say, constructs a
 `ReleaseRepository`, asks it for a slug, and returns either a `ViewResponse` wrapping `ReleaseView`
 or one wrapping `NotFoundView` with a 404.
 

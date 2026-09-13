@@ -1,6 +1,6 @@
 /**
  * Stamps every built asset with a hash of its content, and writes what came out to
- * src/NeuroSYS/AssetManifest.php, which Layout reads to emit the stylesheet, the entry script and
+ * the site's src/<Site>/AssetManifest.php, which its shell reads to emit the stylesheet, the entry script and
  * the modulepreload list.
  *
  * Two jobs that have to be one tool, because the second depends on the first:

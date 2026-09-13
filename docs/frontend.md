@@ -9,7 +9,7 @@ lean on, and SPA navigation. A site's own elements and stylesheet are its own; n
 ```
 assets/ts/  ──tsc──────────────────────→  public/assets/js/               ← the debug tree: generated, committed
 assets/css/ ──phpanta/tools/build-css.mjs──────→  public/assets/css/style.css     ← generated, committed
-both        ──phpanta/tools/build-assets.mjs───→  src/NeuroSYS/AssetManifest.php  ← generated, committed
+both        ──phpanta/tools/build-assets.mjs───→  src/<Site>/AssetManifest.php    ← generated, committed
 public/     ──phpanta/tools/build-prod.mjs─────→  build/dist/                     ← the prod tree: generated, gitignored, deployed
 ```
 
@@ -26,9 +26,9 @@ public/     ──phpanta/tools/build-prod.mjs─────→  build/dist/   
 | `npm run coverage` | the same, with 100% thresholds |
 
 **Never hand-edit `public/assets/js/`, `public/assets/css/style.css` or
-`src/NeuroSYS/AssetManifest.php`.** They are build output and the next build overwrites them. The
-generated stylesheet carries a marker comment above each block naming the part it came from — edit
-that part.
+`src/<Site>/AssetManifest.php`** (under the site's own namespace). They are build output and the
+next build overwrites them. The generated stylesheet carries a marker comment above each block
+naming the part it came from — edit that part.
 
 ### Why the output is committed
 
@@ -55,7 +55,7 @@ deletes every source map, and writes a manifest of its own:
 
 ```
 build/dist/public/                        ← byte-for-byte what lands in the webroot
-build/dist/src/NeuroSYS/AssetManifest.php ← the same two URLs under a different stamp, and no
+build/dist/src/<Site>/AssetManifest.php   ← the same two URLs under a different stamp, and no
                                             preloads: one file has no graph left to hint at
 ```
 
@@ -92,7 +92,7 @@ URL it names has bytes behind it; and then re-runs the **whole client-side suite
 bytes**. The two manifests are deliberately *not* diffed against each other: the debug one lists
 every preload and the prod one none, so a diff would assert away the thing the build exists to do.
 
-The re-run is the check worth the most. `test/js/dom.mjs` takes its tree from `NEUROSYS_JS_DIR`, so
+The re-run is the check worth the most. `test/js/dom.mjs` takes its tree from `PHPANTA_JS_DIR`, so
 the nesting guards, `TerminalWindow`'s subtree, both embeds and `Navigation` all execute what the
 server will send. It works across a bundle because `dom.mjs` reaches the elements through one
 `import main.js` and the DOM, never by module path; the three files that do import modules directly
@@ -120,7 +120,7 @@ from `SoundCloudWidget.js`, from `SoundCloudPlayer.js`, from `main.js`. Five seq
 before the last module starts downloading, and none of it is bytes — compressing and stripping
 comments leave the number exactly where it was.
 
-`phpanta/tools/build-assets.mjs` walks the compiled graph and generates `src/NeuroSYS/AssetManifest.php`;
+`phpanta/tools/build-assets.mjs` walks the compiled graph and generates `src/<Site>/AssetManifest.php`;
 `Layout::modulePreloads()` renders one `<link rel="modulepreload">` per entry, after the stylesheet
 because that one blocks rendering and these do not. The preload scanner then sees all of them at
 once and the five waves become one, for ~385 gzipped bytes per page.

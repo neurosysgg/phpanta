@@ -10,7 +10,7 @@
  *     public/                       ← readable, mapped, committed, tested
  *           ↓ npm run build:prod
  *     build/dist/public/            ← one bundled module, minified, no maps; what deploy.sh rsyncs
- *     build/dist/src/NeuroSYS/AssetManifest.php
+ *     build/dist/src/<Site>/AssetManifest.php
  *
  * Three things change, and all three are only worth doing here:
  *
@@ -32,7 +32,7 @@
  * by `npm run coverage`'s 100% gate, and diffed byte-for-byte against a fresh `tsc`. All three want
  * output a person can read. Bundling it would cost every one of them; bundling here costs nothing,
  * because the tests reach the elements through one `import main.js` and the DOM — so re-running
- * them with NEUROSYS_JS_DIR set still executes exactly the bytes the server sends.
+ * them with PHPANTA_JS_DIR set still executes exactly the bytes the server sends.
  *
  * **`keep_classnames` is load-bearing, not a default left alone.** `NestedElement.tagOf()` falls
  * back to `constructor.name` when `customElements.getName` is missing, and that is the text of the
