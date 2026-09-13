@@ -92,6 +92,31 @@ readonly class Request
     }
 
     /**
+     * A request that never arrived: a `GET` for $path, asking for $language, and nothing else.
+     *
+     * What a static export renders each page from. It carries no credential, no cookie and no
+     * `X-Requested-With`, so every page comes back whole and as an anonymous visitor would see it —
+     * which is the only visitor a static host has. The language is asked for the way a browser asks,
+     * through `Accept-Language`, so {@link self::language()} answers it when the app offers it and
+     * the app's default when it does not.
+     *
+     * @param string   $path
+     * @param Language $language
+     * @return static
+     */
+    public static function synthetic(string $path, Language $language): static
+    {
+        return new static(
+            HttpMethod::Get,
+            self::normalisePath($path),
+            false,
+            '',
+            '',
+            acceptLanguage: $language->value,
+        );
+    }
+
+    /**
      * One request header's value, or `''` if it did not arrive.
      *
      * The `$_SERVER` key is derived from the {@link RequestHeader} case rather than retyped —

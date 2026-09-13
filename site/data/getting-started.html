@@ -1,0 +1,92 @@
+<h1>Getting started</h1>
+
+<p class="lede">A site built on Phpanta is laid out by convention, vendors the framework as a git submodule, and tells it about itself through one class.</p>
+
+<h2>The layout</h2>
+
+<pre>site/
+├── autoload.php        requires phpanta/autoload.php, maps the site's namespace, boots the app
+├── composer.json       psr-4: the site's namespace → src/&lt;Ns&gt;/, and Phpanta\ → phpanta/src/
+├── public/index.php    a last-resort handler, then &lt;Site&gt;::current()-&gt;run()
+├── src/&lt;Ns&gt;/           the app class, controllers, views, models, words
+├── data/               what the site reads at runtime, outside the webroot
+├── assets/ts/          the site's TypeScript; assets/ts/phpanta links to the framework's
+├── assets/css/         the site's stylesheet, as one @import manifest
+└── phpanta/            the framework, as a git submodule</pre>
+
+<h2>Vendoring it</h2>
+
+<pre>git submodule add ../phpanta.git phpanta
+ln -s ../../phpanta/assets/ts assets/ts/phpanta
+git config submodule.recurse true
+git config push.recurseSubmodules on-demand</pre>
+
+<p>The URL is relative, so every remote the site is pushed to finds its own copy of the framework beside it. Editing the framework in place is the point: a change is a commit in <code>phpanta/</code>, then <code>git add phpanta</code> and a commit in the site.</p>
+
+<h2>The app</h2>
+
+<p>A site is a subclass of <code>Phpanta\App</code>, booted once per process by its autoloader. It owes the framework a handful of answers:</p>
+
+<pre>final class Site extends App
+{
+    public function name(): string            { return 'Acme'; }
+    public function above(): Directory        { return new Directory(dirname(__DIR__, 2)); }
+    public function languages(): Languages    { return new Languages(Language::English); }
+    public function shell(): Shell            { return new Layout(); }
+    public function vocabulary(): Vocabulary  { return Vocabulary::standard(); }
+    public function buildId(): string         { return AssetManifest::SCRIPT; }
+
+    public function routes(): Collection
+    {
+        return new Collection(Route::class)-&gt;with(
+            new Route(AcmePath::Home, fn() =&gt; new HomeController()),
+        );
+    }
+
+    public function notFound(Request $request): Response
+    {
+        return new ViewResponse(new NotFoundView(), HttpStatusCode::NotFound);
+    }
+
+    protected function ownDataFiles(): Collection
+    {
+        return new Collection(DataFileName::class);
+    }
+}</pre>
+
+<p>Everything else — where <code>data/</code> is, which directory is the webroot, where the update serial lives, the error log, the route to the API — the framework derives from those, and the derivations are final.</p>
+
+<h2>A page</h2>
+
+<p>A route pairs a <code>Path</code> case with a controller, and the controller returns a response. A <code>ViewResponse</code> renders its view inside the app's shell — or, for a request <code>Navigation</code> made, as a fragment led by its title.</p>
+
+<pre>final class HomeView extends View
+{
+    public function pageTitle(): Translatable
+    {
+        return self::title();
+    }
+
+    public function content(): Node
+    {
+        return new Element(HtmlTag::P)-&gt;containing('Hello.');
+    }
+}</pre>
+
+<h2>Building</h2>
+
+<pre>tsc                                     # assets/ts/ → public/assets/js/
+node phpanta/tools/build-css.mjs        # assets/css/main.css → public/assets/css/style.css
+node phpanta/tools/build-assets.mjs     # the stamped AssetManifest the shell reads
+node phpanta/tools/build-prod.mjs       # build/dist/ — bundled, minified, no maps
+php -S localhost:8080 -t public phpanta/tools/dev-router.php</pre>
+
+<p>The build tools find the project by walking up from where they are run to the nearest <code>composer.json</code>, and read the site's namespace from its <code>psr-4</code>.</p>
+
+<h2>Deploying</h2>
+
+<p>A PHP host gets plain files: <code>phpanta/src/</code> and <code>phpanta/autoload.php</code>, the site's <code>src/</code> and <code>autoload.php</code>, and the prod webroot — copied by any means, or sent as one signed request by the framework's <code>PushUpdate</code> command. A static host gets an export:</p>
+
+<pre>php phpanta/tools/export.php --out build/pages --base /phpanta/</pre>
+
+<p>Every page is rendered by its own route's controller, every address is moved under the base path, and the export fails on any link it did not write. This site is that command's output.</p>

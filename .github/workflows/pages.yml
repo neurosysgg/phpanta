@@ -1,0 +1,62 @@
+# Phpanta's own site, rendered by Phpanta and served by GitHub Pages at /phpanta/.
+#
+# The framework's suite runs first, so a push that breaks the framework does not publish a site
+# built on it. Then the site is built the way any site is — tsc, the stylesheet, the manifest, the
+# bundled prod tree — and exported: every page rendered by its own controller into a static file,
+# every address moved under /phpanta/, and the export fails on any link it did not write.
+
+name: Pages
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: dom, intl, openssl, zlib
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+          cache: npm
+
+      - run: composer install --no-interaction --no-progress --prefer-dist
+      - run: vendor/bin/phpunit
+
+      - run: npm ci
+      - run: npm run check
+      - run: npm run site:prod
+      - run: npm run site:export
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/pages
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,58 @@
+<h1>Architecture</h1>
+
+<p class="lede">A request, from the rewrite that sends it to <code>index.php</code> to the bytes that go back.</p>
+
+<h2>The request, traced</h2>
+
+<pre>public/index.php
+  ├─ set_exception_handler(…)       the last resort, depending on nothing
+  └─ Site::current()-&gt;run()
+       ├─ ErrorLog::install(…)        every diagnostic into data/logs/
+       ├─ SecurityHeaders::send()     CSP, HSTS, Permissions-Policy — before anything can fail
+       ├─ Request::fromGlobals()      $_SERVER → a typed, readonly Request
+       ├─ Auth::requireSiteAuth()     an optional pre-launch gate
+       ├─ Router::dispatch()          the path → a route → the method gate → a controller
+       └─ Response::send()            the headers and the body</pre>
+
+<p>The exception handler is installed first because it has to work when nothing else did: it logs, sends a bare 500 if the headers have not gone out, and tells the visitor nothing else.</p>
+
+<h2>The layers</h2>
+
+<pre>src/
+├── App.php         what a site tells the framework about itself
+├── Router.php      URL → controller, and nothing else
+├── Controller/     the Controller interface, and the API's
+├── Http/           Request, the responses, every header typed; Api/, Security/
+├── View/           View, Shell; Html/ — the markup tree, MarkupParser, Vocabulary
+├── Text/           Translatable, Translation, Language, Languages
+├── Support/        Collection, File, Directory, Path and Route, PublicKey, TarArchive
+├── Model/          Api/ (a signed call), Update/ (a push), Health/ (requirements)
+├── Service/        Auth, ApiGate, UpdateApplier, and the API's handlers
+└── Exception/      SiteException and every condition under it</pre>
+
+<p>The dependencies point one way. Controllers use services and views, views and models build elements out of <code>View\Html</code>, and <code>View\Html</code> depends on nothing above it.</p>
+
+<h2>The app</h2>
+
+<p>One per process, booted by the site's autoloader and read back with <code>App::current()</code>. Constructing one does nothing, booting it twice is booting it once, and a second app is refused. The framework's deep code — the site gate, the API's replay serial, the health report — asks the booted app, rather than every constructor on the way down carrying the site's facts.</p>
+
+<h2>The wire</h2>
+
+<p>A request is parsed defensively. An unknown method is <code>null</code>, not a guess at <code>GET</code>, and a target PHP's parser cannot read is kept as the path it is rather than answered with the home page. The security headers are typed objects, sent before anything that could fail, and every page varies on exactly the headers it was rendered from.</p>
+
+<h2>The signed API</h2>
+
+<p>An update is a gzipped tar in the body of one <code>POST</code>, signed with an ECDSA P-256 key of which the server holds only the public half. The signature covers the action, a timestamp, a serial the server spends before it applies anything, and a hash of the body. A call that is unsigned or signed wrongly is answered exactly as an address that does not exist.</p>
+
+<h2>SPA navigation</h2>
+
+<p>Every link is a real <code>href</code>. <code>Navigation</code> intercepts a click on one that stays on this origin, asks for the page with <code>X-Requested-With</code>, and swaps the answer into <code>#content</code>. A server running the framework answers with a fragment; a static host like this one answers with the whole page, and only its content and its title are taken.</p>
+
+<h2>Further reading</h2>
+
+<ul>
+<li><a href="https://github.com/neurosysgg/phpanta/blob/master/docs/architecture.md">docs/architecture.md</a> — the request, the app, the layers, exceptions, the markup tree</li>
+<li><a href="https://github.com/neurosysgg/phpanta/blob/master/docs/security.md">docs/security.md</a> — the headers, the method gate, the guards, the API</li>
+<li><a href="https://github.com/neurosysgg/phpanta/blob/master/docs/frontend.md">docs/frontend.md</a> — the build, the element model, SPA navigation</li>
+<li><a href="https://github.com/neurosysgg/phpanta/blob/master/docs/collections.md">docs/collections.md</a> — collections, and what stays an array</li>
+</ul>

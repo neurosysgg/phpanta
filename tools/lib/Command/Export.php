@@ -1,0 +1,463 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Phpanta\Tool\Command;
+
+use Phpanta\App;
+use Phpanta\Http\HttpStatusCode;
+use Phpanta\Http\Request;
+use Phpanta\Http\ViewResponse;
+use Phpanta\Support\Directory;
+use Phpanta\Tool\Cli\Command;
+use Phpanta\Tool\Cli\ExitCode;
+use Phpanta\Tool\Cli\Input;
+use Phpanta\Tool\Cli\Option;
+use Phpanta\Tool\Cli\Output;
+use Phpanta\Tool\Cli\UsageException;
+use Phpanta\Tool\Export\BasePath;
+
+/**
+ * The Export command. Renders an app's pages, and the assets they load, into a static site.
+ *
+ * **Every page is the one the running site would send**: the route's own controller answers a
+ * {@link Request::synthetic()} request, and {@link ViewResponse::render()} writes what
+ * {@link ViewResponse::send()} would have — so there is no second renderer to drift. Which routes
+ * are pages is the route's to say, see {@link \Phpanta\Support\Route::exportedPaths()}; the rest —
+ * the API, a download's redirect, anything behind a password — has no business on a static host,
+ * and a route that claims to be a page and answers with something else fails the export.
+ *
+ * What it writes, for a host that can only serve files:
+ *
+ * - `index.html` for `/`, `x.html` for `/x` and `a/b.html` for `/a/b` — the name a static host
+ *   finds for an address with no extension — and `404.html`, the app's own not-found page, which
+ *   is the name GitHub Pages serves for any address it does not have. In the app's default language.
+ * - The webroot's files, less what only a PHP host reads (`*.php`, `.htaccess`, `.user.ini`).
+ * - **The stamped asset directories, as directories.** A page names `/assets/js/v-a1b2c3d4/main.js`,
+ *   and on the site a rewrite strips the stamp; a static host has no rewrite, so the tree is
+ *   written under the stamp and the URLs in the manifest resolve exactly as they are.
+ * - `.nojekyll`, or GitHub Pages hides every file whose name starts with an underscore.
+ *
+ * Then {@link BasePath} moves every address under `--base`, and **the export fails** on any
+ * root-absolute address that still lacks the base, and on any that names a file it did not write —
+ * a broken link found here rather than by a visitor.
+ */
+final readonly class Export implements Command
+{
+    /** The stamp segment `public/.htaccess` and the dev router strip; see build-assets.mjs. */
+    private const string STAMPED = '#/assets/(js|css)/v-([0-9a-f]{8})/#';
+
+    /** What only a PHP host reads, and so nothing a static one should be handed. */
+    private const string SERVER_ONLY = '#(\.php|^\.htaccess|^\.user\.ini)\z#';
+
+    /**
+     * Constructs an instance of {@link self}.
+     *
+     * @param App $app The booted app, whose routes, shell and webroot are exported.
+     */
+    public function __construct(private App $app) {}
+
+    /**
+     * @return string
+     */
+    public function name(): string
+    {
+        return 'export';
+    }
+
+    /**
+     * @return string
+     */
+    public function usage(): string
+    {
+        return '--out <dir> [--base <path>] [--debug]';
+    }
+
+    /**
+     * @return string
+     */
+    public function description(): string
+    {
+        return 'Render every exported page, and the assets they load, into a static site.';
+    }
+
+    /**
+     * @return list<Option>
+     */
+    public function options(): array
+    {
+        return ExportOption::cases();
+    }
+
+    /**
+     * @param Input  $input
+     * @param Output $output
+     * @return ExitCode
+     */
+    public function run(Input $input, Output $output): ExitCode
+    {
+        try {
+            $out  = $this->out($input);
+            $base = new BasePath($input->value(ExportOption::Base) ?? '/');
+        } catch (UsageException $exception) {
+            $output->error($this->name() . ': ' . $exception->getMessage() . "\n");
+
+            return ExitCode::Usage;
+        }
+
+        $failure = $this->export($out, $base, $input->has(ExportOption::Debug), $output);
+
+        if ($failure !== null) {
+            $output->error($this->name() . ': ' . $failure . "\n");
+
+            return ExitCode::Failure;
+        }
+
+        return ExitCode::Success;
+    }
+
+    /**
+     * Writes the export, or answers why it could not.
+     *
+     * @param Directory $out
+     * @param BasePath  $base
+     * @param bool      $debug
+     * @param Output    $output
+     * @return string|null
+     */
+    private function export(Directory $out, BasePath $base, bool $debug, Output $output): ?string
+    {
+        $public = $debug
+            ? $this->app->above()->directory('public')
+            : $this->app->above()->directory('build')->directory('dist')->directory('public');
+
+        if (!$public->exists()) {
+            return $debug
+                ? 'public/ is not there.'
+                : 'build/dist/ is not there — run `npm run build:prod` first, or export the debug tree with --debug.';
+        }
+
+        if (!$debug && ($failure = $this->loadProdManifest()) !== null) {
+            return $failure;
+        }
+
+        if (($failure = self::emptied($out)) !== null) {
+            return $failure;
+        }
+
+        // ── the pages ──
+
+        $language = $this->app->languages()->default();
+        $pages    = [];
+
+        foreach ($this->app->routeTable() as $route) {
+            foreach ($route->exportedPaths() as $path) {
+                $params = $route->matches($path);
+
+                if ($params === false) {
+                    return sprintf(
+                        '%s was given as a page of the route for %s, which does not match it.',
+                        $path,
+                        $route->path()->value,
+                    );
+                }
+
+                $request  = Request::synthetic($path, $language);
+                $response = $route->createController($params)->handle($request);
+
+                if (!$response instanceof ViewResponse || $response->status() !== HttpStatusCode::Ok) {
+                    return sprintf(
+                        '%s is exported, and answers with %s rather than a page with a 200 — a static host'
+                        . ' would serve whatever it wrote as one.',
+                        $path,
+                        $response instanceof ViewResponse ? 'a ' . $response->status()->value : $response::class,
+                    );
+                }
+
+                $file = $path === '/' ? 'index.html' : ltrim($path, '/') . '.html';
+
+                if (isset($pages[$file])) {
+                    return sprintf('%s and %s would both be written to %s.', $pages[$file][0], $path, $file);
+                }
+
+                $pages[$file] = [$path, $response->render($request)];
+            }
+        }
+
+        $missing = $this->app->notFound(Request::synthetic('/404', $language));
+
+        if (!$missing instanceof ViewResponse) {
+            return sprintf(
+                'the app answers an address it does not have with %s, not a page, so there is no 404.html to write.',
+                $missing::class,
+            );
+        }
+
+        $pages['404.html'] = ['(not found)', $missing->render(Request::synthetic('/404', $language))];
+
+        // ── the files ──
+
+        $stamps = [];
+
+        foreach ($pages as $file => [, $markup]) {
+            preg_match_all(self::STAMPED, $markup, $found, PREG_SET_ORDER);
+
+            foreach ($found as [, $kind, $stamp]) {
+                $stamps["$kind/v-$stamp"] = $kind;
+            }
+
+            self::write($out, $file, $base->html($markup));
+        }
+
+        $copied = self::copy($public, $out, '');
+
+        foreach ($stamps as $stamped => $kind) {
+            $copied += self::copy($public->directory('assets')->directory($kind), $out, "assets/$stamped");
+        }
+
+        foreach (self::files($out, '') as $file) {
+            if (str_ends_with($file, '.css')) {
+                $stylesheet = $out->file($file);
+                $stylesheet->write($base->css((string) $stylesheet->read()));
+            }
+        }
+
+        $out->file('.nojekyll')->write('');
+
+        // ── the check ──
+
+        $problems = [];
+
+        foreach (self::files($out, '') as $file) {
+            $addresses = match (true) {
+                str_ends_with($file, '.html') => $base->addresses((string) $out->file($file)->read()),
+                str_ends_with($file, '.css')  => $base->stylesheetAddresses((string) $out->file($file)->read()),
+                default                       => null,
+            };
+
+            foreach ($addresses ?? [] as $address) {
+                if ($base->lacksBase($address)) {
+                    $problems[] = "$file names $address, which is not under {$base->path}";
+                } elseif (!self::resolves($out, $base->withinExport($address))) {
+                    $problems[] = "$file links to $address, which the export did not write";
+                }
+            }
+        }
+
+        if ($problems !== []) {
+            return "the export is not self-contained:\n  " . implode("\n  ", array_unique($problems));
+        }
+
+        $output->error(sprintf(
+            "export: %d pages and a 404, %d files, served under %s → %s\n",
+            count($pages) - 1,
+            $copied,
+            $base->path,
+            $out->path,
+        ));
+
+        return null;
+    }
+
+    /**
+     * `--out`, resolved against the working directory.
+     *
+     * @param Input $input
+     * @return Directory
+     *
+     * @throws UsageException if it was not given.
+     */
+    private function out(Input $input): Directory
+    {
+        $given = $input->value(ExportOption::Out)
+            ?? throw new UsageException('--out is required: the directory the static site is written to.');
+
+        return new Directory(str_starts_with($given, '/') ? $given : (getcwd() ?: '.') . '/' . $given);
+    }
+
+    /**
+     * Loads `build/dist/`'s manifest in place of the working tree's, so every page names the bundled
+     * assets that are being exported rather than the debug tree's.
+     *
+     * The class is required before anything asks for it, which is what makes the autoloader never
+     * look for the working copy — and refused if something already has, since the pages would then
+     * name URLs the export does not contain.
+     *
+     * @return string|null Why it could not be, or null.
+     */
+    private function loadProdManifest(): ?string
+    {
+        $manifests = glob($this->app->above()->path . '/build/dist/src/*/AssetManifest.php') ?: [];
+
+        if (count($manifests) !== 1) {
+            return sprintf(
+                'build/dist/src/ holds %d AssetManifest.php, and the export needs exactly one.',
+                count($manifests),
+            );
+        }
+
+        $source = (string) file_get_contents($manifests[0]);
+
+        if (preg_match('/^namespace\s+([^;\s]+)\s*;/m', $source, $match) !== 1) {
+            return $manifests[0] . ' declares no namespace.';
+        }
+
+        $class = $match[1] . '\\AssetManifest';
+
+        if (class_exists($class, false)) {
+            return "$class is already loaded from the working tree, so the pages would name the debug tree's assets.";
+        }
+
+        require_once $manifests[0];
+
+        return null;
+    }
+
+    /**
+     * Makes $out an empty directory — refusing one that holds anything an export did not write.
+     *
+     * An export's own output carries `.nojekyll`, so a directory with one is emptied; anything else
+     * that is not empty is somebody's, and a mistyped `--out .` must not delete a repository.
+     *
+     * @param Directory $out
+     * @return string|null
+     */
+    private static function emptied(Directory $out): ?string
+    {
+        if (!$out->exists()) {
+            return $out->create() ? null : "could not create {$out->path}.";
+        }
+
+        $entries = array_diff(scandir($out->path) ?: [], ['.', '..']);
+
+        if ($entries === []) {
+            return null;
+        }
+
+        if (!$out->file('.nojekyll')->exists()) {
+            return "{$out->path} is not empty and is not an earlier export (it has no .nojekyll)"
+                . ' — refusing to empty it.';
+        }
+
+        foreach ($entries as $entry) {
+            self::remove($out->path . '/' . $entry);
+        }
+
+        return null;
+    }
+
+    /**
+     * Deletes $path and, for a directory, everything under it — without following a symlink, which
+     * is deleted as the link it is.
+     *
+     * @param string $path
+     * @return void
+     */
+    private static function remove(string $path): void
+    {
+        if (is_dir($path) && !is_link($path)) {
+            foreach (array_diff(scandir($path) ?: [], ['.', '..']) as $entry) {
+                self::remove($path . '/' . $entry);
+            }
+
+            rmdir($path);
+
+            return;
+        }
+
+        unlink($path);
+    }
+
+    /**
+     * Writes $markup to $file under $out, making the directories it sits in.
+     *
+     * @param Directory $out
+     * @param string    $file
+     * @param string    $markup
+     * @return void
+     */
+    private static function write(Directory $out, string $file, string $markup): void
+    {
+        $directory = dirname($out->path . '/' . $file);
+
+        if (!is_dir($directory)) {
+            new Directory($directory)->create();
+        }
+
+        $out->file($file)->write($markup);
+    }
+
+    /**
+     * Copies every file under $from into $to at $at, less what only a PHP host reads.
+     *
+     * @param Directory $from
+     * @param Directory $to
+     * @param string    $at A path under $to, or `''` for $to itself.
+     * @return int How many files were copied.
+     */
+    private static function copy(Directory $from, Directory $to, string $at): int
+    {
+        $copied = 0;
+
+        foreach (self::files($from, '') as $file) {
+            if (preg_match(self::SERVER_ONLY, basename($file)) === 1) {
+                continue;
+            }
+
+            $target = $at === '' ? $file : "$at/$file";
+            self::write($to, $target, (string) $from->file($file)->read());
+            $copied++;
+        }
+
+        return $copied;
+    }
+
+    /**
+     * Every file under $in, as a path relative to it, symlinks not followed.
+     *
+     * @param Directory $in
+     * @param string    $prefix
+     * @return list<string>
+     */
+    private static function files(Directory $in, string $prefix): array
+    {
+        $files = [];
+        $here  = $prefix === '' ? $in->path : $in->path . '/' . $prefix;
+
+        foreach (array_diff(scandir($here) ?: [], ['.', '..']) as $entry) {
+            $relative = $prefix === '' ? $entry : "$prefix/$entry";
+
+            if (is_link("$here/$entry")) {
+                continue;
+            }
+
+            if (is_dir("$here/$entry")) {
+                array_push($files, ...self::files($in, $relative));
+            } else {
+                $files[] = $relative;
+            }
+        }
+
+        return $files;
+    }
+
+    /**
+     * Whether an address under the export names a file it wrote — `x` as `x.html`, `` as
+     * `index.html`, anything with an extension as itself — ignoring a query or a fragment.
+     *
+     * @param Directory $out
+     * @param string    $address
+     * @return bool
+     */
+    private static function resolves(Directory $out, string $address): bool
+    {
+        $path = rtrim(substr($address, 0, strcspn($address, '?#')), '/');
+
+        return match (true) {
+            $path === ''                               => $out->file('index.html')->exists(),
+            pathinfo($path, PATHINFO_EXTENSION) !== '' => $out->file($path)->exists(),
+            default                                    => $out->file("$path.html")->exists()
+                || $out->file("$path/index.html")->exists(),
+        };
+    }
+}

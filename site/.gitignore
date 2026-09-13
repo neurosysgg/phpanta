@@ -1,0 +1,6 @@
+# What a build writes. The Pages workflow builds all of it; `npm run site:build` does locally.
+/public/assets/js/
+/public/assets/css/style.css
+/src/PhpantaSite/AssetManifest.php
+/build/
+/data/logs/

@@ -1,0 +1,42 @@
+/* The few values everything else is written in. Dark follows the reader's setting. */
+
+:root {
+  color-scheme: light dark;
+
+  --ink: #1d1f24;
+  --ink-soft: #545a66;
+  --paper: #fbfaf7;
+  --rule: #e2dfd7;
+  --accent: #7a3cff;
+  --code-paper: #f1eee6;
+
+  --measure: 44rem;
+  --gutter: clamp(1rem, 4vw, 2rem);
+
+  --font-text: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-code: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e6e3dc;
+    --ink-soft: #a29f98;
+    --paper: #16171b;
+    --rule: #2c2e35;
+    --accent: #b394ff;
+    --code-paper: #202228;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 1rem/1.65 var(--font-text);
+}

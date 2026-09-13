@@ -129,6 +129,12 @@ These fail silently — no error, no log, a page that looks fine.
 - Never cache-bust with `?v=` on an import specifier; the build stamp is a path segment.
 - The site reaches `assets/ts/` through a symlink; without `preserveSymlinks` it compiles outside
   `rootDir` and refuses.
+- **An export's base path is applied to files, not at runtime**: HTML attributes and stylesheet
+  `url()`s are rewritten, scripts are not. A script that builds an address from the root breaks
+  under `--base`; build it from a link on the page instead. The export fails on any address it
+  finds without the base, and on any link to a file it did not write.
+- A static host answers `Navigation`'s fetch with the whole page, not a fragment; `Navigation` takes
+  `#content` and the title out of it, and hands a page with no `#content` back to the browser.
 
 ## Commands
 
@@ -136,7 +142,13 @@ These fail silently — no error, no log, a page that looks fine.
 vendor/bin/phpunit -c phpanta/phpunit.xml.dist   # the framework's suite, under TestApp
 node phpanta/tools/build-assets.mjs              # run from the site's root
 php -S localhost:8080 -t public phpanta/tools/dev-router.php
+php phpanta/tools/export.php --out <dir> [--base /path/] [--debug]   # a static copy of the site
 ```
+
+Checked out on its own, `composer install`, `npm install`, then `vendor/bin/phpunit`, `npm run
+check`, and `npm run site:build` / `site:dev` / `site:prod` / `site:export` for its own site in
+`site/` — a site like any other, whose framework is `..` rather than `phpanta/`. GitHub Pages
+serves its export; `.github/workflows/pages.yml` runs the suite first and publishes on every push.
 
 ## Documents
 

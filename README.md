@@ -37,6 +37,7 @@ phpanta/
 ├── assets/ts/       ← Navigation (SPA), NestedElement, the mirrors of the framework's enums
 ├── tools/           ← build-{css,assets,prod}.mjs, dev-router.php, coverage-prepend.php, lib/
 ├── test/            ← the framework's own suite, under TestApp
+├── site/            ← this framework's own site, built on it and exported to GitHub Pages
 └── docs/            ← the documents; start at architecture.md
 ```
 
@@ -126,6 +127,31 @@ php -S localhost:8080 -t public phpanta/tools/dev-router.php
 
 ```bash
 vendor/bin/phpunit -c phpanta/phpunit.xml.dist   # the framework's own suite, under TestApp
+```
+
+### A static export
+
+A site whose pages need no server can be exported to plain files, for a host that only serves
+them:
+
+```bash
+php phpanta/tools/export.php --out build/pages --base /phpanta/
+```
+
+Every route that only reads and is one address is rendered by its own controller — a route with
+placeholders says which values to export — and written as `x.html`, with the app's not-found page as
+`404.html` and the stamped asset directories as directories. `--base` moves every address under the
+path the host serves the site at, and the export fails on any link it did not write.
+[This framework's own site](https://neurosysgg.github.io/phpanta/) is that command's output: its
+source is [`site/`](site/), and `.github/workflows/pages.yml` builds and publishes it on every push.
+
+## Working on Phpanta on its own
+
+```bash
+composer install && vendor/bin/phpunit    # the framework's suite
+npm install && npm run check              # the framework's TypeScript, type-checked
+npm run site:build && npm run site:dev    # its site, served at localhost:8081
+npm run site:prod && npm run site:export  # the export GitHub Pages serves, into build/pages/
 ```
 
 ## Documents

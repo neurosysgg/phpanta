@@ -221,7 +221,7 @@ reports it as an uncaught error, which is loud enough to notice and is how the t
 
 ## SPA navigation
 
-[`Navigation`](https://github.com/neurosysgg/neurosys-webspace/blob/master/assets/ts/Navigation.ts) intercepts internal link clicks, fetches the page as a
+[`Navigation`](../assets/ts/Navigation.ts) intercepts internal link clicks, fetches the page as a
 content fragment, and swaps `#content`. Download links carry `data-no-spa` to bypass it and trigger
 a real navigation — otherwise the 303 would be consumed silently by the fetch.
 
@@ -230,10 +230,16 @@ click on a[href^="/"]
   → not modified/middle-click, no data-no-spa, resolved origin === location.origin
   → preventDefault, pushState
   → fetch with X-Requested-With: XMLHttpRequest
-  → ViewResponse sends <title> + the fragment
-  → read and decode the title, strip it, assign the rest to #content.innerHTML
+  → a server running the framework: ViewResponse sends <title> + the fragment
+      → read and decode the title, strip it, assign the rest to #content.innerHTML
+  → a static host (an export): the whole page, since there is no header to read
+      → parse it, take its title and its #content — or, with no #content, hand it to the browser
   → dispatch phpanta:navigate, scroll to top
 ```
+
+The two answers are told apart by the doctype a whole document starts with. A static host is not a
+fallback path: it is how [the framework's own site](https://neurosysgg.github.io/phpanta/) is
+served, where every navigation takes the second branch.
 
 ### The four things to understand before touching it
 
@@ -245,7 +251,9 @@ anything cross-origin back to the browser. Nothing the server emits is protocol-
 
 **2. `go()` ends in an `innerHTML` assignment.** That is safe only because the fragment is
 same-origin and was built by the server's markup tree, where every value is escaped by `Text` and
-every URL attribute is scheme-checked. The guarantee is *inherited*, not enforced here — anything
+every URL attribute is scheme-checked. An exported page is the same markup, written to disk by the
+same tree, so taking `#content` out of one spends the same guarantee and no other. The guarantee is
+*inherited*, not enforced here — anything
 that ever puts markup into `#content` from another source reopens DOM XSS, and nothing in that file
 would notice.
 

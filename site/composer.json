@@ -1,0 +1,9 @@
+{
+    "description": "Phpanta's own site: the framework rendering its introduction, exported to GitHub Pages. Never installed — it is here to say which namespace is the app and where it lives, which is what the build tools and the export read a composer.json for.",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "PhpantaSite\\": "src/PhpantaSite/"
+        }
+    }
+}

@@ -1,0 +1,36 @@
+{
+  // The site's front end, laid out as any site's is: sources in assets/ts/, the framework's reached
+  // through the assets/ts/phpanta symlink, the debug tree emitted into public/assets/js/.
+  "include": ["assets/ts/**/*.ts"],
+
+  "compilerOptions": {
+    "rootDir": "assets/ts",
+    "outDir": "public/assets/js",
+
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "es2022",
+    "lib": ["es2022", "dom", "dom.iterable"],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmitOnError": true,
+
+    // Kept as the path it was reached by, the framework compiles into public/assets/js/phpanta/;
+    // resolved to its real path it would sit outside rootDir and refuse to compile.
+    "preserveSymlinks": true,
+
+    "removeComments": true,
+    "newLine": "lf",
+    "sourceMap": true,
+    "inlineSources": true
+  }
+}

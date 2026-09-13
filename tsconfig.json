@@ -1,0 +1,26 @@
+{
+  // The framework's TypeScript on its own, type-checked and never emitted: a site compiles it, through
+  // its assets/ts/phpanta symlink, into its own tree. Held to the same settings a site's tsconfig
+  // uses, so a module that passes here compiles there.
+  "include": ["assets/ts/**/*.ts"],
+
+  "compilerOptions": {
+    "noEmit": true,
+
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "es2022",
+    "lib": ["es2022", "dom", "dom.iterable"],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true
+  }
+}

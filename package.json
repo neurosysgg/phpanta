@@ -1,0 +1,23 @@
+{
+    "name": "phpanta",
+    "private": true,
+    "license": "MIT",
+    "type": "module",
+    "description": "Dev tooling for Phpanta checked out on its own: a type check of the framework's TypeScript, and the build and export of its own site (site/), which is what GitHub Pages serves. A site that vendors Phpanta uses its own package.json and never runs this one.",
+    "engines": {
+        "node": ">=26.7.0"
+    },
+    "scripts": {
+        "check": "tsc -p tsconfig.json",
+        "site:build": "cd site && tsc -p . && node ../tools/build-css.mjs && node ../tools/build-assets.mjs",
+        "site:prod": "npm run site:build && cd site && node ../tools/build-prod.mjs",
+        "site:dev": "cd site && php -S localhost:8081 -t public ../tools/dev-router.php",
+        "site:export": "cd site && php ../tools/export.php --out ../build/pages --base /phpanta/"
+    },
+    "devDependencies": {
+        "@types/node": "^26.5.0",
+        "esbuild": "0.28.2",
+        "terser": "^5.51.2",
+        "typescript": "^7.0.2"
+    }
+}

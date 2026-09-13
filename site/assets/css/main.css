@@ -1,0 +1,10 @@
+/* ---------------------------------------------------------------
+   Phpanta's site — the stylesheet's manifest.
+
+   The whole cascade, in order. phpanta/tools/build-css.mjs inlines each @import into
+   public/assets/css/style.css, the single file the browser loads.
+   ---------------------------------------------------------------- */
+
+@import url("tokens.css");
+@import url("shell.css");
+@import url("prose.css");

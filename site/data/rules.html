@@ -1,0 +1,45 @@
+<h1>The rules</h1>
+
+<p class="lede">Each of these replaces a habit that fails silently with one that fails loudly. They are the reason the code looks the way it does.</p>
+
+<h2>Nothing builds HTML from a string</h2>
+
+<p>A view returns a <code>Node</code>. Only <code>Element</code> and <code>Doctype</code> ever write a <code>&lt;</code>, and escaping and the URL-scheme check both live in <code>render()</code> — so they hold however an element was built, and a <code>javascript:</code> link is refused where it would be written rather than rendered.</p>
+
+<h2>Hand-authored HTML is parsed, never trusted</h2>
+
+<p>It enters the tree only through <code>Element::containingHtml()</code>, which parses it against the app's vocabulary and refuses any tag or attribute the app did not declare. This page is such HTML. Nothing a request can influence is ever parsed.</p>
+
+<h2>Visible text is translatable, and a view never names a language</h2>
+
+<p>A catalog is an enum, each case carries its words in every language the app offers, and the tree resolves each one against the nearest <code>lang</code> when it renders. A translatable with no <code>lang</code> above it throws rather than guessing.</p>
+
+<h2>Names and values are typed</h2>
+
+<p>A header is a <code>HeaderName</code> case and a <code>HeaderValue</code>. An attribute is an <code>AttributeName</code> case. An address is a <code>Path</code> case, and a link is <code>-&gt;to(…)</code>, never a concatenation. A value with a grammar is a class, and a fixed vocabulary is an enum — so a misspelled name is an error where it is written, not a default somewhere else.</p>
+
+<h2>A group is a collection</h2>
+
+<p>A group crossing a public boundary is an immutable, lazy <code>Collection</code> or <code>SearchableCollection</code>: <code>with()</code> copies, and a chain of steps fuses into one pass at the first call that needs a result.</p>
+
+<h2>Five habits are refused</h2>
+
+<ul>
+<li>a bare <code>array</code> in a declared type,</li>
+<li>a bare string that is really a name,</li>
+<li>an <code>array_*</code> call a collection has a member for,</li>
+<li><code>@</code>, which silences every diagnostic in an expression, and</li>
+<li>an SPL exception thrown where one of the framework's own belongs.</li>
+</ul>
+
+<p>The first three may be excused, by an attribute that carries its reason: <code>#[BareArray]</code>, <code>#[BareString]</code>, <code>#[BareCall]</code>.</p>
+
+<h2>A result that matters cannot be dropped</h2>
+
+<p>Builders and queries carry <code>#[\NoDiscard]</code> with a message, so a copy-returning call whose copy is thrown away raises a warning — and the test suites fail on warnings.</p>
+
+<h2>Whatever ends a request has a twin that decides it</h2>
+
+<p><code>Auth::accepts()</code> beside the gate that sends the 401, <code>SecurityHeaders::headers()</code> beside <code>send()</code>, <code>ViewResponse::render()</code> beside <code>send()</code>. A decision that exits cannot be asserted; its twin can.</p>
+
+<p>The full argument for each is in <a href="https://github.com/neurosysgg/phpanta/blob/master/docs/guidelines.md">docs/guidelines.md</a> and <a href="https://github.com/neurosysgg/phpanta/blob/master/CLAUDE.md">CLAUDE.md</a>.</p>

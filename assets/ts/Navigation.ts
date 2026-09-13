@@ -5,6 +5,12 @@ import { LinkAttribute } from './model/LinkAttribute.js';
 import { RequestHeader } from './model/RequestHeader.js';
 import { RequestedWith } from './model/RequestedWith.js';
 
+/** What a response puts on the page. A null title is one the response did not carry. */
+interface Page {
+  readonly title: string | null;
+  readonly content: string;
+}
+
 /**
  * SPA navigation: intercept internal link clicks, fetch the page as a content fragment, and swap it
  * into #content. Every link is a real href, so direct loads and no-JS behave identically.
@@ -40,6 +46,14 @@ export class Navigation {
   private static readonly TITLE = new RegExp(
     `<${HtmlTag.Title}>([\\s\\S]*?)</${HtmlTag.Title}>`,
   );
+
+  /**
+   * How a whole document starts, as the markup tree's Doctype writes it.
+   *
+   * What tells the two answers apart: a server running the framework reads X-Requested-With and
+   * sends a fragment, while a static host has no headers to read and sends the page itself.
+   */
+  private static readonly DOCUMENT = /^\s*<!doctype html/i;
 
   /**
    * Which navigation is the current one.
@@ -125,6 +139,9 @@ export class Navigation {
    * value is escaped by Text and every URL attribute is scheme-checked. So the
    * string being parsed here is one this codebase generated, not one it received.
    *
+   * A static export's page is the same markup, written to disk by the same tree, so taking #content
+   * out of a whole document spends the same guarantee and no other.
+   *
    * Worth stating because it is inherited rather than enforced: the guarantee lives on the server,
    * and this line is where it is spent. Anything that ever puts markup into #content from another
    * source — a different endpoint, a third party, a value not rendered through the tree — reopens
@@ -158,12 +175,18 @@ export class Navigation {
       // started, and by then this response is for a page the visitor has moved on from.
       if (navigation !== this.navigation) return;
 
-      const title = html.match(Navigation.TITLE)?.[1];
+      const page = Navigation.page(html);
 
-      if (title !== undefined) document.title = Navigation.decodeEntities(title);
+      // A whole page with no #content has nothing to swap in; the browser can still show it.
+      if (page === null) {
+        location.assign(url);
+        return;
+      }
+
+      if (page.title !== null) document.title = page.title;
       else console.warn('No title found in HTML response');
 
-      this.content.innerHTML = html.replace(Navigation.TITLE, '');
+      this.content.innerHTML = page.content;
       document.dispatchEvent(new Event(Navigation.EVENT));
       window.scrollTo(0, 0);
     } catch {
@@ -175,6 +198,32 @@ export class Navigation {
       // Hand the navigation back to the browser rather than strand them there.
       location.assign(url);
     }
+  }
+
+  /**
+   * What a response puts on the page — its title, and what goes into #content — or null for a whole
+   * document with no #content to take.
+   *
+   * A fragment is led by its <title>, which is read and then stripped. A whole document — what a
+   * static host serves, since it cannot answer X-Requested-With — is parsed, and the two are taken
+   * out of it; its title arrives decoded, because the parser has already read the entities.
+   */
+  private static page(html: string): Page | null {
+    if (!Navigation.DOCUMENT.test(html)) {
+      const title = html.match(Navigation.TITLE)?.[1];
+
+      return {
+        title: title === undefined ? null : Navigation.decodeEntities(title),
+        content: html.replace(Navigation.TITLE, ''),
+      };
+    }
+
+    const parsed  = new DOMParser().parseFromString(html, 'text/html');
+    const content = parsed.getElementById(ElementId.Content);
+
+    if (content === null) return null;
+
+    return { title: parsed.title === '' ? null : parsed.title, content: content.innerHTML };
   }
 
   /**

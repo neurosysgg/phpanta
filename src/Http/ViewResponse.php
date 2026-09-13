@@ -62,19 +62,7 @@ readonly class ViewResponse implements Response
     public function send(Request $request): void
     {
         $language = $request->language();
-
-        // The fragment leads with a <title> so Navigation can read the new page title out of it —
-        // an element like any other, so the title is escaped by the same rule as everything else.
-        $body = $request->isAjax()
-            ? new Fragment(
-                new Element(HtmlTag::Title)->containing($this->view->pageTitle()),
-                $this->view->content(),
-            )
-            : App::current()->shell()->document($this->view, $language);
-
-        // The language is passed in as well as stated on <html lang>, because a fragment has no
-        // <html>: without it, the first translated text in the fragment would have no scope.
-        $markup = $body->render(0, $language);
+        $markup   = $this->render($request);
 
         // Hashed once and passed down, rather than built here and built again inside
         // cacheHeaders(): the validator sent and the validator compared have to be the same value,
@@ -100,6 +88,47 @@ readonly class ViewResponse implements Response
         self::sendAll($this->headers);
 
         echo $markup;
+    }
+
+    /**
+     * The markup this response answers $request with, without sending it — {@link self::send()}'s
+     * public twin.
+     *
+     * A fragment led by its `<title>` for a request {@link RequestedWith} marks as Navigation's, the
+     * whole document in the app's shell otherwise, and in the language the request is answered in
+     * either way. It is what a static export writes to disk, and what a test asserts on without
+     * catching output.
+     *
+     * @param Request $request
+     * @return string
+     */
+    public function render(Request $request): string
+    {
+        $language = $request->language();
+
+        // The fragment leads with a <title> so Navigation can read the new page title out of it —
+        // an element like any other, so the title is escaped by the same rule as everything else.
+        $body = $request->isAjax()
+            ? new Fragment(
+                new Element(HtmlTag::Title)->containing($this->view->pageTitle()),
+                $this->view->content(),
+            )
+            : App::current()->shell()->document($this->view, $language);
+
+        // The language is passed in as well as stated on <html lang>, because a fragment has no
+        // <html>: without it, the first translated text in the fragment would have no scope.
+        return $body->render(0, $language);
+    }
+
+    /**
+     * The status this response is sent with — which a static export asks, because a file on a
+     * static host is always a 200.
+     *
+     * @return HttpStatusCode
+     */
+    public function status(): HttpStatusCode
+    {
+        return $this->status;
     }
 
     /**
