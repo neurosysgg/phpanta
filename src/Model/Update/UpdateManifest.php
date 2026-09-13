@@ -26,7 +26,7 @@ use Phpanta\Exception\UpdateException;
  * It is parsed strictly. Every key must be present and of the right type; there are no defaults and
  * no coercions, because a missing `mirror` defaulting to false would be an update that silently
  * stopped deleting, and a missing `apply` defaulting to true would be a dry run that was not one.
- * {@link \NeuroSYS\Tool\Http\JsonBody} on the tooling side answers `''` and `0` for an absent key,
+ * {@link \Phpanta\Tool\Http\JsonBody} on the tooling side answers `''` and `0` for an absent key,
  * which is right for reading somebody else's API and wrong for reading a security boundary.
  */
 final readonly class UpdateManifest

@@ -29,7 +29,7 @@ use Phpanta\Text\Language;
  * rather than a string nobody read. See docs/history/markup.md.
  *
  * **There is a second tree in this repo, and it is deliberately not this one.** The release tooling
- * emits `data/releases.php` through an expression tree of its own, `NeuroSYS\Tool\Php\Expression`,
+ * emits `data/releases.php` through an expression tree of its own, `Phpanta\Tool\Php\Expression`,
  * which answers for PHP source the objection this answers for markup — nothing builds a language by
  * concatenating it — and which states the same indentation contract as {@link self::render()} does,
  * in a parameter of its own shape.

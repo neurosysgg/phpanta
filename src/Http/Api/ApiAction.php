@@ -16,7 +16,7 @@ use Phpanta\Model\Api\VerifiedRequest;
  * its enum: `patch` means nothing on its own, and a shared list would have to be filtered by
  * service at every use, which is the check a type makes for free.
  *
- * The shape is {@link \NeuroSYS\Tool\Cli\Option}'s, arrived at the same way: several enums that are
+ * The shape is {@link \Phpanta\Tool\Cli\Option}'s, arrived at the same way: several enums that are
  * interchangeable at one call site, with the interface saying so. {@link ApiService::action()} is
  * that call site, and it is the only place a service is mapped to its own set.
  */

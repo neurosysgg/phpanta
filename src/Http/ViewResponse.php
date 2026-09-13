@@ -39,7 +39,7 @@ readonly class ViewResponse implements Response
      *                                annotation was the only thing saying what the array held, on
      *                                a constructor four call sites reach from outside this
      *                                namespace. It is the same move the outbound
-     *                                {@link \NeuroSYS\Tool\Http\Request} already made for the
+     *                                {@link \Phpanta\Tool\Http\Request} already made for the
      *                                headers it sends.
      */
     public function __construct(
