@@ -6,6 +6,7 @@ namespace Phpanta\Model\Health;
 
 use Closure;
 use Phpanta\Exception\RequirementException;
+use Phpanta\Exception\SiteException;
 
 /**
  * The ExtensionRequirement class. An extension an installation needs, and optionally the proof that
@@ -37,6 +38,8 @@ final readonly class ExtensionRequirement implements Requirement
      * @param Level $level
      * @param Closure(): bool|null $proof Whether the extension does what this installation needs,
      *                                    asked by doing it. Null to settle for its being registered.
+     *                                    One of the framework's own exceptions thrown from it is
+     *                                    read as the proof failing; anything else is a bug in it.
      *
      * @throws RequirementException if $name is empty.
      */
@@ -88,7 +91,21 @@ final readonly class ExtensionRequirement implements Requirement
     public function check(): Finding
     {
         $registered = extension_loaded($this->name);
-        $met        = $this->proof === null ? $registered : ($this->proof)() === true;
+
+        // A check never throws: nothing catches it, so one throw is a 500 for the whole report. A
+        // proof that fails in one of the framework's own ways has failed, and says how.
+        try {
+            $met = $this->proof === null ? $registered : ($this->proof)() === true;
+        } catch (SiteException $thrown) {
+            return new Finding(
+                sprintf(
+                    '%s, but its proof threw: %s',
+                    $registered ? 'registered' : 'not registered',
+                    $thrown->getMessage(),
+                ),
+                false,
+            );
+        }
 
         return new Finding(match (true) {
             $met && $registered => (string) phpversion($this->name),

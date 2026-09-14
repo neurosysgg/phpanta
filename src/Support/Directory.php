@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Phpanta\Support;
 
+use Phpanta\Exception\FilesystemException;
+
 /**
  * The Directory class. The other half of {@link File}: a path that holds files.
  *
@@ -37,12 +39,16 @@ final readonly class Directory
      *
      * @param string $prefix Prepended to the random part, e.g. `update-test-`.
      * @return self
+     * @throws FilesystemException if it cannot be created — rather than handing back a directory that
+     *                             is not there, for the first write into it to fail somewhere else.
      */
     public static function temporary(string $prefix): self
     {
         $directory = new self(sys_get_temp_dir() . '/' . $prefix . bin2hex(random_bytes(6)));
 
-        $directory->create(0o700);
+        if (!$directory->create(0o700)) {
+            throw new FilesystemException(sprintf('A temporary directory cannot be created at %s.', $directory->path));
+        }
 
         return $directory;
     }
@@ -171,7 +177,15 @@ final readonly class Directory
         }
 
         foreach ($this->entries() as $name) {
-            if (!$this->file($name)->delete()) {
+            $entry = $this->file($name);
+
+            // `.`, `..` and a subdirectory are passed over: this never descends, and a subdirectory
+            // left inside is what makes the rmdir() below refuse. A link is removed as a link.
+            if (is_dir($entry->path) && !is_link($entry->path)) {
+                continue;
+            }
+
+            if (!$entry->delete()) {
                 return false;
             }
         }
@@ -183,7 +197,7 @@ final readonly class Directory
      * Every name in this directory, or none where it cannot be read.
      *
      * `.` and `..` among them, harmlessly: both are directories, so neither is ever a file
-     * {@link self::files()} answers or {@link self::remove()} deletes.
+     * {@link self::files()} answers, and {@link self::remove()} passes over every directory.
      *
      * @return list<string>
      */

@@ -681,7 +681,8 @@ trait TypedItems
      *
      * `$callback(...)` normalises anything callable to a `Closure` first, which is what makes this
      * work for a plain arrow function, a first-class callable of a **private** method
-     * (`$this->row(...)`), a static one (`self::card(...)`) and an internal function alike.
+     * (`$this->row(...)`), a static one (`self::card(...)`) and an internal function alike. A
+     * `: static` return is read off the class the callable was called on.
      *
      * A union or intersection type is not a `ReflectionNamedType`; a nullable one is, and so is
      * `mixed`, both of which report `allowsNull()`. All three are refused rather than guessed at:
@@ -694,7 +695,8 @@ trait TypedItems
      */
     private static function mappedType(callable $callback): string
     {
-        $declared = new ReflectionFunction($callback(...))->getReturnType();
+        $function = new ReflectionFunction($callback(...));
+        $declared = $function->getReturnType();
 
         if (!$declared instanceof ReflectionNamedType) {
             throw new CollectionException(sprintf(
@@ -711,7 +713,11 @@ trait TypedItems
             ));
         }
 
-        return $declared->getName();
+        // PHP resolves `self` and `parent` for the reflection; `static` it leaves as the word, and
+        // what the word means is the class the callable was called on.
+        return $declared->getName() === 'static'
+            ? $function->getClosureCalledClass()->getName()
+            : $declared->getName();
     }
 
     /**

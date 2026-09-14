@@ -333,6 +333,12 @@ final class RequirementTest extends TestCase
             'registered, but its proof fails',
             false,
         ];
+        yield 'registered, proof throws'     => [
+            'Core',
+            static fn(): bool => throw new RequirementException('no build of it here'),
+            'registered, but its proof threw: no build of it here',
+            false,
+        ];
         yield 'not registered, proof holds'  => [
             self::NO_SUCH_EXTENSION,
             static fn(): bool => true,

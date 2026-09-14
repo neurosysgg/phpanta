@@ -495,8 +495,8 @@ final class DatabaseTest extends TestCase
     {
         $database = $this->notes();
 
-        $this->expectException(PDOException::class);
-        $this->expectExceptionMessage('FOREIGN KEY constraint failed');
+        $this->expectException(DatabaseException::class);
+        $this->expectExceptionMessageMatches("/^'INSERT INTO notes .+' failed on .+FOREIGN KEY constraint failed/");
 
         $database->execute(new Sql(
             'INSERT INTO notes (author, title) VALUES (:author, :title)',
@@ -575,8 +575,10 @@ final class DatabaseTest extends TestCase
                 new Sql('INSERT INTO later (author) VALUES (:author)', author: 99),
             ));
             self::fail('A commit that broke a foreign key succeeded.');
-        } catch (PDOException $refused) {
+        } catch (DatabaseException $refused) {
+            self::assertStringContainsString("'COMMIT' failed on", $refused->getMessage());
             self::assertStringContainsString('FOREIGN KEY constraint failed', $refused->getMessage());
+            self::assertInstanceOf(PDOException::class, $refused->getPrevious());
         }
 
         self::assertSame(0, $database->first(
@@ -692,7 +694,7 @@ final class DatabaseTest extends TestCase
         try {
             (void) $migrations->apply($database);
             self::fail('A migration that throws was applied.');
-        } catch (PDOException $refused) {
+        } catch (DatabaseException $refused) {
             self::assertStringContainsString('table half already exists', $refused->getMessage());
         }
 

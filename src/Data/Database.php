@@ -28,7 +28,9 @@ use Phpanta\Support\File;
  * Every connection is opened with the same settings, and each one is there because its default
  * fails quietly:
  *
- * - **Errors are exceptions**, so a failed statement is never a `false` nobody checked.
+ * - **Errors are exceptions**, so a failed statement is never a `false` nobody checked — and each
+ *   one leaves here a {@link DatabaseException} naming the statement, the driver's own kept as its
+ *   cause: a `PDOException` is no {@link \Phpanta\Exception\SiteException}, and none gets out.
  * - **Prepares are the driver's**, not PDO's emulation, so a value is bound and never spliced into
  *   the text; and **values come back typed**, not stringified, which {@link Row}'s readers depend on.
  * - **Rows are fetched `FETCH_NAMED`**, so a column two joined tables both name is kept twice and
@@ -144,8 +146,9 @@ final readonly class Database
      * **Proved by using it**, the standard `PhpExtension` keeps: PDO is asked whether it can open
      * SQLite at all, and then a connection opened the way every one here is opened is asked whether
      * it enforces foreign keys — `extension_loaded()` answers about a name, and neither question is
-     * about a name. Each half is asked only once the one before it has answered yes, so the proof
-     * never throws, which a requirement's check must not.
+     * about a name. Each half is asked only once the one before it has answered yes. The one throw
+     * left — a connection that will not open at all — is a {@link DatabaseException}, which
+     * {@link ExtensionRequirement::check()} reads as a proof that failed.
      *
      * It is not in the framework's floor, because a host without SQLite is not broken for a site
      * that keeps no database, and a floor that failed it would say so.
@@ -175,18 +178,24 @@ final readonly class Database
      * @param Sql              $sql
      * @param Closure(Row): T  $map
      * @return Collection<T>
+     * @throws DatabaseException if SQLite refuses the statement.
      */
     #[NoDiscard('select() answers with what it read and changes nothing, so a dropped result read it for nothing')]
     public function select(Sql $sql, Closure $map): Collection
     {
-        $statement = $this->run($sql);
-        $rows      = [];
+        /** @var Collection<Row> $rows */
+        $rows = $this->attempt($sql->prepared, function () use ($sql): Collection {
+            $statement = $this->run($sql);
+            $rows      = [];
 
-        while (($values = $statement->fetch()) !== false) {
-            $rows[] = new Row($values);
-        }
+            while (($values = $statement->fetch()) !== false) {
+                $rows[] = new Row($values);
+            }
 
-        return new Collection(Row::class)->with(...$rows)->map($map)->settled();
+            return new Collection(Row::class)->with(...$rows);
+        });
+
+        return $rows->map($map)->settled();
     }
 
     /**
@@ -201,16 +210,21 @@ final readonly class Database
      * @param Sql              $sql
      * @param Closure(Row): T  $map
      * @return T|null
+     * @throws DatabaseException if SQLite refuses the statement.
      */
     #[NoDiscard('first() answers with what it read and changes nothing, so a dropped result read it for nothing')]
     public function first(Sql $sql, Closure $map): mixed
     {
-        $statement = $this->run($sql);
-        $values    = $statement->fetch();
+        $row = $this->attempt($sql->prepared, function () use ($sql): ?Row {
+            $statement = $this->run($sql);
+            $values    = $statement->fetch();
 
-        $statement->closeCursor();
+            $statement->closeCursor();
 
-        return $values === false ? null : $map(new Row($values));
+            return $values === false ? null : new Row($values);
+        });
+
+        return $row === null ? null : $map($row);
     }
 
     /**
@@ -218,10 +232,11 @@ final readonly class Database
      *
      * @param Sql $sql
      * @return int
+     * @throws DatabaseException if SQLite refuses the statement — a constraint it breaks, say.
      */
     public function execute(Sql $sql): int
     {
-        return $this->run($sql)->rowCount();
+        return $this->attempt($sql->prepared, fn(): int => $this->run($sql)->rowCount());
     }
 
     /**
@@ -263,6 +278,7 @@ final readonly class Database
      * @return T What $work returned.
      *
      * @throws SqlException if a transaction is already open on this connection.
+     * @throws DatabaseException if SQLite will not begin it, or refuses the commit.
      */
     public function transaction(Closure $work): mixed
     {
@@ -273,16 +289,16 @@ final readonly class Database
             );
         }
 
-        $this->pdo->exec('BEGIN IMMEDIATE');
+        $this->exec('BEGIN IMMEDIATE');
         $committed = false;
 
         try {
             $result = $work($this);
-            $this->pdo->exec('COMMIT');
+            $this->exec('COMMIT');
             $committed = true;
         } finally {
             if (!$committed && $this->pdo->inTransaction()) {
-                $this->pdo->exec('ROLLBACK');
+                $this->exec('ROLLBACK');
             }
         }
 
@@ -316,17 +332,55 @@ final readonly class Database
             );
         }
 
-        $this->pdo->exec(self::FOREIGN_KEYS_OFF);
+        $this->exec(self::FOREIGN_KEYS_OFF);
 
         try {
             return $work($this);
         } finally {
-            $this->pdo->exec(self::FOREIGN_KEYS_ON);
+            $this->exec(self::FOREIGN_KEYS_ON);
         }
     }
 
     /**
-     * Prepares $sql, binds its parameters and runs it.
+     * $work, with a failure of the driver's turned into a {@link DatabaseException} naming $statement
+     * and this database, the driver's own exception kept as its cause.
+     *
+     * The statement is named as it was prepared, placeholders and all: a value is bound and never
+     * spliced into the text, so a message never quotes what a visitor sent.
+     *
+     * @template T
+     * @param string       $statement
+     * @param Closure(): T $work
+     * @return T
+     * @throws DatabaseException
+     */
+    private function attempt(string $statement, Closure $work): mixed
+    {
+        try {
+            return $work();
+        } catch (PDOException $cause) {
+            throw new DatabaseException(
+                sprintf("'%s' failed on %s: %s", $statement, $this->name, $cause->getMessage()),
+                0,
+                $cause,
+            );
+        }
+    }
+
+    /**
+     * Runs a statement with no parameters and no rows: a pragma, or a transaction's own.
+     *
+     * @param string $statement
+     * @return void
+     * @throws DatabaseException
+     */
+    private function exec(string $statement): void
+    {
+        $this->attempt($statement, fn(): int|false => $this->pdo->exec($statement));
+    }
+
+    /**
+     * Prepares $sql, binds its parameters and runs it — inside {@link self::attempt()}, always.
      *
      * @param Sql $sql
      * @return PDOStatement

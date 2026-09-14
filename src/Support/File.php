@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\Support;
 
 use NoDiscard;
+use Phpanta\Exception\InvalidValueException;
 
 /**
  * The File class. A path on disk, and the handful of things an app does with one.
@@ -67,13 +68,23 @@ final readonly class File
      * inherited. Null reads the file whole, which is every other caller: their paths come from
      * the app and are as long as they are.
      *
+     * A directory has no contents to read, and is null too: PHP opens one, and reads `''` from it.
+     *
      * @param int|null $limit The most bytes to read, or null for the whole file.
      * @return string|null
+     * @throws InvalidValueException if $limit is less than nothing — PHP's own answer is a ValueError.
      */
     public function read(?int $limit = null): ?string
     {
+        if ($limit !== null && $limit < 0) {
+            throw new InvalidValueException(sprintf('A read of %d bytes asks for less than nothing.', $limit));
+        }
+
+        // Asked inside the muted call, because a stream such as `php://input` may not answer a stat.
         $contents = Diagnostics::muted(
-            fn(): string|false => file_get_contents($this->path, false, null, 0, $limit),
+            fn(): string|false => is_dir($this->path)
+                ? false
+                : file_get_contents($this->path, false, null, 0, $limit),
         );
 
         return $contents === false ? null : $contents;
@@ -94,9 +105,14 @@ final readonly class File
      *
      * @param int $bytes The most bytes to read, counted back from the end.
      * @return string|null
+     * @throws InvalidValueException if $bytes is less than nothing, as {@link self::read()} refuses.
      */
     public function tail(int $bytes): ?string
     {
+        if ($bytes < 0) {
+            throw new InvalidValueException(sprintf('A tail of %d bytes asks for less than nothing.', $bytes));
+        }
+
         $offset   = max(0, $this->size() - $bytes);
         $contents = Diagnostics::muted(
             fn(): string|false => file_get_contents($this->path, false, null, $offset, $bytes),
@@ -267,12 +283,26 @@ final readonly class File
     /**
      * Removes the file, if it is there.
      *
-     * @return bool False if there was something here and it could not be removed. A file that was
-     *              never there is a success: the postcondition is what is being asked for.
+     * Asked of the name, not of what it points at: a link whose target is gone is still a link, and
+     * removing it is removing the link. A directory is something here this does not remove —
+     * {@link Directory::remove()} does — so it answers false rather than a success over a directory
+     * still standing.
+     *
+     * @return bool False if there was something here and it could not be removed, or it is a
+     *              directory. A file that was never there is a success: the postcondition is what is
+     *              being asked for.
      */
     public function delete(): bool
     {
-        return !$this->exists() || Diagnostics::muted(fn(): bool => unlink($this->path));
+        if (is_link($this->path)) {
+            return Diagnostics::muted(fn(): bool => unlink($this->path));
+        }
+
+        if (is_dir($this->path)) {
+            return false;
+        }
+
+        return !file_exists($this->path) || Diagnostics::muted(fn(): bool => unlink($this->path));
     }
 
     /**

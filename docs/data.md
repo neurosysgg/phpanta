@@ -24,7 +24,8 @@ Three exceptions go with them, all in `Phpanta\Exception`. `DatabaseException` (
 means a database cannot be opened. `SqlException` (a `LogicException`) means a statement, a read or a
 transaction is written wrong. `MigrationException` (a `LogicException`) means a list of migrations
 disagrees with the history the database records. **A statement SQLite refuses is none of these.** A
-syntax error or a broken constraint arrives as PHP's own `PDOException`, which keeps the SQLSTATE.
+syntax error or a broken constraint arrives as a `DatabaseException` naming the statement, with PHP's
+own `PDOException`, which keeps the SQLSTATE, as its cause.
 
 ## The rules it keeps
 

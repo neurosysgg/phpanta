@@ -9,6 +9,8 @@ use DateTime;
 use DateTimeImmutable;
 use Generator;
 use Phpanta\Exception\CollectionException;
+use Phpanta\Exception\FilesystemException;
+use Phpanta\Exception\InvalidValueException;
 use Phpanta\Http\Security\CspSource;
 use Phpanta\Http\Security\CspSourceList;
 use Phpanta\Support\Collection;
@@ -582,6 +584,23 @@ final class SupportTest extends TestCase
         $this->expectExceptionMessageMatches('/declares none/');
 
         (void) new Collection('int')->map(static fn(int $n) => $n);
+    }
+
+    /**
+     * A callback declared `: static` maps to the class it was called on. PHP resolves `self` and
+     * `parent` for the reflection, and leaves `static` as the word, which names no class.
+     *
+     * @return void
+     */
+    public function testMapReadsAStaticReturnOffTheClassItWasCalledOn(): void
+    {
+        $mapped = new Collection('int')->with(1, 2)->map(new CountFixture(10)->plus(...));
+
+        self::assertSame(CountFixture::class, $mapped->type);
+        self::assertSame(
+            [11, 12],
+            $mapped->map(static fn(CountFixture $count): int => $count->count)->toValues(),
+        );
     }
 
     /**
@@ -1442,6 +1461,84 @@ final class SupportTest extends TestCase
     }
 
     /**
+     * A directory is something there that deleting a file does not remove, so it answers false
+     * rather than a success over a directory still standing.
+     *
+     * @return void
+     */
+    public function testDeletingADirectoryAsAFileAnswersFalseAndLeavesIt(): void
+    {
+        $directory = Directory::temporary('phpanta-support-');
+
+        try {
+            self::assertFalse(new File($directory->path)->delete());
+            self::assertTrue($directory->exists());
+        } finally {
+            $directory->remove();
+        }
+    }
+
+    /**
+     * A link whose target is gone is there all the same, and deleting it removes the link: it is no
+     * file, and it was not "never there".
+     *
+     * @return void
+     */
+    public function testDeletingALinkWhoseTargetIsGoneRemovesTheLink(): void
+    {
+        $directory = Directory::temporary('phpanta-support-');
+        $link      = $directory->file('dangling');
+
+        try {
+            self::assertTrue(symlink($directory->path . '/nowhere', $link->path));
+            self::assertTrue($link->delete());
+            self::assertFalse(is_link($link->path));
+        } finally {
+            $directory->remove();
+        }
+    }
+
+    /**
+     * A directory has no contents to read. PHP opens one and reads `''`; this answers null, as for
+     * anything else with nothing to tell.
+     *
+     * @return void
+     */
+    public function testADirectoryReadsAsNothing(): void
+    {
+        $directory = Directory::temporary('phpanta-support-');
+
+        try {
+            self::assertNull(new File($directory->path)->read());
+        } finally {
+            $directory->remove();
+        }
+    }
+
+    /**
+     * A length below nothing is a mistake in the code that asked, refused as one rather than left to
+     * PHP's own `ValueError`.
+     *
+     * @return void
+     */
+    public function testAReadOfLessThanNothingIsRefused(): void
+    {
+        $this->expectException(InvalidValueException::class);
+
+        (void) new File('/x/never-existed.txt')->read(-1);
+    }
+
+    /**
+     * @return void
+     */
+    public function testATailOfLessThanNothingIsRefused(): void
+    {
+        $this->expectException(InvalidValueException::class);
+
+        (void) new File('/x/never-existed.txt')->tail(-1);
+    }
+
+    /**
      * @return void
      */
     public function testAnExtensionIsLowerCasedAndAFileWithoutOneHasNone(): void
@@ -1585,6 +1682,27 @@ final class SupportTest extends TestCase
         } finally {
             $one->remove();
             $two->remove();
+        }
+    }
+
+    /**
+     * One that cannot be created is refused, rather than handed back to fail at the first write into
+     * it — reached by asking for one inside a file.
+     *
+     * @return void
+     */
+    public function testATemporaryDirectoryThatCannotBeCreatedIsRefused(): void
+    {
+        $blocker = new File(sys_get_temp_dir() . '/phpanta-support-blocker-' . bin2hex(random_bytes(6)));
+
+        self::assertTrue($blocker->write('x'));
+
+        try {
+            $this->expectException(FilesystemException::class);
+
+            (void) Directory::temporary(basename($blocker->path) . '/inside-');
+        } finally {
+            $blocker->delete();
         }
     }
 

@@ -442,7 +442,7 @@ replace a variadic. The whole of it is in [collections.md](collections.md).
 ## Exceptions
 
 Every condition the framework can be in has a name, and all of them live in `Phpanta\Exception`.
-Twenty-two classes — one of them abstract — and one interface, read from `src/Exception/`:
+Twenty-five classes — one of them abstract — and one interface, read from `src/Exception/`:
 
 | Class | Extends | Thrown when | Thrown by |
 |---|---|---|---|
@@ -451,7 +451,8 @@ Twenty-two classes — one of them abstract — and one interface, read from `sr
 | `ApiException` | `RuntimeException` | a signed request cannot be read or trusted | `ApiCredential`, `ApiEnvelope` |
 | ` └ UpdateException` | `ApiException` | a payload cannot be read or applied; a webroot cannot be resolved; a previous release cannot be recorded or put back | `App::webroot()`, `PublicKey`, `TarArchive`, `UpdateApplier`, `UpdateManifest`, `ReleaseRecord`, `PreviousRelease`, `RecordEntry`, `ApplyManifest` |
 | `CollectionException` | `TypeError` | a collection is asked to hold or produce the wrong type | `TypedItems` |
-| `DatabaseException` | `RuntimeException` | a database cannot be opened, or a file opened as one is not one | `Database` |
+| `DatabaseException` | `RuntimeException` | a database cannot be opened, or a file opened as one is not one; SQLite refuses a statement, which it names | `Database` |
+| `FilesystemException` | `RuntimeException` | a directory the framework works in cannot be created | `Directory` |
 | `FormException` | `LogicException` | a form is declared with what it cannot be, or asked for another form's field | `Form`, `Submission`, `MaxLength`, `MaxBytes`, `OneOf` |
 | `GuidelineException` | `InvalidArgumentException` | an excuse for a guideline has no reason, or no subject | `BareArray`, `BareString`, `BareCall` |
 | `InputException` | `UnexpectedValueException` | what a query string or a form sent cannot be read as asked — answered with a 400 | `Input`, `Request`, `MultipartParameters` |
@@ -478,15 +479,15 @@ specialises — a `MarkupException` for a component that cannot draw what it was
 framework counterpart, the SPL class it replaces plus `SiteException`. Either way the family's
 `catch` still covers it, and the last-resort handler still reports it as the site's own.
 
-**`SiteException` is an interface because the inheritance chain is already spent.** Nineteen classes
-declare it and the three under `MarkupException` and `ApiException` inherit it; of the nineteen,
-eleven are a `LogicException`, five a `RuntimeException`, one a `TypeError`, one an
+**`SiteException` is an interface because the inheritance chain is already spent.** Twenty-one
+classes declare it and the four under `MarkupException`, `ApiException` and `InputException` inherit
+it; of the twenty-one, eleven are a `LogicException`, seven a `RuntimeException`, one a `TypeError`, one an
 `InvalidArgumentException` and one an `UnexpectedValueException` — each saying something true — so
 the question *did this come from us* has nowhere else to live. It matters more than it looks:
 `CollectionException extends TypeError` extends **`Error`**, a sibling of `Exception` rather than a
 subclass, so `catch (Exception)` — the widest net anybody reaches for by habit — misses one of the
-twenty-one concrete classes, silently, in the class most likely to be thrown by a mistake made five
-minutes ago. Only `Throwable` catches all twenty-one, and `Throwable` also catches everything PHP
+twenty-four concrete classes, silently, in the class most likely to be thrown by a mistake made five
+minutes ago. Only `Throwable` catches all twenty-four, and `Throwable` also catches everything PHP
 raises. This interface is the difference, and
 the last-resort handler in a site's `public/index.php` is what it is for.
 
