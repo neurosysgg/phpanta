@@ -21,8 +21,8 @@ use Closure;
  *   expression, at any severity, including from a call nested inside it and including a class
  *   nobody anticipated — an `E_DEPRECATED` arriving with a PHP upgrade is silenced by the same
  *   character that was written for a missing file. {@link self::MUTED} names the severities this
- *   handles, and the handler answers `false` for everything else, which hands it back to PHP
- *   exactly as though nothing were installed.
+ *   handles, and everything else goes on to whatever handler was installed before this one — or,
+ *   with none, to PHP — exactly as though this were not there.
  * - **It cannot answer for one call.** `error_get_last()` is process-global and sticky: it reports
  *   the last diagnostic raised anywhere, so "did *this* call warn, and what did it say" is a
  *   question it cannot be asked. {@link self::watched()} answers it, which is what
@@ -81,9 +81,7 @@ final readonly class Diagnostics
      */
     public static function muted(Closure $operation): mixed
     {
-        // A first-class callable rather than a closure around it: PHP hands a userland callback the
-        // other three arguments harmlessly, and this one wants none of them.
-        set_error_handler(self::handles(...));
+        self::install(static fn(int $severity): bool => self::handles($severity));
 
         try {
             return $operation();
@@ -110,7 +108,7 @@ final readonly class Diagnostics
     {
         $reported = [];
 
-        set_error_handler(static function (int $severity, string $message) use (&$reported): bool {
+        self::install(static function (int $severity, string $message) use (&$reported): bool {
             $handled = self::handles($severity);
 
             if ($handled) {
@@ -130,15 +128,53 @@ final readonly class Diagnostics
     }
 
     /**
+     * Installs $claim in front of whatever handler was installed before it, which gets every
+     * diagnostic $claim does not take.
+     *
+     * A handler that answers `false` does not reach the handler it replaced: PHP goes straight to its
+     * own reporting. Without the hand-on, a muted call would hide an unclaimed deprecation from every
+     * handler above it — a test runner's, which is how a suite failing on deprecations would miss one
+     * raised inside a muted closure, or a site's logger. With no handler before it, `false` reaches
+     * PHP, as it always did.
+     *
+     * The previous handler is called whatever severities it was installed for, which PHP does not
+     * say; a handler asked about one it did not want answers `false`, and PHP reports it.
+     *
+     * @param Closure(int, string): bool $claim Whether it takes the diagnostic.
+     * @return void
+     */
+    private static function install(Closure $claim): void
+    {
+        $previous = null;
+        $previous = set_error_handler(
+            static function (
+                int    $severity,
+                string $message,
+                string $file = '',
+                int    $line = 0,
+            ) use (
+                $claim,
+                &$previous,
+            ): bool {
+                if ($claim($severity, $message)) {
+                    return true;
+                }
+
+                return $previous !== null && $previous($severity, $message, $file, $line) !== false;
+            },
+        );
+    }
+
+    /**
      * Whether this is a severity this class claims.
      *
      * The whole decision, in one place, because both members make it and a handler that disagreed
      * with its sibling about what "handled" means would be the subtlest possible version of the bug
      * this class exists to prevent.
      *
-     * Answering `false` is what hands the diagnostic back to PHP untouched, which is the half `@`
-     * has no version of — and it is why {@link self::MUTED} is a list of what *is* claimed rather
-     * than a list of what is not.
+     * Not claiming is what hands the diagnostic on untouched — see {@link self::install()} — which is
+     * the half `@` has no version of, and it is why {@link self::MUTED} is a list of what *is*
+     * claimed rather than a list of what is not.
      *
      * @param int $severity
      * @return bool

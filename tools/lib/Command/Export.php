@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\Tool\Command;
 
 use Phpanta\App;
+use Phpanta\Controller\Layered;
 use Phpanta\Http\HttpStatusCode;
 use Phpanta\Http\Request;
 use Phpanta\Http\ViewResponse;
@@ -24,7 +25,8 @@ use ReflectionClass;
  * The Export command. Renders an app's pages, and the assets they load, into a static site.
  *
  * **Every page is the one the running site would send**: the route's own controller answers a
- * {@link Request::synthetic()} request, and {@link ViewResponse::render()} writes the body
+ * {@link Request::synthetic()} request inside every layer the router would have put around it —
+ * the app's, then the route's — and {@link ViewResponse::render()} writes the body
  * {@link ViewResponse::answer()} would have — so there is no second renderer to drift. Which routes
  * are pages is the route's to say, see {@link \Phpanta\Support\Route::exportedPaths()}; the rest —
  * the API, a download's redirect, anything behind a password — has no business on a static host,
@@ -204,11 +206,15 @@ final readonly class Export implements Command
                 foreach ($this->app->languageAddresses()->exported($path, $languages) as $address) {
                     $path     = $address->address;
                     $request  = Request::synthetic($path, $address->language);
-                    $response = $route->createController($params)->handle($request);
+                    $response = Layered::around(
+                        $this->app->layerTable(),
+                        Layered::around($route->layers(), $route->createController($params)),
+                    )->handle($request);
 
-                    // A route behind a password lands here too: the export's request carries no
-                    // credential, so its answer is the 401, and a refusal written to a file would be
-                    // served to everyone as the page.
+                    // A route behind a password lands here too — a gate on the route as much as one
+                    // in its controller, since the layers above are the router's: the export's
+                    // request carries no credential, so its answer is the refusal, and a refusal
+                    // written to a file would be served to everyone as the page.
                     if (!$response instanceof ViewResponse || $response->status() !== HttpStatusCode::Ok) {
                         return sprintf(
                             '%s is exported, and answers with a %d (%s) rather than a page with a 200 — a'

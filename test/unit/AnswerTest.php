@@ -7,6 +7,8 @@ namespace Phpanta\Test\Unit;
 use Phpanta\App;
 use Phpanta\Controller\ApiController;
 use Phpanta\Controller\UnroutedController;
+use Phpanta\Exception\SecurityPolicyException;
+use Phpanta\Http\Allow;
 use Phpanta\Http\Answer;
 use Phpanta\Http\FileBody;
 use Phpanta\Http\FileResponse;
@@ -365,13 +367,35 @@ final class AnswerTest extends TestCase
             new Collection(Header::class)->with(new Header(ResponseHeader::Location, new Location('/own'))),
             new TextBody('body'),
         );
-        $first  = new Collection(Header::class)->with(new Header(ResponseHeader::Location, new Location('/first')));
+        $first  = new Collection(Header::class)->with(new Header(ResponseHeader::Allow, Allow::readOnly()));
         $led    = $answer->withHeadersFirst($first);
 
-        self::assertSame(['Location: /first', 'Location: /own'], self::lines($led));
+        self::assertSame(['Allow: ' . Allow::readOnly()->render(), 'Location: /own'], self::lines($led));
         self::assertSame(['Location: /own'], self::lines($answer));
         self::assertSame(HttpStatusCode::Ok, $led->status());
         self::assertSame('body', $led->body());
+    }
+
+    /**
+     * A header put first that the answer carries too is refused: sent, the answer's own would be
+     * appended beside it, and two values of a security header are one list a browser parses as
+     * neither — so the protection is dropped with nothing to say so.
+     *
+     * @return void
+     */
+    public function testAHeaderPutFirstThatTheAnswerCarriesTooIsRefused(): void
+    {
+        $answer = new Answer(
+            HttpStatusCode::Ok,
+            new Collection(Header::class)->with(new Header(ResponseHeader::Location, new Location('/own'))),
+        );
+
+        $this->expectException(SecurityPolicyException::class);
+        $this->expectExceptionMessage('Location leads every answer, and this one carries its own as well');
+
+        (void) $answer->withHeadersFirst(
+            new Collection(Header::class)->with(new Header(ResponseHeader::Location, new Location('/first'))),
+        );
     }
 
     /**

@@ -702,6 +702,89 @@ final class DatabaseTest extends TestCase
     }
 
     /**
+     * The table rebuild SQLite documents — make the new table, copy, drop the old, rename — keeps
+     * every row that referred to the old table. With foreign keys on, the drop would have deleted
+     * them through the `ON DELETE CASCADE`, in silence: migrations run with them off, and the
+     * connection has them on again afterwards, now enforcing the rebuilt table.
+     *
+     * @return void
+     */
+    #[RequiresPhpExtension('pdo_sqlite')]
+    public function testRebuildingAReferencedTableKeepsWhatRefersToIt(): void
+    {
+        $database = Database::inMemory();
+
+        (void) new Migrations(
+            self::parentAndChild(),
+            self::migration(
+                'rebuild-parent',
+                'CREATE TABLE parent_new (id INTEGER PRIMARY KEY, name TEXT NOT NULL, note TEXT)',
+                'INSERT INTO parent_new (id, name) SELECT id, name FROM parent',
+                'DROP TABLE parent',
+                'ALTER TABLE parent_new RENAME TO parent',
+            ),
+        )->apply($database);
+
+        self::assertSame(1, self::wholeNumber($database, 'SELECT count(*) AS id FROM child'));
+        self::assertSame(1, self::wholeNumber($database, 'SELECT foreign_keys AS id FROM pragma_foreign_keys'));
+
+        $database->execute(new Sql('DELETE FROM parent'));
+        self::assertSame(0, self::wholeNumber($database, 'SELECT count(*) AS id FROM child'));
+    }
+
+    /**
+     * With foreign keys off, a migration could leave a reference naming nothing. It is checked
+     * before it commits, and one that does is undone and not recorded — and the connection has
+     * foreign keys on again however the run ended.
+     *
+     * @return void
+     */
+    #[RequiresPhpExtension('pdo_sqlite')]
+    public function testAMigrationThatLeavesABrokenReferenceIsUndone(): void
+    {
+        $database   = Database::inMemory();
+        $orphaning  = self::migration('orphan-the-child', 'DELETE FROM parent');
+        $migrations = new Migrations(self::parentAndChild(), $orphaning);
+
+        try {
+            (void) $migrations->apply($database);
+            self::fail('A migration that broke a reference was recorded.');
+        } catch (MigrationException $refused) {
+            self::assertStringContainsString(
+                'orphan-the-child leaves a row of child that names a row of parent that is not there',
+                $refused->getMessage(),
+            );
+        }
+
+        self::assertSame(1, self::wholeNumber($database, 'SELECT count(*) AS id FROM parent'));
+        self::assertSame([$orphaning], $migrations->pending($database)->toValues());
+        self::assertSame(1, self::wholeNumber($database, 'SELECT foreign_keys AS id FROM pragma_foreign_keys'));
+    }
+
+    /**
+     * Switching foreign keys off inside a transaction is refused: SQLite ignores the pragma there, so
+     * it would change nothing and say nothing.
+     *
+     * @return void
+     */
+    #[RequiresPhpExtension('pdo_sqlite')]
+    public function testForeignKeysCannotBeSwitchedOffInsideATransaction(): void
+    {
+        $database = Database::inMemory();
+
+        try {
+            (void) $database->transaction(
+                static fn(Database $database): mixed => $database->withoutForeignKeys(static fn(): null => null),
+            );
+            self::fail('Foreign keys were switched off inside a transaction.');
+        } catch (SqlException $refused) {
+            self::assertStringContainsString('inside a transaction', $refused->getMessage());
+        }
+
+        self::assertSame(1, self::wholeNumber($database, 'SELECT foreign_keys AS id FROM pragma_foreign_keys'));
+    }
+
+    /**
      * A list whose recorded history is not a prefix of it is refused, before anything runs.
      *
      * @return iterable<string, array{Closure(): Migrations, string}>
@@ -1005,11 +1088,78 @@ final class DatabaseTest extends TestCase
      */
     private static function notesIn(Database $database): int
     {
+        return self::wholeNumber($database, 'SELECT count(*) AS id FROM notes');
+    }
+
+    /**
+     * The one whole number $query answers, in a column named `id`; 0 where it answers no row.
+     *
+     * @param Database $database
+     * @param string   $query
+     * @return int
+     */
+    private static function wholeNumber(Database $database, string $query): int
+    {
         return $database->first(
-            new Sql('SELECT count(*) AS id FROM notes'),
+            new Sql($query),
             static fn(Row $row): int => $row->int(NoteColumnFixture::Id),
         ) ?? 0;
     }
+
+    /**
+     * A migration running $statements in order, recorded as $id.
+     *
+     * @param string $id
+     * @param string ...$statements
+     * @return Migration
+     */
+    private static function migration(string $id, string ...$statements): Migration
+    {
+        return new class ($id, $statements) implements Migration {
+            /**
+             * @param string       $id
+             * @param list<string> $statements
+             */
+            public function __construct(private string $id, private array $statements) {}
+
+            /**
+             * @return string
+             */
+            public function id(): string
+            {
+                return $this->id;
+            }
+
+            /**
+             * @param Database $database
+             * @return void
+             */
+            public function apply(Database $database): void
+            {
+                foreach ($this->statements as $statement) {
+                    $database->execute(new Sql($statement));
+                }
+            }
+        };
+    }
+
+    /**
+     * A parent row, and a child row referring to it that cascades on delete.
+     *
+     * @return Migration
+     */
+    private static function parentAndChild(): Migration
+    {
+        return self::migration(
+            'parent-and-child',
+            'CREATE TABLE parent (id INTEGER PRIMARY KEY, name TEXT NOT NULL)',
+            'CREATE TABLE child (id INTEGER PRIMARY KEY,'
+            . ' parent INTEGER NOT NULL REFERENCES parent (id) ON DELETE CASCADE)',
+            "INSERT INTO parent (id, name) VALUES (1, 'one')",
+            'INSERT INTO child (id, parent) VALUES (1, 1)',
+        );
+    }
+
 
     /**
      * Whether the database has a table of that name.

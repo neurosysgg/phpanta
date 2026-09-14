@@ -7,6 +7,8 @@ namespace Phpanta\Test\Unit;
 use ArrayObject;
 use DateTime;
 use DateTimeImmutable;
+use Generator;
+use Phpanta\Exception\CollectionException;
 use Phpanta\Http\Security\CspSource;
 use Phpanta\Http\Security\CspSourceList;
 use Phpanta\Support\Collection;
@@ -805,6 +807,44 @@ final class SupportTest extends TestCase
         );
     }
 
+    /**
+     * `withEach()` stores a whole map in one copy, and a key PHP made an integer of on the way in —
+     * whether the array handed over already holds it as one or a generator yields the string — comes
+     * back out as the string, as it does from `with()`. A later key replaces an earlier one.
+     *
+     * @return void
+     */
+    public function testWithEachStoresAWholeMapAndKeepsItsKeysStrings(): void
+    {
+        $map = new SearchableCollection('string')
+            ->with('ill', 'single')
+            ->withEach(['2024' => 'debut', 'ill' => 'again'])
+            ->withEach((static function (): Generator {
+                yield '7' => 'seven';
+            })());
+
+        self::assertSame(['ill', '2024', '7'], $map->toKeys());
+        self::assertSame(['again', 'debut', 'seven'], $map->toValues());
+        self::assertSame('debut', $map->find('2024'));
+    }
+
+    /**
+     * A batch with one item of the wrong type stores none of it.
+     *
+     * @return void
+     */
+    public function testWithEachRefusesTheWholeBatchForOneWrongItem(): void
+    {
+        $map = new SearchableCollection('string')->with('kept', 'yes');
+
+        try {
+            (void) $map->withEach(['a' => 'fine', 'b' => 2]);
+            self::fail('an int in a map of strings was stored');
+        } catch (CollectionException) {
+            self::assertSame(['kept'], $map->toKeys());
+        }
+    }
+
     // ─────────────────────── writing, listing, removing ───────────────────────
 
     /**
@@ -892,33 +932,63 @@ final class SupportTest extends TestCase
     }
 
     /**
-     * A deprecation is handed back to PHP rather than muted: it says a call will stop working, not
-     * that this one did not, and it is what `@` swallows by accident on a PHP upgrade. A warning —
-     * the failure a muted call exists to answer — is still muted.
+     * A deprecation is handed on rather than muted: it says a call will stop working, not that this
+     * one did not, and it is what `@` swallows by accident on a PHP upgrade. A warning — the failure a
+     * muted call exists to answer — is still muted.
      *
-     * Seen through error_get_last(), which records what a handler hands back to PHP and nothing a
-     * handler keeps. Both severities are out of error_reporting for the length of the test, so the
-     * one handed back is recorded and printed nowhere.
+     * Handed on to the handler installed before, not past it to PHP: answering `false` would skip
+     * every handler above this one — a test runner's among them, which is how a suite failing on
+     * deprecations would never see one raised inside a muted closure.
      *
      * @return void
      */
-    public function testADeprecationIsHandedBackAndAWarningIsNot(): void
+    public function testADeprecationIsHandedOnToThePreviousHandlerAndAWarningIsNot(): void
     {
-        $reporting = error_reporting(E_ALL & ~E_USER_DEPRECATED & ~E_USER_WARNING);
+        $seen = [];
+
+        set_error_handler(static function (int $severity, string $message) use (&$seen): bool {
+            $seen[] = $message;
+
+            return true;
+        });
+
+        try {
+            Diagnostics::muted(static fn(): bool => trigger_error('muted', E_USER_WARNING));
+            self::assertSame([], $seen);
+
+            Diagnostics::muted(static fn(): bool => trigger_error('handed on', E_USER_DEPRECATED));
+            self::assertSame(['handed on'], $seen);
+
+            $watched = Diagnostics::watched(
+                static fn(): bool => trigger_error('handed on, watched', E_USER_DEPRECATED),
+            );
+            self::assertTrue($watched->reported->isEmpty());
+            self::assertSame(['handed on', 'handed on, watched'], $seen);
+        } finally {
+            restore_error_handler();
+        }
+    }
+
+    /**
+     * A previous handler that declines what it is handed leaves it to PHP, as it would have without
+     * this class in front of it — seen through error_get_last(), which records what reaches PHP and
+     * nothing a handler keeps. The severity is out of error_reporting for the test, so it prints nowhere.
+     *
+     * @return void
+     */
+    public function testWhatThePreviousHandlerDeclinesReachesPhp(): void
+    {
+        set_error_handler(static fn(): bool => false);
+        $reporting = error_reporting(E_ALL & ~E_USER_DEPRECATED);
 
         try {
             error_clear_last();
-            Diagnostics::muted(static fn(): bool => trigger_error('muted', E_USER_WARNING));
-            self::assertNull(error_get_last());
-
-            Diagnostics::muted(static fn(): bool => trigger_error('handed back', E_USER_DEPRECATED));
+            Diagnostics::muted(static fn(): bool => trigger_error('declined', E_USER_DEPRECATED));
             self::assertSame(E_USER_DEPRECATED, error_get_last()['type'] ?? null);
-
-            $watched = Diagnostics::watched(static fn(): bool => trigger_error('handed back', E_USER_DEPRECATED));
-            self::assertTrue($watched->reported->isEmpty());
         } finally {
             error_reporting($reporting);
             error_clear_last();
+            restore_error_handler();
         }
     }
     // ─────────────────────────── One pass, fused ───────────────────────────

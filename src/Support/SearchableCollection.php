@@ -69,6 +69,40 @@ class SearchableCollection implements Countable, IteratorAggregate
     }
 
     /**
+     * Returns a copy of this collection with each of $items stored under its key — {@link self::with()}
+     * for a whole map at once, a later key replacing an earlier one as it would in an array.
+     *
+     * **One copy for the lot.** Every `with()` copies the store, so a map built a key at a time in a
+     * loop is quadratic in its size — harmless for a route table, a denial of service where the keys
+     * are what a request sent. Build the array, then call this once.
+     *
+     * An integer key is one PHP made of a string it was given, and comes back out as that string.
+     *
+     * @param iterable<array-key, T> $items
+     * @return static
+     * @throws CollectionException if any item is not an instance of the declared type. The copy is
+     *                     discarded with the exception, so a rejected batch cannot half-apply.
+     * @throws Throwable whatever a pending step throws, since running them comes first.
+     */
+    #[NoDiscard('withEach() copies rather than stores, so a call whose result goes nowhere does nothing')]
+    public function withEach(iterable $items): static
+    {
+        $copy        = clone $this;
+        $copy->items = $this->toArray();
+        $copy->steps = [];
+
+        foreach ($items as $key => $item) {
+            $this->guard($item);
+            $copy->items[$key] = $item;
+
+            // What PHP made of the key is asked of an array, as with() asks it, rather than guessed.
+            $copy->castsKeys = $copy->castsKeys || !is_string(array_key_first([$key => true]));
+        }
+
+        return $copy;
+    }
+
+    /**
      * Finds an item by its key, or returns null if not found.
      *
      * @param string $key

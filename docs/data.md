@@ -162,6 +162,13 @@ when it is not.
   whole, SQLite's schema changes being transactional, and it is not recorded. The next run tries it
   again. A migration must therefore not begin a transaction of its own, which would be refused as
   nesting anyway.
+- **Foreign keys are off while migrations run, and checked before each one commits.** SQLite
+  ignores `PRAGMA foreign_keys` inside a transaction, and with them on, the table rebuild SQLite
+  documents for a change `ALTER TABLE` cannot make — create the new table, copy, drop the old,
+  rename — has the drop delete every row that refers to the old table, through any
+  `ON DELETE CASCADE`, in silence. So the runner turns them off around the run and on again after
+  it, and each migration's transaction ends in `pragma_foreign_key_check`: a migration that leaves a
+  reference naming a missing row is a `MigrationException`, undone and not recorded.
 - **One statement per `execute()`.** An `Sql` refuses a second statement, so a migration that
   creates two tables makes two calls.
 - **Two requests at once apply each migration once.** The history is read again inside each

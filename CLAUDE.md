@@ -31,7 +31,8 @@ Plain PHP 8.5 / HTML / CSS, **no runtime dependencies**. PHP ≥ 8.5 is load-bea
 pipe operator in `autoload.php`, `#[\NoDiscard]` on the copy-returning builders, and `ext/uri`, the
 WHATWG and RFC 3986 parsers `Element` and `Request` put their URL questions to. The runtime also
 needs `ext/dom` (`MarkupParser`), `ext/intl` (`MessageFormatter`), `ext/openssl` (`PublicKey`, the
-API's signature check) and `ext/zlib` (`UpdateApplier`'s `gzdecode()`); `ext/curl` is tooling only.
+API's signature check), `ext/zlib` (`UpdateApplier`'s `gzdecode()`) and `ext/mbstring` (`Input`'s
+UTF-8 check — every form read); `ext/curl` is tooling only.
 Composer and npm are dev tooling; nothing on the PHP side is built, and composer never runs on the
 server.
 

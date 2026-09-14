@@ -75,7 +75,11 @@ final readonly class Input
      */
     public static function fromUrlEncoded(string $encoded): self
     {
-        $input = self::none();
+        // Gathered first and made into collections once. A collection's `with()` copies, so building
+        // one a pair at a time is quadratic in the pairs sent — and the pairs are the sender's to
+        // choose: a form of a few hundred kilobytes held a worker for its whole time limit.
+        $values   = [];
+        $repeated = [];
 
         foreach (explode('&', $encoded) as $pair) {
             if ($pair === '') {
@@ -86,14 +90,17 @@ final readonly class Input
             $name           = self::decoded($name);
             $value          = self::decoded($value);
 
-            $repeated = $input->values->find($name) !== null
-                ? $input->repeated->with($name)
-                : $input->repeated;
+            if (isset($values[$name])) {
+                $repeated[] = $name;
+            }
 
-            $input = new self($input->values->with($name, $value), $repeated);
+            $values[$name] = $value;
         }
 
-        return $input;
+        return new self(
+            new SearchableCollection('string')->withEach($values),
+            new Collection('string')->with(...$repeated),
+        );
     }
 
     /**

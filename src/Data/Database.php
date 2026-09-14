@@ -36,7 +36,8 @@ use Phpanta\Support\File;
  * - **Foreign keys are enforced** — SQLite's default is to parse a `REFERENCES` and ignore it, per
  *   connection. A build of SQLite without them ignores the request as well, and a schema whose
  *   constraints do nothing is exactly the silent failure; {@link self::requirement()}'s proof is
- *   where a host's SQLite is asked, because that is where a host is asked anything.
+ *   where a host's SQLite is asked, because that is where a host is asked anything. The one
+ *   exception is {@link self::withoutForeignKeys()}, which migrations run inside.
  * - **A lock is waited for, for {@link self::BUSY_MILLISECONDS}.** Two requests at once on a shared
  *   host are ordinary, and SQLite lets one write at a time. pdo_sqlite's own wait is 60 seconds —
  *   twice the `max_execution_time` the health floor allows — so a request stuck behind a lock would
@@ -65,6 +66,12 @@ final readonly class Database
 
     /** SQLite's name for a database that is never written to disk. */
     private const string MEMORY = ':memory:';
+
+    /** How every connection is opened, and what {@link self::withoutForeignKeys()} puts back. */
+    private const string FOREIGN_KEYS_ON = 'PRAGMA foreign_keys = ON';
+
+    /** For {@link self::withoutForeignKeys()} alone. */
+    private const string FOREIGN_KEYS_OFF = 'PRAGMA foreign_keys = OFF';
 
     /**
      * Constructs an instance of {@link self}.
@@ -283,6 +290,42 @@ final readonly class Database
     }
 
     /**
+     * Runs $work with this connection's foreign keys off, and turns them on again however it ends.
+     *
+     * For the one job that needs it: rebuilding a table other tables refer to, the way SQLite
+     * documents — make the new table, copy, drop the old, rename — where the drop, with foreign keys
+     * on, deletes every row that referred to the old table through any `ON DELETE CASCADE`, in
+     * silence. {@link Migrations} runs every migration inside this, and checks the references before
+     * each one commits.
+     *
+     * **Refused inside a transaction**, because SQLite ignores the pragma there: asked inside one, it
+     * would answer as though it had worked and change nothing.
+     *
+     * @template T
+     * @param Closure(self): T $work Handed this database.
+     * @return T What $work returned.
+     *
+     * @throws SqlException if a transaction is open on this connection.
+     */
+    public function withoutForeignKeys(Closure $work): mixed
+    {
+        if ($this->pdo->inTransaction()) {
+            throw new SqlException(
+                'Foreign keys were switched off inside a transaction on ' . $this->name . ', where SQLite '
+                . 'ignores the switch. Switch them off first, and begin the transaction inside.',
+            );
+        }
+
+        $this->pdo->exec(self::FOREIGN_KEYS_OFF);
+
+        try {
+            return $work($this);
+        } finally {
+            $this->pdo->exec(self::FOREIGN_KEYS_ON);
+        }
+    }
+
+    /**
      * Prepares $sql, binds its parameters and runs it.
      *
      * @param Sql $sql
@@ -326,7 +369,7 @@ final readonly class Database
             ]);
 
             $pdo->exec(sprintf('PRAGMA busy_timeout = %d', self::BUSY_MILLISECONDS));
-            $pdo->exec('PRAGMA foreign_keys = ON');
+            $pdo->exec(self::FOREIGN_KEYS_ON);
 
             if ($onDisk) {
                 $pdo->exec('PRAGMA journal_mode = DELETE');

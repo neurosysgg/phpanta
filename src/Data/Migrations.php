@@ -126,9 +126,14 @@ final readonly class Migrations
             MigrationColumn::AppliedAt->value,
         )));
 
-        while (($migration = $database->transaction($this->applyNext(...))) !== null) {
-            $applied[] = $migration;
-        }
+        // Foreign keys off for the run, so that rebuilding a table does not delete what refers to it —
+        // see Database::withoutForeignKeys() — and each migration's transaction ends in a foreign key
+        // check instead.
+        $database->withoutForeignKeys(function (Database $database) use (&$applied): void {
+            while (($migration = $database->transaction($this->applyNext(...))) !== null) {
+                $applied[] = $migration;
+            }
+        });
 
         return new Collection(Migration::class)->with(...$applied);
     }
@@ -141,8 +146,14 @@ final readonly class Migrations
      * request that waited while another applied what it was about to apply finds the id already
      * recorded, and moves on to the one after it, or to none.
      *
+     * It runs with foreign keys off — see {@link self::apply()} — so before it commits it asks
+     * SQLite whether every reference still lands, and a migration that leaves one pointing at
+     * nothing is undone rather than recorded.
+     *
      * @param Database $database
      * @return Migration|null What it applied, or null when nothing is pending.
+     *
+     * @throws MigrationException if the migration leaves a foreign key naming a row that is not there.
      */
     private function applyNext(Database $database): ?Migration
     {
@@ -153,6 +164,28 @@ final readonly class Migrations
         }
 
         $migration->apply($database);
+
+        $broken = $database->first(
+            new Sql(sprintf(
+                'SELECT "%s", "%s" FROM pragma_foreign_key_check',
+                ForeignKeyCheckColumn::Table->value,
+                ForeignKeyCheckColumn::Parent->value,
+            )),
+            static fn(Row $row): string => sprintf(
+                'a row of %s that names a row of %s that is not there',
+                $row->string(ForeignKeyCheckColumn::Table),
+                $row->string(ForeignKeyCheckColumn::Parent),
+            ),
+        );
+
+        if ($broken !== null) {
+            throw new MigrationException(sprintf(
+                '%s leaves %s, so it is undone and not recorded. Migrations run with foreign keys off, so'
+                . ' that rebuilding a table does not delete what refers to it; what they leave must still hold.',
+                $migration->id(),
+                $broken,
+            ));
+        }
 
         $database->execute(new Sql(
             sprintf(

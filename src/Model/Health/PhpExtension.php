@@ -11,11 +11,11 @@ use Uri\Rfc3986\Uri;
 use Uri\WhatWg\Url;
 
 /**
- * The PhpExtension enum. The five extensions the framework is a fatal without, and how to prove
+ * The PhpExtension enum. The six extensions the framework is a fatal without, and how to prove
  * each one is really there.
  *
  * **They were already named twice, and neither place is the host.** `composer.json` requires all
- * five, and composer never runs on the server — `vendor/` is not deployed. The verify script
+ * six, and composer never runs on the server — `vendor/` is not deployed. The verify script
  * asks for them by name in its Environment block, and that block runs `php` from `$PATH` on
  * whichever machine is running the suite. So the two statements of this fact both describe a
  * developer's PHP, and the one runtime that matters has never been asked. That gap is what
@@ -89,6 +89,17 @@ enum PhpExtension: string
     case Zlib = 'zlib';
 
     /**
+     * What tells UTF-8 from anything else: {@link \Phpanta\Http\Input} refuses a form or a query
+     * that does not decode to it, a form's length rule counts characters rather than bytes, and a
+     * login throttles a name however it is capitalised.
+     *
+     * Not bundled, and the widest failure after {@link self::Uri}: without it every form read is a
+     * fatal — a login, a contact form, a browser's write at the admin — and every page that only
+     * reads works, so a site looks fine until someone sends something.
+     */
+    case Mbstring = 'mbstring';
+
+    /**
      * Whether this extension is here **and working**, asked by using it.
      *
      * `::class` on an extension's own class resolves lexically, so naming one costs nothing on a
@@ -105,7 +116,8 @@ enum PhpExtension: string
             self::Dom     => class_exists(HTMLDocument::class),
             self::Intl    => class_exists(MessageFormatter::class),
             self::OpenSsl => class_exists(OpenSSLAsymmetricKey::class),
-            self::Zlib    => function_exists('gzdecode'),
+            self::Zlib     => function_exists('gzdecode'),
+            self::Mbstring => function_exists('mb_check_encoding'),
         };
     }
 }

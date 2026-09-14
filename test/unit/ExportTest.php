@@ -6,6 +6,7 @@ namespace Phpanta\Test\Unit;
 
 use Phpanta\App;
 use Phpanta\Controller\Controller;
+use Phpanta\Controller\Layer;
 use Phpanta\DataFileName;
 use Phpanta\Http\BasicChallenge;
 use Phpanta\Http\HttpStatusCode;
@@ -294,6 +295,34 @@ final class ExportTest extends TestCase
 
         self::assertSame(ExitCode::Failure, $code);
         self::assertStringContainsString('/ is exported, and answers with a 401 (PlainTextResponse)', $error);
+    }
+
+    /**
+     * A gate on the route rather than in its controller — where the framework's rules put one — is
+     * run by the export as the router runs it, so the page it guards fails the export the same way
+     * instead of being written out with the gate skipped.
+     *
+     * @return void
+     */
+    public function testARouteGatedByALayerFailsTheExportByName(): void
+    {
+        [$code, $error] = $this->export([
+            self::home()->through(new class () implements Layer {
+                /**
+                 * @param Request    $request
+                 * @param Controller $next
+                 * @return Response
+                 */
+                public function handle(Request $request, Controller $next): Response
+                {
+                    return Auth::challenge(new BasicChallenge('gated'));
+                }
+            }),
+        ]);
+
+        self::assertSame(ExitCode::Failure, $code);
+        self::assertStringContainsString('/ is exported, and answers with a 401 (PlainTextResponse)', $error);
+        self::assertFileDoesNotExist("$this->scratch/out/index.html");
     }
 
     /**

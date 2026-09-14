@@ -166,7 +166,7 @@ app that adds nothing, `TestApp` among them, reports exactly this table.
 | Area | Requirement | Floor | Level |
 |---|---|---|---|
 | runtime | `php` | 8.5 or later, `composer.json`'s `^8.5` | required |
-| extensions | `uri`, `dom`, `intl`, `openssl`, `zlib` | working, each proved by `PhpExtension::isPresent()` | required |
+| extensions | `uri`, `dom`, `intl`, `openssl`, `zlib`, `mbstring` | working, each proved by `PhpExtension::isPresent()` | required |
 | settings | `post_max_size` | `ApiGate::MAX_BODY` (8M), or 0 | required |
 | | `memory_limit` | 2 × `MAX_BODY` + 2 × `UpdateApplier::MAX_EXPANDED` (48M), or -1 | required |
 | | `max_execution_time` | 30s, or 0 | required |

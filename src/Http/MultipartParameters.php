@@ -76,15 +76,15 @@ final readonly class MultipartParameters
      */
     public function fields(): SearchableCollection
     {
-        $fields = new SearchableCollection('string');
+        $fields = [];
 
         foreach ($this->fields as $name => $value) {
             if (is_string($value)) {
-                $fields = $fields->with((string) $name, $value);
+                $fields[$name] = $value;
             }
         }
 
-        return $fields;
+        return new SearchableCollection('string')->withEach($fields);
     }
 
     /**

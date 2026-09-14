@@ -218,6 +218,7 @@ final class NoDiscardTest extends TestCase
                 'Phpanta\Support\SearchableCollection::unique',
                 'Phpanta\Support\SearchableCollection::where',
                 'Phpanta\Support\SearchableCollection::with',
+                'Phpanta\Support\SearchableCollection::withEach',
                 'Phpanta\Support\Throttle::attempt',
                 'Phpanta\Support\Throttle::remaining',
                 'Phpanta\Support\ThrottleVerdict::allowed',
