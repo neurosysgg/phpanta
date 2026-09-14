@@ -58,7 +58,7 @@ use Throwable;
  *
  * - **Constructing one does nothing.** No `DOCUMENT_ROOT`, no file, no request: the constructor is
  *   final and empty. Booting is therefore free, which is what lets `autoload.php` do it for every
- *   entry point at once, and what lets a `php -r` line in the verify script load a repository
+ *   entry point at once, and what lets a `php -r` line load a repository
  *   without knowing there is an app.
  * - **Booting is idempotent and exclusive.** The same class twice is the same instance — the dev
  *   router and `index.php` both load the autoloader — and a different class is refused, because two
@@ -68,7 +68,8 @@ use Throwable;
  *   {@link Service\UpdateApplier} takes its {@link Model\Update\Deployment} — rather than swapping
  *   the booted app out from under everything else.
  *
- * What a site owes the framework is the three abstract methods. What the framework derives from them
+ * What a site owes the framework is the nine abstract methods; what it may add has a default that
+ * is the strictest answer, or none. What the framework derives from them
  * — where `data/` is, which directory is the webroot, where the update serial lives — is final here,
  * because each of those derivations was measured into its current shape and a site getting one of
  * them slightly different is how a mirror deletes the wrong tree.
@@ -167,7 +168,8 @@ abstract class App
      *
      * The page, rendered in the site's own shell — which is the site's to draw.
      * {@link Controller\UnroutedController} asks this for the read-only case and answers the write
-     * one itself, so the 404 a typo gets and the 404 an unsigned API call gets are one page.
+     * one itself, with the read-only 405. The admin never asks it: a caller it cannot verify gets
+     * the admin's own one answer at every depth, and a verified one a 404 of the admin's.
      *
      * @param Request $request
      * @return Response
@@ -676,7 +678,7 @@ abstract class App
      * calling this: the error log, so every diagnostic from here on lands in `data/logs/`; the
      * security headers, before anything could fail, so that even the site's last-resort 500 carries
      * them; then the request, answered by {@link self::handle()} and sent. The answer carries the
-     * same five headers again, first, and sending them replaces the ones already out — see
+     * same seven headers again, first, and sending them replaces the ones already out — see
      * {@link Answer::send()}.
      *
      * @return void

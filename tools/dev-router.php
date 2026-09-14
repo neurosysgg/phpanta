@@ -10,8 +10,9 @@
  * versioned URL would 404 locally while working live — the exact shape of bug this project has
  * already been bitten by once, when a shared host's handler list differed from the local setup.
  *
- * **This is one half of a mirror**, and the verify script pins that both halves strip the same
- * pattern. Change the shape in one and the check fails rather than the dev server quietly diverging.
+ * **This is one half of a mirror**, and a site's end-to-end suite can pin that both halves strip the
+ * same pattern, so that changing the shape in one fails a check rather than the dev server quietly
+ * diverging.
  *
  * **Not a `Phpanta\Tool\Cli\Command`**, and cannot be: `php -S` loads this file per request and
  * reads a `bool` back. There is no argv and no exit code for a command interface to attach to.
@@ -53,7 +54,7 @@ const VERSION_SEGMENT = '#^/assets/(js|css)/v-[0-9a-f]{8}/#';
  * `..`. None of them names anything the web should read — PHP's per-directory php.ini, Apache's own
  * configuration, a step out of the webroot — and the built-in server would hand every one of them
  * out, since it neither refuses `.ht*` nor resolves `..` the way Apache does. So they all go to the
- * site. `public/.htaccess` hides `.user.ini` the same way; the verify script pins both.
+ * site. `public/.htaccess` hides `.user.ini` the same way; a site's suite can pin both.
  */
 const DOT_SEGMENT = '#(?:^|/)(?:\.|%2e)#i';
 

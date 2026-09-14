@@ -11,7 +11,7 @@ use Phpanta\Http\HeaderValue;
  * resource — an image, a script, an audio file — without asking.
  *
  * `same-origin`, by default. It covers what PHP answers: pages, and the files a gate stands in front
- * of — a demo's audio, say — which no other site has any business embedding, and which a
+ * of — a download behind a password, say — which no other site has any business embedding, and which a
  * side-channel attack would otherwise be free to load into its own page to measure. It does not
  * cover what the web server answers straight from the webroot, which never reaches PHP; a site that
  * wants its public assets embeddable elsewhere is untouched by it. A site that serves something meant

@@ -22,7 +22,8 @@ use Closure;
  *   nobody anticipated — an `E_DEPRECATED` arriving with a PHP upgrade is silenced by the same
  *   character that was written for a missing file. {@link self::MUTED} names the severities this
  *   handles, and everything else goes on to whatever handler was installed before this one — or,
- *   with none, to PHP — exactly as though this were not there.
+ *   with none, to PHP. That handler is asked about every severity this passes on, not only the
+ *   ones it was installed for.
  * - **It cannot answer for one call.** `error_get_last()` is process-global and sticky: it reports
  *   the last diagnostic raised anywhere, so "did *this* call warn, and what did it say" is a
  *   question it cannot be asked. {@link self::watched()} answers it, which is what

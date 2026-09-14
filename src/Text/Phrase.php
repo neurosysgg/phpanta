@@ -21,6 +21,7 @@ use Phpanta\Support\BareArray;
  * **ICU forgives what this refuses.** An argument nobody bound comes out as its own placeholder, an
  * argument with no name is never read, and a string that is not a number comes out as 0 where the
  * message formats a number — each a sentence on the page that is wrong, and nothing in any log.
+ * An argument the message never uses is not refused: it changes nothing on the page.
  */
 final readonly class Phrase implements Translatable
 {

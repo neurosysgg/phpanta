@@ -173,23 +173,26 @@ final class AccessTest extends TestCase
     {
         self::assertSame("no device is enrolled\n", new AccessPasskeys($this->registry)->handle()->text());
 
-        self::assertTrue($this->registry->keep(new Passkey('one', 'phone', 'key one', 0, '2026-09-14')));
-        self::assertTrue($this->registry->keep(new Passkey('two', 'laptop', 'key two', 0, '2026-09-14')));
+        self::assertTrue($this->registry->keep(new Passkey('dev1', 'phone', 'key one', 0, '2026-09-14')));
+        self::assertTrue($this->registry->keep(new Passkey('dev2', 'laptop', 'key two', 0, '2026-09-14')));
 
         $listed = new AccessPasskeys($this->registry);
 
         self::assertFalse($listed->isWrite());
-        self::assertMatchesRegularExpression('/^  phone +[0-9a-f ]{19}  one  2026-09-14$/m', $listed->handle()->text());
+        self::assertMatchesRegularExpression(
+            '/^  phone +[0-9a-f ]{19}  dev1  2026-09-14$/m',
+            $listed->handle()->text(),
+        );
 
-        $dry  = new AccessRevoke(self::revocation('one', false), $this->registry);
-        $real = new AccessRevoke(self::revocation('one', true), $this->registry);
+        $dry  = new AccessRevoke(self::revocation('dev1', false), $this->registry);
+        $real = new AccessRevoke(self::revocation('dev1', true), $this->registry);
 
         self::assertFalse($dry->isWrite());
         self::assertStringContainsString('would revoke phone', $dry->handle()->text());
-        self::assertNotNull($this->registry->find('one'));
+        self::assertNotNull($this->registry->find('dev1'));
         self::assertTrue($real->isWrite());
         self::assertStringStartsWith('revoked phone', $real->handle()->text());
-        self::assertNull($this->registry->find('one'));
+        self::assertNull($this->registry->find('dev1'));
 
         try {
             (void) $real->handle();
@@ -211,17 +214,17 @@ final class AccessTest extends TestCase
         new Directory($locked)->create();
         $store = new PasskeyRegistry(new File($locked . '/admin-passkeys.json'));
 
-        self::assertTrue($store->keep(new Passkey('one', 'phone', 'key one')));
+        self::assertTrue($store->keep(new Passkey('dev1', 'phone', 'key one')));
         self::assertTrue(chmod($locked, 0o500));
 
         try {
-            $said = new AccessRevoke(self::revocation('one', true), $store)->handle();
+            $said = new AccessRevoke(self::revocation('dev1', true), $store)->handle();
         } finally {
             chmod($locked, 0o700);
         }
 
         self::assertSame(HttpStatusCode::InternalServerError, $said->status);
-        self::assertNotNull($store->find('one'));
+        self::assertNotNull($store->find('dev1'));
     }
 
     /**
@@ -239,7 +242,7 @@ final class AccessTest extends TestCase
         self::assertInstanceOf(AccessRevoke::class, AccessAction::Revoke->handler(self::verified(
             '/admin/access/v1/revoke',
             HttpMethod::Post,
-            ['passkey' => 'one', 'apply' => false],
+            ['passkey' => 'dev1', 'apply' => false],
         )));
         self::assertInstanceOf(ApiResult::class, new AccessPasskeys($this->registry)->handle());
     }

@@ -16,8 +16,8 @@ one that fails loudly:
 - **A group crossing a public boundary is an immutable, lazy `Collection`.**
 - **Visible text is a `Translatable`**, and a view never names a language: the tree puts every word
   into the nearest `lang` when it renders.
-- **Every write is signed.** `/admin/{service}/{version}/{action}` is the one address family that
-  writes. A call is signed with an ECDSA key the server cannot use — the signing commands' own, or,
+- **Every write to the deployment is signed.** `/admin/{service}/{version}/{action}` is the one
+  address family that writes to it; a site's own forms post under a form token. A call is signed with an ECDSA key the server cannot use — the signing commands' own, or,
   in a browser, a passkey that key enrolled, tapped for each write — and a caller the admin cannot
   verify learns that it is there and nothing about what is in it.
 
@@ -61,6 +61,12 @@ site/
 ├── assets/{ts,css}/      ← the site's own front end
 └── phpanta/              ← this directory, as a git submodule
 ```
+
+[`site/`](site/) is a complete one, laid out the same way with `..` for `phpanta/`: its
+[`autoload.php`](site/autoload.php), [`public/index.php`](site/public/index.php) and
+[`Site.php`](site/src/PhpantaSite/Site.php) are the three files a new site starts from, and
+`npm run site:dev` serves it. The smallest app there is, [`TestApp`](test/TestApp.php), is the
+framework's test fixture.
 
 Vendoring it is a submodule and four lines of wiring:
 
@@ -106,7 +112,7 @@ app is refused. What a site owes the framework:
 |---|---|
 | `name()` | the site's name: the Basic Auth realm, the title suffix |
 | `above()` | the deployment directory — the one holding `autoload.php` |
-| `routes()` | the site's routes; the framework appends its own API route |
+| `routes()` | the site's routes; the framework appends its four admin routes |
 | `notFound()` | the site's 404 page |
 | `languages()` | the languages it is written in, its default first |
 | `shell()` | the document every page is rendered inside |
@@ -114,11 +120,21 @@ app is refused. What a site owes the framework:
 | `buildId()` | which build is deployed, for `update v1 version` |
 | `ownDataFiles()` | the site's own files under `data/` |
 
-and what it may add: `contentHosts()` for third-party origins in the CSP, `strictTransportSecurity()`
-and `permissionsPolicy()` to loosen the two policies it is otherwise sent at their strictest, and
-`ownRequirements()` for what it needs of its host beyond the framework's floor. The framework derives
-the rest — `data/`,
-the webroot, the update serial, the error log — and those derivations are final.
+and what it may add, each with a default:
+
+| Method | Answers | By default |
+|---|---|---|
+| `contentHosts()` | third-party origins in the CSP, per fetch directive | none |
+| `strictTransportSecurity()`, `permissionsPolicy()` | the HSTS policy and the `Permissions-Policy` | at their strictest |
+| `crossOriginOpenerPolicy()`, `crossOriginResourcePolicy()` | the two cross-origin policies | `same-origin` |
+| `origin()` | where the site is served from — a sitemap and the admin's passkeys need it | none |
+| `languageAddresses()` | whether each language has an address of its own, for a host that cannot choose | shared |
+| `layers()` | what stands around every request | none |
+| `ownRequirements()` | what it needs of its host beyond the framework's floor | none |
+| `environment()` | development or production — override only to pin production | the server's `PHPANTA_ENVIRONMENT` |
+
+The framework derives the rest — `data/`, the webroot, the update serial, the session key, the error
+log, the route table — and those derivations are final.
 
 ### Building and testing
 

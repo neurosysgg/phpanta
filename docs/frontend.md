@@ -55,6 +55,9 @@ Nothing builds on the server. A site's deploy ships `public/` as it stands in th
 forgotten rebuild would ship stale JS or a stale stylesheet, and nothing else would notice. A site's
 suite therefore rebuilds all three outputs and diffs them, so a drifted output is a failing test.
 
+The framework's own [`site/`](../site/) is the exception, because it is never deployed from a
+working tree: its Pages workflow builds everything before it exports, so its output is gitignored.
+
 The build tools keep that check affordable on any clone. They have no dependencies and nothing runs
 on import, so `build-css` and `build-assets` work on a clone that has never seen `npm install`. Only
 the TypeScript half needs `node_modules`.
@@ -150,8 +153,10 @@ the manifest. A site's `Shell` renders one `<link rel="modulepreload">` per entr
 the stylesheet, because the stylesheet blocks rendering and these do not. The preload scanner then
 sees every module at once, and all the waves become one. A module that no module imports is not
 preloaded, since the walk never reaches it. A coverage gate run with `--test-coverage-include-all`
-still sees it. The framework contributes eleven modules to a site's graph: `Navigation`,
-`NestedElement`, and nine mirrored enums under `model/`.
+still sees it. What the framework contributes to a site's graph is what its entry script reaches:
+to this framework's own site, thirteen modules — `Navigation`, `LanguageChoice`, `NestedElement` and
+ten mirrored enums under `model/` — and a site that starts `Passkey` adds it and the four enums only
+it reads.
 
 The hint is `modulepreload` rather than `preload as="script"` because it fetches, parses, compiles
 *and* inserts into the module map, so the module is instantiated by the time `main.js` asks. The list

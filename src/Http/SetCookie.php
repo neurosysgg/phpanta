@@ -7,19 +7,22 @@ namespace Phpanta\Http;
 use Phpanta\Text\Language;
 
 /**
- * The SetCookie class. The value of a `Set-Cookie` header — the one cookie the framework sets.
+ * The SetCookie class. The value of one `Set-Cookie` header. The framework sets two cookies — the
+ * visitor's language, when a language switch is clicked, and the sealed {@link Session} — and an
+ * answer may carry several.
  *
- * It is set only when a visitor clicks a language switch, and it holds only a language code. Every
- * attribute is there for a reason, and none is optional:
+ * Each holds one thing: a language code, or a seal. Every attribute is there for a reason, and none
+ * is optional:
  *
- * - `Path=/` — every page answers in the language, so every page is sent the cookie.
- * - `Max-Age` of a year — a choice worth remembering, and a number rather than a date, so no two
- *   clocks have to agree on when it runs out.
+ * - `Path=/` — every page answers in the language and may read the session, so every page is sent
+ *   the cookie.
+ * - `Max-Age` — a number rather than a date, so no two clocks have to agree on when it runs out: a
+ *   year for a language, a choice worth remembering, and the session's own lifetime for a session.
  * - `SameSite=Lax` — sent when a visitor navigates here, not with another site's requests.
  * - `Secure` — over HTTPS only. A browser counts `http://localhost` as secure too, so local runs
  *   work unchanged.
  * - `HttpOnly` — no script reads it, and none needs to: the server decides the language, and the
- *   page states it on its root element.
+ *   page states it on its root element; a seal is for the server alone to open.
  *
  * It is storage a site's privacy policy has to name; see docs/language.md.
  */

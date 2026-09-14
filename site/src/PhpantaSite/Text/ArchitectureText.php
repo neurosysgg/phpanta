@@ -78,19 +78,21 @@ enum ArchitectureText: string implements Translatable
     )]
     case TheWireText = 'the-wire-text';
 
-    #[Translation(en: 'The signed API', de: 'Die signierte API')]
+    #[Translation(en: 'The signed admin', de: 'Der signierte Admin')]
     case SignedApi = 'signed-api';
 
     #[Translation(
         en: 'An update is a gzipped tar in the body of one {post}, signed with an ECDSA P-256 key of which the server '
             . 'holds only the public half. The signature covers the action, a timestamp, a serial the server spends '
-            . 'before it applies anything, and a hash of the body. A call that is unsigned or signed wrongly is '
-            . 'answered exactly as an address that does not exist.',
+            . 'before it applies anything, and a hash of the body. A browser comes in with a passkey that key '
+            . 'enrolled, and taps it again for every write. A caller the admin cannot verify gets one answer at '
+            . 'every depth below it, whether the address exists or not.',
         de: 'Ein Update ist ein gzip-komprimiertes Tar im Body eines einzigen {post}, signiert mit einem '
             . 'ECDSA-P-256-Schlüssel, von dem der Server nur die öffentliche Hälfte hat. Die Signatur deckt die '
             . 'Aktion ab, einen Zeitstempel, eine Seriennummer, die der Server verbraucht, bevor er irgendetwas '
-            . 'anwendet, und einen Hash des Bodys. Ein Aufruf, der nicht oder falsch signiert ist, wird genau so '
-            . 'beantwortet wie eine Adresse, die es nicht gibt.',
+            . 'anwendet, und einen Hash des Bodys. Ein Browser kommt mit einem Passkey herein, den dieser Schlüssel '
+            . 'registriert hat, und bestätigt ihn für jeden Schreibvorgang erneut. Wen der Admin nicht verifizieren '
+            . 'kann, bekommt auf jeder Ebene darunter dieselbe Antwort, ob es die Adresse gibt oder nicht.',
     )]
     case SignedApiText = 'signed-api-text';
 

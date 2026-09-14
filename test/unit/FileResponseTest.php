@@ -254,7 +254,7 @@ final class FileResponseTest extends TestCase
     #[DataProvider('rangeBodyProvider')]
     public function testARangedRequestGetsExactlyTheBytesItNamed(string $header, string $expected): void
     {
-        $request = TestRequest::get('/demo/v3')->with(RequestHeader::Range, $header)->request();
+        $request = TestRequest::get('/files/v3')->with(RequestHeader::Range, $header)->request();
 
         self::assertSame($expected, $this->response()->answer($request)->body());
     }
@@ -286,7 +286,7 @@ final class FileResponseTest extends TestCase
      */
     public function testHeadSendsNoBody(): void
     {
-        $request = TestRequest::to(HttpMethod::Head, '/demo/v3')->request();
+        $request = TestRequest::to(HttpMethod::Head, '/files/v3')->request();
 
         self::assertSame('', $this->response()->answer($request)->body());
     }
@@ -310,7 +310,7 @@ final class FileResponseTest extends TestCase
         $response = $this->response();
 
         self::assertTrue($this->file->delete());
-        self::assertSame('', $response->answer(TestRequest::get('/demo/v3')->request())->body());
+        self::assertSame('', $response->answer(TestRequest::get('/files/v3')->request())->body());
     }
 
     /**

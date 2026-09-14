@@ -39,7 +39,8 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * What stands around a controller: layers in the order they are listed, able to answer instead,
- * or after; a route's own only past its method gate; and the three the framework ships.
+ * or after; a route's own only past its method gate; and four of the seven the framework ships —
+ * the form token's and the login's are SessionTest's, the rate limit RateLimitTest's.
  */
 #[CoversClass(Layered::class)]
 #[CoversClass(Router::class)]

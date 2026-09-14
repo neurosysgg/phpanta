@@ -11,7 +11,7 @@ use PhpantaSite\Text\ArchitectureText;
 use PhpantaSite\Text\SiteText;
 
 /**
- * The architecture: a request traced, the layers, the app, the wire, the signed API, navigation.
+ * The architecture: a request traced, the layers, the app, the wire, the signed admin, navigation.
  */
 final class ArchitectureView extends ProseView
 {

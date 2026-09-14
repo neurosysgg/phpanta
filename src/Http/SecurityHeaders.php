@@ -17,9 +17,10 @@ use Phpanta\Support\Collection;
 /**
  * The SecurityHeaders class. Emits the site's response security headers.
  *
- * Sent from `public/index.php` before anything is dispatched, so they cover every response the
- * application produces — including the 401 {@link \Phpanta\Service\Auth} exits with, the 405
- * {@link \Phpanta\Router} refuses a write method with, and every redirect.
+ * Sent by {@link App::run()} before anything is dispatched, and again at the head of every answer
+ * {@link App::handle()} and {@link App::fault()} build, so they cover every response the application
+ * produces — the 401 an {@link \Phpanta\Service\Auth} gate returns, the 405 {@link \Phpanta\Router}
+ * answers a method its route does not take with, and every redirect.
  *
  * Every value here is a typed object rather than a header string: see {@link CspDirective},
  * {@link Security\CspSource}, {@link ReferrerPolicy} and {@link PermissionsPolicyFeature}. A misspelled
@@ -152,10 +153,10 @@ final class SecurityHeaders
      * suggestion. It would be a good one on most sites. Here it collides with three things the
      * framework has decided on purpose:
      *
-     * - A report is a **POST**. {@link \Phpanta\Router::dispatch()} answers anything but GET and
-     *   HEAD with a 405, the `Allow` header is derived from {@link HttpMethod::isReadOnly()} so it
-     *   cannot claim otherwise, and the suites assert it. A first-party endpoint means carving an
-     *   exception into the one gate whose whole value is having none.
+     * - A report is a **POST**, sent without a form token, to an address every page names. A route
+     *   takes a POST only by naming it in a {@link \Phpanta\Support\MethodSet}, and
+     *   {@link \Phpanta\Router::dispatch()} answers one with a 405 everywhere else. A first-party
+     *   endpoint means a route that takes anonymous writes from every visitor's browser.
      * - A third-party collector is a third-party origin, receiving a request from every visitor,
      *   before any consent. That is the arrangement a site vendors its third-party assets to avoid,
      *   and a consent gate in front of an embed exists to defer.

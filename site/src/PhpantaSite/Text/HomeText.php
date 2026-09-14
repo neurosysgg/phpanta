@@ -84,15 +84,17 @@ enum HomeText: string implements Translatable
     )]
     case Translation = 'translation';
 
-    #[Translation(en: 'A signed API.', de: 'Eine signierte API.')]
+    #[Translation(en: 'A signed admin.', de: 'Ein signierter Admin.')]
     case SignedApiLead = 'signed-api-lead';
 
     #[Translation(
-        en: '{lead} {address} is the one address family that writes, and every call is signed with an ECDSA key the '
-            . 'server cannot use. A deployment is one signed request.',
-        de: '{lead} {address} ist die einzige Adressfamilie, die schreibt, und jeder Aufruf ist mit einem '
-            . 'ECDSA-Schlüssel signiert, den der Server nicht benutzen kann. Ein Deployment ist eine einzige '
-            . 'signierte Anfrage.',
+        en: '{lead} {address} is the one address family that writes. A command signs each call with an ECDSA key the '
+            . 'server cannot use; a browser signs with a passkey that key enrolled, once for every write. A '
+            . 'deployment is one signed request.',
+        de: '{lead} {address} ist die einzige Adressfamilie, die schreibt. Ein Befehl signiert jeden Aufruf mit einem '
+            . 'ECDSA-Schlüssel, den der Server nicht benutzen kann; ein Browser signiert mit einem Passkey, den dieser '
+            . 'Schlüssel registriert hat, einmal für jeden Schreibvorgang. Ein Deployment ist eine einzige signierte '
+            . 'Anfrage.',
     )]
     case SignedApi = 'signed-api';
 

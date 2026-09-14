@@ -14,8 +14,9 @@ use Phpanta\Support\Base64Url;
  * **Minted for one thing, and for a short while.** A challenge names its {@link ChallengePurpose}, and a
  * write's names the one address and method it was minted for — its binding — so an answer to it opens
  * nothing else. It lasts {@link self::LIFETIME} seconds, which is long enough to touch a key and not
- * long enough to be worth stealing; and the session it rides in is replaced by the answer, so it is
- * spent once.
+ * long enough to be worth stealing. The answer drops it from the session, but a session can be
+ * copied, so what makes it single-use is on the server: {@link self::minted()} is an unlock's mark in
+ * the passkey store and a write's serial.
  */
 final readonly class Challenge
 {

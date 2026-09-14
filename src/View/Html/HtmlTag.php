@@ -66,19 +66,23 @@ enum HtmlTag: string implements TagName
      *
      * A player could be a custom element. This one is not, because the browser's own controls are
      * the whole feature: they seek, they work with a keyboard, they work with a screen reader, and
-     * **they work with JavaScript off**, which for audio sent to one person to listen to is worth
-     * more than any styling.
+     * **they work with JavaScript off**, which for media is worth more than any styling.
      */
     case Audio    = 'audio';
 
-    /** Created client-side only: an embedded frame, and the textarea that decodes entities. */
+    /** An embedded frame. What it shows is its own document, never children — see {@link self::isRawText()}. */
     case Iframe   = 'iframe';
+
     /**
-     * What a custom element draws on. Client-created only, the way {@link self::Textarea} is — a
-     * view emits the custom element and the element makes this.
+     * What a custom element draws on. Client-created only — a view emits the custom element and
+     * the element makes this.
      */
     case Canvas   = 'canvas';
 
+    /**
+     * Written by a view where text is shown for copying, as the admin's enrolment command is.
+     * {@link \Phpanta\Form\Form} has no textarea field.
+     */
     case Textarea = 'textarea';
 
     case Table = 'table';

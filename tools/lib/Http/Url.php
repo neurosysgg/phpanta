@@ -13,8 +13,8 @@ use Uri\Rfc3986\Uri;
  * The site checks every address it emits — {@link \Phpanta\Http\Location} refuses a redirect target
  * that is not absolute https, {@link \Phpanta\Http\Security\CspHost} refuses anything but a bare
  * origin, {@link \Phpanta\View\Html\Element} refuses a scheme its allowlist does not name. The one
- * address with nothing looking at it was this one: the target of a request carrying a client secret
- * and a rotating refresh token, passed to {@link Request} as a `string` and handed to
+ * address with nothing looking at it was this one: the target of a request that may carry a
+ * credential, passed to {@link Request} as a `string` and handed to
  * {@link CurlTransport} as whatever that string happened to be. (Named through the class rather than
  * through the function it calls, because a site's verify script may assert that one file under
  * `tools/lib/` reaches the extension and grep for the prefix to do it — a check that cannot tell

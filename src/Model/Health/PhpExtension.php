@@ -15,18 +15,17 @@ use Uri\WhatWg\Url;
  * each one is really there.
  *
  * **They were already named twice, and neither place is the host.** `composer.json` requires all
- * six, and composer never runs on the server — `vendor/` is not deployed. The verify script
- * asks for them by name in its Environment block, and that block runs `php` from `$PATH` on
- * whichever machine is running the suite. So the two statements of this fact both describe a
+ * six, and composer never runs on the server — `vendor/` is not deployed. A site's end-to-end
+ * suite may ask for them by name, and it runs `php` from `$PATH` on whichever machine is running
+ * it. So the two statements of this fact both describe a
  * developer's PHP, and the one runtime that matters has never been asked. That gap is what
  * `health v1 extensions` exists to close: {@link \Phpanta\Support\RequirementInitialization}
  * declares each case a required {@link ExtensionRequirement}, with {@link self::isPresent()} as its
  * proof, and this enum is the vocabulary it asks in.
  *
  * **Each case proves itself by naming what the framework actually uses, rather than by asking
- * whether the extension is registered.** That standard is not new here — the verify script already
- * states it for `ext/dom`: registered and working are two questions, and the second is the one
- * worth an answer. `extension_loaded()` answers the first only, and answers it about a name rather
+ * whether the extension is registered.** Registered and working are two questions, and the second
+ * is the one worth an answer. `extension_loaded()` answers the first only, and answers it about a name rather
  * than about a capability.
  *
  * Server-only, like every other enum under `Http\Api`: nothing the browser loads may reach the admin,
@@ -63,7 +62,7 @@ enum PhpExtension: string
      * **Declared before anything uses it, and the order is the point.** A shared host may have it
      * where a local runtime does not — Arch ships it commented out in php.ini — which is the
      * dangerous direction: code that reached for it would work live and fail every test.
-     * Declared first, a runtime without it fails `health v1` and the verify script
+     * Declared first, a runtime without it fails `health v1` and a site's end-to-end suite
      * before a single page depends on it.
      */
     case Intl = 'intl';
@@ -75,7 +74,7 @@ enum PhpExtension: string
      * the one route built to give a stranger one answer however it is asked. The probe is
      * {@link OpenSSLAsymmetricKey}, which is the type `PublicKey` names in its own signature —
      * asking for the class the framework holds is asking for the extension that defines it, and it
-     * keeps the function names where the verify script pins them, which is one file.
+     * keeps the function names out of this file and in the two that call them.
      */
     case OpenSsl = 'openssl';
 

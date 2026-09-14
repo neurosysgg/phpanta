@@ -27,7 +27,7 @@ use Phpanta\View\View;
 /**
  * The app the framework's own tests run under: the smallest thing that is one.
  *
- * No routes of its own — the framework's API route is all its table holds — no data files beyond
+ * No routes of its own — the framework's four admin routes are all its table holds — no data files beyond
  * the framework's credentials, the standard vocabulary, both of the framework's languages, and a
  * shell that is a document around a view and nothing else. Its deployment is a fixture directory
  * holding an empty webroot, so the paths the framework derives from an app have somewhere real to

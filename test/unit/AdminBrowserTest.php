@@ -73,7 +73,8 @@ use PHPUnit\Framework\TestCase;
 final class AdminBrowserTest extends TestCase
 {
     private const string ORIGIN = 'https://example.test';
-    private const string DEVICE = 'device';
+    /** A credential id as a browser writes one — base64url, `device` — which a listing spells the same way. */
+    private const string DEVICE = 'ZGV2aWNl';
 
     private string $sandbox = '';
     private OpenSSLAsymmetricKey $private;

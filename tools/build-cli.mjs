@@ -34,8 +34,8 @@ import { dirname, join, relative, resolve } from 'node:path';
  * **Not where this file sits.** That is the framework's tooling, vendored into the project as
  * `phpanta/`, and a root worked out from it would be `phpanta/` itself — every path below would
  * then name the framework's tree rather than the site's, and `build-assets` would write the site's
- * manifest somewhere nothing reads it. The project is where npm runs a script from and where the
- * verify script is run from; walking up is what lets a tool be run from a subdirectory as well.
+ * manifest somewhere nothing reads it. The project is where npm runs a script from and where a
+ * site's suite is run from; walking up is what lets a tool be run from a subdirectory as well.
  */
 export const ROOT = findRoot(process.cwd());
 

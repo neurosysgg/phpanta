@@ -280,8 +280,8 @@ final readonly class Session
 
     /**
      * This session with the admin unlocked by the passkey $credential, at $now — with a new form token,
-     * for {@link self::withUser()}'s reason, and without the challenge the unlock answered, so it is
-     * spent.
+     * for {@link self::withUser()}'s reason, and without the challenge the unlock answered: spent in
+     * this copy of the session, and refused in any other by the passkey store.
      *
      * @param string   $credential
      * @param int|null $now

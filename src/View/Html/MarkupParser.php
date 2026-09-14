@@ -101,14 +101,15 @@ final readonly class MarkupParser
     }
 
     /**
-     * Parses $html into a document, refusing it if the parser had to repair anything.
+     * Parses $html into a document, refusing it if the parser reported any error — which an end tag
+     * HTML5 lets a document leave out, `<li>a<li>b`, is not.
      *
      * Two things here are load-bearing.
      *
      * **The doctype is {@link Doctype::Html5}, not a literal.** It is what puts the parser in
      * no-quirks mode, and without it *every* fragment reports `unexpected-token-in-initial-mode` and
      * the error trap below is so much noise. Reusing the one class that owns that string also means
-     * this file holds no `<` literal at all, so it needs no exemption from the verify script's check
+     * this file holds no `<` literal at all, so it needs no exemption from a site's check for one
      * that {@link Element} and {@link Doctype} are the only two files that write markup out.
      *
      * **The errors are trapped rather than ignored.** `Dom\HTMLDocument` reports HTML5 tokenizer and

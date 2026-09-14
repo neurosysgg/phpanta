@@ -62,7 +62,7 @@ public function languageAddresses(): LanguageAddresses
   route and no controller knows the difference, and the language the address names outranks the
   cookie and the browser. A tag the app does not offer names no language: `/rules.fr.html` is the
   404 it would have been. `canonicalTarget()` keeps the address as it was asked.
-- **A link written once follows the page's language.** `DocsPath::Rules->inEachLanguage()` is an
+- **A link written once follows the page's language.** `PagePath::Rules->inEachLanguage()` is an
   `href` value resolved the way translated text is, in the nearest `lang`: `/rules.de.html` on the
   German page. In a `Shared` app it is plainly `/rules`, which is right there too.
   `->inLanguage(Language::German)` names one language, for the links that must: a language switch,
@@ -175,7 +175,7 @@ the text and its nodes together, handed over by name:
 case Collections = 'collections';
 
 new Element(HtmlTag::P)->containing(new Sentence(
-    RulesText::Collections,
+    PageText::Collections,
     code: new Element(ProseTag::Code)->containing('Collection'),
 ));
 ```
@@ -239,8 +239,7 @@ an English gate on a German page. A language the framework gains costs the eleme
   - every enum under `src/` that uses `Translated` is reachable from the site's index, so no catalog
     goes unchecked;
   - no view passes a word straight to `containing()`, `alt`, `title` or `aria-label` as a literal.
-- **The scope rules** are pinned in the suite of the site the framework grew in, and have no
-  framework test of their own yet. Those rules are inheritance, a `lang` narrowing the scope, a
+- **The scope rules** are pinned in `MarkupTest`: inheritance, a `lang` narrowing the scope, a
   foreign `lang` keeping it, a translated attribute, and the refusal.
 
 ## Adding a word

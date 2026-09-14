@@ -33,9 +33,11 @@ use Phpanta\Support\Route;
  * address is escaped by the parser that will read it back, and the rule that nothing writes markup
  * from a string holds here too.
  *
- * **No `hreflang` alternates**, and not for want of a place to put them: an app built on this
- * framework answers every language at one address, chosen per request, so there is no second
- * address for an alternate to name. **Nor a `<link rel="canonical">`**, for the same reason: a page
+ * **No `hreflang` alternates**, and not for want of a place to put them: under the default
+ * {@link \Phpanta\Text\LanguageAddresses::Shared} every language is at a page's one address, chosen
+ * per request, so there is no second address for an alternate to name. An app that says
+ * {@link \Phpanta\Text\LanguageAddresses::Suffixed} has them, and this still lists each page once,
+ * at the address without a suffix. **Nor a `<link rel="canonical">`**, for the first reason: a page
  * has one address already, and the one other spelling of it — with or without a trailing slash — is
  * {@link \Phpanta\Service\Layer\TrailingSlash}'s to answer with a 308, which says it more firmly
  * than a hint in the head would.

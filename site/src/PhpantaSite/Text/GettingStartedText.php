@@ -51,10 +51,15 @@ enum GettingStartedText: string implements Translatable
     case TheAppText = 'the-app-text';
 
     #[Translation(
-        en: 'Everything else — where {data} is, which directory is the webroot, where the update serial lives, the '
-            . 'error log, the route to the API — the framework derives from those, and the derivations are final.',
-        de: 'Alles andere — wo {data} liegt, welches Verzeichnis der Webroot ist, wo die Update-Seriennummer liegt, '
-            . 'das Fehlerlog, die Route zur API — leitet das Framework daraus ab, und diese Ableitungen sind final.',
+        en: 'What it may add besides — third-party hosts, looser policies, the origin it is served from, layers '
+            . 'around every request — is at the strictest answer, or none, until it does. Everything else — where '
+            . '{data} is, which directory is the webroot, where the update serial lives, the error log, the admin\'s '
+            . 'four routes — the framework derives from those, and the derivations are final.',
+        de: 'Was sie darüber hinaus angeben kann — Hosts Dritter, lockerere Richtlinien, den Origin, unter dem sie '
+            . 'ausgeliefert wird, Schichten um jede Anfrage — steht bei der strengsten Antwort oder bei keiner, '
+            . 'bis sie es tut. Alles andere — wo {data} liegt, welches Verzeichnis der Webroot ist, wo die '
+            . 'Update-Seriennummer liegt, das Fehlerlog, die vier Routen des Admins — leitet das Framework daraus ab, '
+            . 'und diese Ableitungen sind final.',
     )]
     case Derived = 'derived';
 

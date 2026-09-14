@@ -16,7 +16,7 @@ use Phpanta\Support\Collection;
  * element name has to be a {@link TagName} case and an attribute name an {@link AttributeName}
  * case, so an `onerror=` or a `<form>` that appears in a future re-export is refused when the file
  * loads rather than rendered unread. What every site can parse is {@link self::standard()} — the
- * browser's own tags and attributes, and the one attribute the framework's navigation reads. A site
+ * browser's own tags and attributes, and those the framework's own scripts read. A site
  * adds its custom elements and their attributes, and {@link \Phpanta\App::vocabulary()} is where
  * it says so.
  *
@@ -41,8 +41,8 @@ final readonly class Vocabulary
     private function __construct(private Collection $tags, private Collection $attributes) {}
 
     /**
-     * What every site can parse: HTML's own tags and attributes, and the two the framework's
-     * navigation reads — `data-no-spa`, and `data-language-bound`.
+     * What every site can parse: HTML's own tags and attributes, and those the framework's own
+     * scripts read — navigation's `data-no-spa` and `data-language-bound`, and the passkey forms'.
      *
      * @return self
      */

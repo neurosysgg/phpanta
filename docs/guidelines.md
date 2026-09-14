@@ -2,7 +2,7 @@
 
 The PHP side argues against five habits. A **bare array** announces nothing about what it holds,
 which is what [`Collection`](collections.md) is for; a **bare string** is a name with no vocabulary,
-which is what the fifty-odd enums are for; an **`array_*` call** is a member of that collection
+which is what the eighty-odd enums are for; an **`array_*` call** is a member of that collection
 written the long way; an **`@`** hides whatever it happens to be in front of; and a **bare SPL
 exception** names the condition "something".
 
@@ -42,7 +42,7 @@ parameter there would replace it with one we make ourselves — the distinction
 [collections.md](collections.md#where-a-collection-goes-and-where-it-does-not) draws between what a
 class *takes* and what it *stores*.
 
-30 `#[BareArray]` attributes carry an excuse in the framework's `src/` (counted on 2026-09-13), and
+50 `#[BareArray]` attributes carry an excuse in the framework's `src/` (counted on 2026-09-14), and
 they come in four kinds:
 
 | Kind | Examples |
@@ -71,11 +71,12 @@ anything with no letter or digit in it, because `'/'`, `', '` and `"\n"` are str
 for them would read worse than they do; and so are an attribute's own arguments, which are prose
 about the code the way a docblock is.
 
-12 literals carry a `#[BareString]` excuse in the framework's `src/` (counted on 2026-09-13), and
+13 literals carry a `#[BareString]` excuse in the framework's `src/` (counted on 2026-09-14), and
 **every one of them is a coincidence rather than a shortcut**, which is the point of listing them:
 each is a word that looks like a name and is not. Somebody else's vocabulary — `int` and `string`
 are `get_debug_type()`'s spellings in a class-string's place, in `TypedItems`, `Diagnostics`,
-`Route`, `Vocabulary`, `HealthSection`, `UpdateReport`, `Input`, `Session` and `Migrations` — or
+`Route`, `Vocabulary`, `HealthSection`, `UpdateReport`, `Input`, `MultipartParameters`, `Session`
+and `Migrations` — or
 another grammar: `c` is an `fopen()`
 mode in `FileLock`, and `#^https://…#i` is a regex in `Location`.
 

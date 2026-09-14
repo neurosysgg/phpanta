@@ -5,7 +5,7 @@ the method gate, the parsing, the markup tree's output safety, and the admin —
 its passkeys. A site's own
 gates, cookies, data and hosting are its own, and belong in its own documents.
 
-## 1. Transport — HTTPS and HSTS
+## Transport — HTTPS and HSTS
 
 A site's webroot redirects `http://` to `https://` before any PHP runs — that is a line of the
 site's server configuration, not of the framework — and `Strict-Transport-Security` (one year,
@@ -37,7 +37,7 @@ one-way commitment for the whole apex domain that is hard to walk back; the clas
 `StrictTransportSecurity` documents why, and ships a `ONE_DAY` value for ramping an estate you have
 not yet checked.
 
-## 2. Response headers — typed, and sent before anything can fail
+## Response headers — typed, and sent before anything can fail
 
 `SecurityHeaders::send()` is the first statement of `App::run()` after the error log, so the policy
 covers **every** response, including the `401` the auth gate answers with, the `303` a redirect sends,
@@ -123,7 +123,7 @@ hosting) is only half the switch; `header_remove()` is the half the framework ha
 under CLI and the built-in dev server — `header()`/`header_remove()` are no-ops there — and only
 observable under a real SAPI, where the header is confirmed gone.
 
-## 3 + 4. The method gate
+## The method gate
 
 `Router::dispatch()` matches the path first and then asks that route whether it answers the method,
 refusing with a `405` before any controller is built. The `Allow` header is `Allow::readOnly()`,
@@ -162,7 +162,7 @@ every other unverified request gets the admin's one answer. One differing status
 uniformity is gone, to anybody who types `BREW` — which is why an end-to-end sweep of every real
 verb belongs beside it, `BREW` included, at every depth.
 
-## 2 (again). Parsing the request defensively
+## Parsing the request defensively
 
 `Request::path()` is the one place a malformed request target is dealt with. It uses
 `Uri\Rfc3986\Uri::parse()`, which returns **null** on a target it cannot read, so `??` is a real
@@ -191,7 +191,7 @@ Directory traversal toward the credentials is in any case structurally impossibl
 beside the webroot, not inside it (`App::data()`), and Apache itself refuses `..` in a request path
 with a `400` before the app is even reached.
 
-## 4 (again). Routing
+## Routing
 
 A route pattern compiles to a regex anchored with `\A` and `\z`, not `$`: `$` also matches
 immediately before a trailing newline, so `\z` is what actually means "the end of the string".
@@ -199,7 +199,7 @@ Every static part is quoted, so a `.` in `/feed.xml` matches itself. Placeholder
 matching is case-sensitive, and there is no dot-segment normalisation that could resolve a
 decorated path onto a gated route.
 
-## 5. The response — output safety in the markup tree
+## The response — output safety in the markup tree
 
 **Nothing builds HTML from a string.** A view returns a `Node`; a page is a tree of them; the only
 code that writes a `<` is `Element` and `Doctype`, and a site can hold its own code to that with a
@@ -569,10 +569,10 @@ half and no ability to push anything. That asymmetry is the reason this gate is 
 than another bcrypt digest — the Basic gates protect pages, and this one protects the code that
 serves them.
 
-**P-256 rather than Ed25519, by measurement rather than taste.** `ext/sodium` is absent on the
-development machine, and Ed25519 does not work through PHP's openssl binding at all — it fails with
-`Provider routines::invalid digest`, because the binding drives the digest-based API and Ed25519 is
-one-shot. P-256 was verified end to end on a live shared host before it was relied on, and
+**P-256 rather than Ed25519, by measurement rather than taste.** `ext/sodium` is often absent, on a
+developer's PHP and a shared host's alike, and Ed25519 does not work through PHP's openssl binding at
+all — it fails with `Provider routines::invalid digest`, because the binding drives the digest-based
+API and Ed25519 is one-shot. P-256 works end to end through that binding on a shared host, and
 `PublicKey` accepts that curve and no other: an EC key on P-384 or secp112r1 parses and verifies a
 SHA-256 signature just as happily, which would widen the algorithm without anybody having decided to.
 
@@ -583,7 +583,8 @@ deployment holding no key does no verification work at all. A browser whose devi
 before the key went still opens the admin; revoking it needs the key or that browser. So a fresh clone and every machine that has not deliberately been given a key are closed rather
 than open — worth reading twice, because the two files look alike and mean opposite things.
 
-`PublicKey` is the only `openssl_*` call site under `src/`. It asks `=== 1`, because
+`PublicKey` is the only place under `src/` that verifies a signature, and `SessionSeal`'s encrypt
+and decrypt are the only other `openssl_*` calls. It asks `=== 1`, because
 `openssl_verify()` returns `1`, `0` **or `-1`**, and a call site written `if (openssl_verify(...))`
 would read the error case as a pass. Nothing under `src/` names a signing or key-minting call at
 all, so a private key arriving on the server would have nothing to use it — both are worth a check
@@ -592,7 +593,9 @@ that fails the build.
 ### What a signature covers, and why replay is closed
 
 The credential rides in `Authorization` as `NS1 <base64>`: a length-prefixed manifest and the
-signature over it. The signature covers the manifest; the manifest covers the body by SHA-256. One
+signature over it. `NS1` is the framework's own scheme token — a name no registered scheme has, so
+nothing on the way reads it as one it knows — and its digit versions the credential's format, not
+the admin's addresses. The signature covers the manifest; the manifest covers the body by SHA-256. One
 signature over a couple of hundred bytes therefore protects a payload of any size — **and a payload
 of no size at all**, which is why it rides in a header: a `GET` has nothing to frame a credential
 into, and every action after the first one is a read.

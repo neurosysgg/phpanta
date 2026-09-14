@@ -13,8 +13,9 @@ namespace Phpanta\Support;
  * and an encoder and a decoder that each spelled the alphabet for themselves would be two
  * alphabets free to disagree.
  *
- * **Decoding refuses rather than guesses.** A character outside the alphabet, or a length no encoding
- * produces, is null — never the bytes a lenient decoder would make of it.
+ * **Decoding refuses rather than guesses.** A character outside the alphabet, a length no encoding
+ * produces, or a last character whose unused bits are not zero is null — never the bytes a lenient
+ * decoder would make of it. So one run of bytes has one spelling: `AA` is `\x00`, and `AB` is nothing.
  */
 final readonly class Base64Url
 {
@@ -48,6 +49,8 @@ final readonly class Base64Url
         $padded = str_pad(strtr($text, '-_', '+/'), (int) ceil(strlen($text) / 4) * 4, '=');
         $bytes  = base64_decode($padded, true);
 
-        return $bytes === false ? null : $bytes;
+        // base64_decode() drops the bits a last character carries past the last byte; an encoder
+        // writes them as zero, so text that does not encode back to itself set one.
+        return $bytes === false || self::encode($bytes) !== $text ? null : $bytes;
     }
 }

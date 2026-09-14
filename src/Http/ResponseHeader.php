@@ -46,10 +46,11 @@ enum ResponseHeader: string implements HeaderName
     /**
      * Whether a response may be reused, and on what terms.
      *
-     * Two answers, and they are opposites. Every public document says `no-cache`, which is not
-     * `no-store`: keep it, but ask before reusing it — see {@link ViewResponse}. A page behind a
-     * password says `no-store, private` instead — {@link CacheControl::doNotStore()} — and sets
-     * that itself.
+     * Two answers in the main, and they are opposites. A public document, a JSON answer and a
+     * sitemap say `no-cache`, which is not `no-store`: keep it, but ask before reusing it — see
+     * {@link ViewResponse}. A page behind a password, a refusal, a file and a fault say
+     * `no-store, private` instead — {@link CacheControl::doNotStore()}. A {@link StreamResponse}
+     * says `no-store` alone.
      */
     case CacheControl = 'Cache-Control';
 

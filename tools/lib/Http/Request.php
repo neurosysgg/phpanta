@@ -15,18 +15,17 @@ use Phpanta\Support\SearchableCollection;
 /**
  * The Request class. One request this tooling is about to send.
  *
- * The site's {@link \Phpanta\Http\Request} names the same thing pointing the other way — one is a
- * request the site *received* and answers, this is one a command *sends* and reads the answer to.
+ * The framework's {@link \Phpanta\Http\Request} names the same thing pointing the other way — one
+ * is a request a site *received* and answers, this is one a command *sends* and reads the answer to.
  * Neither is the other's inverse and neither shares a line of code with it; they share a word,
  * because there is only one word.
  *
- * Three factories rather than a constructor, because there are exactly three shapes of request in
- * this repo and each carries its body differently: a bare `GET`, a form-encoded body for the token
- * exchange, and a multipart body for the upload. A fourth shape is a fourth factory, and until
- * something needs one there is no fourth to get wrong.
+ * One factory per shape of body rather than a constructor, because each carries its body
+ * differently: a bare `GET`, a form-encoded body, a multipart body, and raw bytes of a stated type.
+ * A new shape is a new factory, and until something needs one there is none to get wrong.
  *
- * {@link HttpMethod} is the site's enum, reused rather than restated. Its docblock is written about
- * the methods the site *answers*, and the vocabulary is the same one either way round.
+ * {@link HttpMethod} is the framework's enum, reused rather than restated. Its docblock is written
+ * about the methods a site *answers*, and the vocabulary is the same one either way round.
  */
 final readonly class Request
 {
@@ -72,7 +71,7 @@ final readonly class Request
     }
 
     /**
-     * A `POST` whose body is form-encoded — the shape every OAuth token request takes.
+     * A `POST` whose body is form-encoded, the way a browser's form sends one.
      *
      * @param Url    $url
      * @param Collection<FormField> $fields

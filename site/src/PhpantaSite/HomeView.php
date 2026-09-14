@@ -47,7 +47,7 @@ final class HomeView extends ProseView
                 self::point(
                     HomeText::SignedApiLead,
                     HomeText::SignedApi,
-                    address: Prose::code('/api/{service}/{version}/{action}'),
+                    address: Prose::code('/admin/{service}/{version}/{action}'),
                 ),
                 self::point(HomeText::HealthLead, HomeText::Health),
                 self::point(HomeText::NavigationLead, HomeText::Navigation, href: Prose::code('href')),

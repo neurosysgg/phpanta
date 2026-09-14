@@ -165,7 +165,8 @@ final readonly class Export implements Command
         if (!$public->exists()) {
             return $debug
                 ? 'public/ is not there.'
-                : 'build/dist/ is not there — run `npm run build:prod` first, or export the debug tree with --debug.';
+                : 'build/dist/ is not there — build the prod tree with tools/build-prod.mjs first, or export '
+                    . 'the debug tree with --debug.';
         }
 
         if (!$debug && ($failure = $this->loadProdManifest()) !== null) {

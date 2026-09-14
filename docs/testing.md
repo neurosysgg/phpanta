@@ -38,7 +38,7 @@ an app:
 | forms | `FormTest` (fields, rules, files, a submission read and refused, the form re-rendered with what was entered and its errors) |
 | data | `DatabaseTest` (opening, statements and their parameters, typed rows, transactions, migrations). It needs `pdo_sqlite`, and its database tests are skipped, not failed, without it |
 | auth | `AuthTest` (the comparison, its timing, the gates, `PasswordHash`), `SessionTest` (the sealed cookie kept, opened, refused and expired; the form token; the login gate), `SessionAdminTest` (the admin's unlock, spent challenge and eight hours, and what reads as neither), `LoginTest` (a login, counted by address and name), `LoginRecipeTest` (the login page of [login.md](login.md), walked end to end with its cookie carried from answer to request), `ThrottleTest` (the sliding window, failing closed), `RateLimitTest` (the 429 and its `Retry-After`) |
-| routing | `RouterTest`, `RouteTest`, `RoutingFeatureTest` (typed placeholders, method sets, `OPTIONS`, groups, what a request says back), `RouteExportTest`, `LayerTest` (the order layers run in, a route's past its method gate, the five that ship) |
+| routing | `RouterTest`, `RouteTest`, `RoutingFeatureTest` (typed placeholders, method sets, `OPTIONS`, groups, what a request says back), `RouteExportTest`, `LayerTest` (the order layers run in, a route's past its method gate, four of the seven that ship — `CsrfGuard` and `LoginGate` are `SessionTest`'s, `RateLimit` is `RateLimitTest`'s) |
 | the markup tree | `MarkupTest` (building, escaping, the URL checks, parsing against a vocabulary) |
 | the export | `ExportTest`, `BasePathTest` |
 | text | `TextTest`, `LanguagesTest`, `LanguageAddressTest` (an address per language, in both modes, and a link that follows the page's language) |
@@ -47,9 +47,9 @@ an app:
 | the rules | `BoundaryTest`, `GuidelineTest`, `NoDiscardTest` — see [below](#the-rules-the-framework-holds-itself-to) |
 | the framework's own site | none here: it has a suite of its own, see [below](#the-sites-own-suite) |
 
-Thirty-two fixtures sit beside the tests — `UpdateFixture`, `TextFixture`, `RoutePatternFixture`,
+Thirty-three fixtures sit beside the tests — `UpdateFixture`, `TextFixture`, `RoutePatternFixture`,
 `ExportFixturePath`, `ReadonlyFixture`, `CliOptionFixture`, `TagFixture`, `AttributeFixture`,
-`ClassFixture`, `ParameterFixture`, `SessionKeyFixture`, `EchoController`; the forms' `FieldFixture`,
+`ClassFixture`, `CountFixture`, `ParameterFixture`, `SessionKeyFixture`, `EchoController`; the forms' `FieldFixture`,
 `OtherFieldFixture`, `ChoiceFixture`, `UploadFieldFixture` and `RenamedFieldFixture`; the login
 recipe's `LoginFieldFixture`, `LogoutFieldFixture`, `LoginPathFixture`, `LoginTextFixture`,
 `UsersFixture`, `RecipePageFixture` and its three controllers; and the database's `TableFixture`, `NoteColumnFixture`,

@@ -95,8 +95,11 @@ final class PasskeyTest extends TestCase
         }
 
         self::assertSame('-_8', Base64Url::encode("\xfb\xff"));
+        self::assertSame("\0", Base64Url::decode('AA'));
 
-        foreach (['a+b', 'ab==', 'abcde', "ab\n", 'a b'] as $text) {
+        // A last character whose unused bits are set decodes, leniently, to the same bytes as the
+        // one an encoder writes: two spellings of one run of bytes.
+        foreach (['a+b', 'ab==', 'abcde', "ab\n", 'a b', 'AB', 'AP', 'AAB', 'Zh', 'Zm9vYh'] as $text) {
             self::assertNull(Base64Url::decode($text), $text);
         }
     }

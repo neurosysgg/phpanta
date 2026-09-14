@@ -38,13 +38,14 @@ final readonly class Allow implements HeaderValue
     /**
      * Exactly the methods named, for a refusal that is allowed to be specific.
      *
-     * **The router must never call this**, and the reason is the whole argument on
-     * {@link \Phpanta\Support\MethodPolicy}: a route naming its own set would make
-     * `PUT /admin/update/v1/patch` answer `Allow: GET, HEAD, POST` to a caller nobody has verified,
-     * and that `POST` says which depth is an action — precisely what the admin keeps from a
-     * stranger. {@link self::readOnly()} is what the router sends, always.
+     * **The router calls this only for a {@link \Phpanta\Support\MethodSet}**, a route whose form
+     * already shows what it takes. A route under a {@link \Phpanta\Support\MethodPolicy} is refused
+     * with {@link self::readOnly()}, always, and the reason is the whole argument on that enum: an
+     * admin route naming its own set would make `PUT /admin/update/v1/patch` answer
+     * `Allow: GET, HEAD, POST` to a caller nobody has verified, and that `POST` says which depth is
+     * an action — precisely what the admin keeps from a stranger.
      *
-     * Its one caller is {@link \Phpanta\Controller\ApiController}, past the signature check —
+     * Its other caller is {@link \Phpanta\Controller\ApiController}, past the signature check —
      * where the caller has proved possession of the private key, so there is nothing left to hide
      * and a 405 that does not say which method would work is merely unhelpful. That is the same
      * inversion every other diagnostic makes at that line.

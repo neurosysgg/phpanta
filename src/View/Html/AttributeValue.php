@@ -15,7 +15,8 @@ namespace Phpanta\View\Html;
  * The difference — the same one that argument turns on — is that some attribute values have a
  * **grammar**. `width=device-width, initial-scale=1.0` is a comma-separated descriptor list whose
  * every part is a name-value pair, assembled at the one place a grammar cannot be checked: the
- * `->attr(…)` call site. {@link ViewportContent} is the first and so far only one.
+ * `->attr(…)` call site. {@link ViewportContent} is one; {@link \Phpanta\Form\FieldId}, the `for` and
+ * `id` a form's label and control share, is the other.
  *
  * **Most attribute values want no implementation of this.** A fixed vocabulary is a `BackedEnum` —
  * {@link LinkRel}, {@link LinkTarget}, {@link ScriptType}, {@link MediaPreload}, {@link MetaName},

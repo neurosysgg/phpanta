@@ -319,8 +319,8 @@ readonly class Request
      */
     public function method(): ?HttpMethod  { return $this->method; }
     /**
-     * Returns true if the method only reads. The whole site is read-only, so everything
-     * else is refused with a 405 rather than silently treated as a GET.
+     * Returns true if the method only reads — GET or HEAD. A read-only route refuses any other
+     * method with a 405 rather than silently treating it as a GET.
      *
      * @return bool
      */
@@ -385,8 +385,9 @@ readonly class Request
     /**
      * Returns the `If-None-Match` validator the browser sent back, or `''` if it sent none.
      *
-     * Compared verbatim by {@link ViewResponse}: a browser echoes the `ETag` it was given, and the
-     * only thing worth asking is whether it is the one we would send now.
+     * Compared by {@link ETag::matches()}, the way RFC 9110 reads it — a list, `*`, a `W/` prefix,
+     * and the `-gzip` a compressing module appended inside the quotes — since a browser echoes the
+     * `ETag` it was given, and the only thing worth asking is whether it is the one we would send now.
      *
      * @return string
      */
@@ -396,25 +397,24 @@ readonly class Request
      * The raw request body, or `''` where there is none.
      *
      * **Read here rather than in {@link self::from()}, and that placement is the whole of
-     * the care.** Every route but the API's is a read that carries no body; parsing one into every
+     * the care.** Nearly every request is a read that carries no body; parsing one into every
      * `Request` would make all of them pay for the one that does, and would quietly turn a class
      * that describes a request into one that has consumed it. So this is a method, not a property,
      * and `Request` stays `readonly` with nothing to memoise — `php://input` is re-readable for
      * anything that is not a multipart form. A multipart body is never there at all: PHP parses it
      * before the script runs, and {@link self::form()} and {@link self::upload()} read what it made.
      *
-     * **It has exactly one caller**, {@link \Phpanta\Controller\ApiController}, and that is the
-     * guarantee: the body is read at one call site, past a route that accepts POST and nothing else
-     * does, and every byte of it is refused unless {@link \Phpanta\Support\PublicKey} says it was
-     * signed by a key this deployment holds.
+     * **It has two callers**, and each bounds what it reads: {@link \Phpanta\Service\ApiGate}, which
+     * refuses every byte unless {@link \Phpanta\Support\PublicKey} says a key this deployment holds
+     * signed it, and {@link self::form()}, for a url-encoded form, up to {@link self::MAX_FORM}.
      *
      * **It is read through {@link \Phpanta\Support\File::read()}, bounded by `$limit`**, which is
      * where the diagnostic is handled and where the bound is applied *to the read* rather than
      * after it: an unbounded `file_get_contents('php://input')` pulls up to
-     * `post_max_size` into memory before any caller can reject it, so the one caller,
-     * {@link \Phpanta\Service\ApiGate}, passes the largest body it will consider plus a byte and
-     * reads no further. `php://input` is a stream `File` reads like any other path — under CLI it is
-     * STDIN, which is empty, which is why this is a method and not a property.
+     * `post_max_size` into memory before any caller can reject it, so each caller passes the
+     * largest body it will consider plus a byte and nothing reads further. `php://input` is a
+     * stream `File` reads like any other path — under CLI it is STDIN, which is empty, which is why
+     * this is a method and not a property.
      *
      * A request built with a body of its own — by a test, which has no `php://input` to fill —
      * answers that instead, cut to the same limit.

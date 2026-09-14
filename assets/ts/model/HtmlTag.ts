@@ -1,8 +1,8 @@
 /**
- * Mirrors HtmlTag — the standard elements this site emits.
+ * Mirrors HtmlTag — the standard elements a page built on the framework emits.
  *
- * The client creates most of these: the gate builds a <p>, a <button> and a <small>, the player an
- * <iframe> and a <div>, and Navigation a <textarea> to decode entities out of a title.
+ * Most are the server's alone. The framework's own client creates two: Navigation a <div> for its
+ * live region and a <textarea> to decode entities out of a title. A site's elements may create more.
  */
 export enum HtmlTag {
   Html     = 'html',
@@ -21,7 +21,6 @@ export enum HtmlTag {
   H2       = 'h2',
   H3       = 'h3',
 
-  /** h4, ul, li and em are the privacy policy's; nothing client-side creates one. */
   H4       = 'h4',
 
   P        = 'p',
@@ -37,14 +36,15 @@ export enum HtmlTag {
   Em       = 'em',
   Div      = 'div',
 
-  /** A native player. Server-side only — it is native precisely so no client code is needed. */
+  /** Native media. Server-side only — it is native precisely so no client code is needed. */
   Audio    = 'audio',
 
   Iframe   = 'iframe',
 
-  /** What an element that draws, draws on. Client-created only, the way Textarea is. */
+  /** What an element that draws, draws on. Client-created only: a view emits the element, which makes this. */
   Canvas   = 'canvas',
 
+  /** Written by a view where text is shown for copying, and made by Navigation to decode entities. */
   Textarea = 'textarea',
   Table    = 'table',
   Tr       = 'tr',

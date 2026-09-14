@@ -100,8 +100,8 @@ final readonly class Directory
     }
 
     /**
-     * The files directly in this directory whose names match $pattern, in the order the filesystem
-     * gives them.
+     * The files directly in this directory whose names match $pattern, sorted by name as `scandir()`
+     * sorts them.
      *
      * Directories are left out: every caller wants files, and one that had to check each entry
      * would be doing by hand what this exists to have done once.

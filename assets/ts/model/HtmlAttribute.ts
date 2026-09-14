@@ -1,5 +1,5 @@
 /**
- * Mirrors HtmlAttribute — the standard attributes this site emits.
+ * Mirrors HtmlAttribute — the standard attributes a page built on the framework emits.
  *
  * Read here for the link selector Navigation intercepts on, which has to name the same href the
  * server writes. Most cases are server-side only; the parity test is what makes carrying the whole

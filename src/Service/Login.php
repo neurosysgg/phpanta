@@ -40,8 +40,8 @@ use SensitiveParameter;
  *
  * **Every attempt pays for a comparison.** A name the site does not know is compared against
  * {@link PasswordHash::unmatchable()} — a real bcrypt digest nothing opens — so the time an answer
- * takes says nothing about whether the name exists. The same levelling {@link Auth::matches()} and a
- * site's demo gate do, for the same reason.
+ * takes says nothing about whether the name exists. The same levelling {@link Auth::matches()} does,
+ * for the same reason.
  *
  * **Every attempt is counted, by address and name**, against the {@link Throttle} the site gives it,
  * and once there have been too many the answer is a 429 with a `Retry-After`, whatever the password

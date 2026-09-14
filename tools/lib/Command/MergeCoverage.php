@@ -61,7 +61,7 @@ final readonly class MergeCoverage implements Command
      */
     public function description(): string
     {
-        return "Merge PHPUnit's coverage with the verify script's into one report.";
+        return "Merge PHPUnit's coverage with the end-to-end suite's into one report.";
     }
 
     /**
@@ -147,7 +147,7 @@ final readonly class MergeCoverage implements Command
         }
 
         $output->out(sprintf(
-            "Merged %d suite(s) with %d request(s) from the verify script.\n",
+            "Merged %d suite(s) with %d request(s) from the end-to-end suite.\n",
             count($suites),
             count($requests),
         ));

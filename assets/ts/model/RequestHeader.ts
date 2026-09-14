@@ -12,7 +12,8 @@ export enum RequestHeader {
   IfNoneMatch = 'If-None-Match',
 
   /**
-   * Written by no client code either — a browser sends it when an <audio> element is seeked, and
+   * Written by no client code either — a browser sends it when a media element seeks or a download
+   * resumes, and
    * FileResponse answers it with a 206. Here for the same reason IfNoneMatch is: the mirror is
    * compared case for case, so a case on one side only is what fails.
    */

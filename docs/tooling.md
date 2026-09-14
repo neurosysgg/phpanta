@@ -124,8 +124,8 @@ them, which for a vendoring site is its own `composer.json`:
   curl. That makes it a `require-dev` entry, because `require` states what runs on the server, and
   nothing under `src/` makes an outbound request.
 
-Phpanta's own `composer.json` declares neither. Checked out on its own, it runs these commands only
-in its tests, over a `Transport` that answers from memory.
+Phpanta's own `composer.json` declares both, in `require-dev`. Checked out on its own, it runs these
+commands only in its tests, over a `Transport` that answers from memory.
 
 ## The static export
 

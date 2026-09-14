@@ -48,6 +48,10 @@ enum AuthScheme: string
      * grammar here beyond "the rest of the header", and {@link self::parameters()} is all the
      * reading this class does. The structure inside is that class's business.
      *
+     * **The letters are only a name no registered scheme has**, so nothing between the two ends
+     * reads the header as a credential it knows — a browser shows no prompt for it, and a proxy
+     * finds no `Basic` or `Bearer` to act on.
+     *
      * **The digit is a format version and is deliberately not the API's.** `/admin/{service}/v1/…`
      * versions what is being asked for; this versions how the asking is signed, and the two move
      * for different reasons. It is the argument a binary format makes for its magic number, and

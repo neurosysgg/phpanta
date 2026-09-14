@@ -28,7 +28,8 @@ use Phpanta\Text\Translatable;
  *
  * **The grammar is its own, and it is small.** A placeholder is `{name}` — a lower-case letter, then
  * letters and digits. Everything else is literal, apostrophes included, so this is not ICU and not
- * for {@link \Phpanta\Text\Phrase}: `with()` would have consumed the braces before this saw them. A
+ * for {@link \Phpanta\Text\Phrase}, which formats its text through ICU and refuses a `{name}`
+ * nobody bound before this could place anything. A
  * brace that is no placeholder is refused rather than guessed at; a brace the prose needs goes inside
  * a part, where it is somebody's code and escaped as such.
  *

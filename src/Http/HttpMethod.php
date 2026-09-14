@@ -7,9 +7,10 @@ namespace Phpanta\Http;
 /**
  * The HttpMethod enum. The HTTP methods the framework recognises.
  *
- * Recognising one is not the same as accepting it: every route but the API's is read-only, so everything but
- * {@link self::isReadOnly()} is refused with a 405, and {@link Allow::readOnly()} derives that
- * refusal's `Allow` header from the same predicate so the two cannot disagree. A method that is not
+ * Recognising one is not the same as accepting it: a route is read-only unless it names a
+ * {@link \Phpanta\Support\MethodSet}, and a read-only route refuses everything but
+ * {@link self::isReadOnly()} with a 405 whose `Allow` {@link Allow::readOnly()} derives from the
+ * same predicate, so the two cannot disagree. A method that is not
  * a case here — a typo, a WebDAV verb, anything — is not read-only either, which is why
  * {@link Request::method()} is nullable rather than defaulting to GET.
  */

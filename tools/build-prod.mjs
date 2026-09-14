@@ -2,13 +2,13 @@
  * Builds the tree that ships, out of the tree that is committed.
  *
  * `public/` is three things at once — what the browser loads, what `test/js/` imports by path, and
- * what the verify script diffs byte-for-byte against a fresh `tsc`. The last two are why it stays
+ * what a site's suite diffs byte-for-byte against a fresh `tsc`. The last two are why it stays
  * readable and mapped: a minified `public/assets/js/` would make the drift check a diff between two
  * things a person cannot compare, and `?v=`-style attribution problems aside, coverage is pinned to
  * those exact paths. So prod is a **second tree**, derived from the first and never committed:
  *
  *     public/                       ← readable, mapped, committed, tested
- *           ↓ npm run build:prod
+ *           ↓ tools/build-prod.mjs
  *     build/dist/public/            ← one bundled module, minified, no maps; what a deploy ships
  *     build/dist/src/<App>/AssetManifest.php
  *
@@ -28,7 +28,7 @@
  *      of the work identifier mangling would.
  *
  * **Why the debug tree does not get any of this.** public/ is imported by test/js/ by path, pinned
- * by `npm run coverage`'s 100% gate, and diffed byte-for-byte against a fresh `tsc`. All three want
+ * by a site's 100% coverage gate, and diffed byte-for-byte against a fresh `tsc`. All three want
  * output a person can read. Bundling it would cost every one of them; bundling here costs nothing,
  * because the tests reach the elements through one `import main.js` and the DOM — so re-running
  * them with PHPANTA_JS_DIR set still executes exactly the bytes the server sends.
@@ -56,7 +56,7 @@
  *   node tools/build-prod.mjs                # build/dist/, from the committed public/
  *   node tools/build-prod.mjs --out <dir>    # elsewhere — never above the project, and in it only under build/
  *
- * Assumes `public/` is current — `npm run build:prod` runs `npm run build` first rather than
+ * Assumes `public/` is current — a site's script for it runs the debug build first rather than
  * trusting that. Exits non-zero with the reason on stderr; it clears the tree before it starts, so
  * a failed build leaves no partial one to be deployed by mistake.
  */
@@ -152,7 +152,7 @@ cpSync(PUBLIC, DIST_PUB, { recursive: true });
 const sources = filesEnding(JS, '.js');
 
 if (sources.length === 0) {
-  fail(`${label(JS)} holds no modules. Run \`npm run build\` — there is nothing here to ship.`);
+  fail(`${label(JS)} holds no modules. Compile assets/ts/ with tsc first — there is nothing here to ship.`);
 }
 
 // One pass over the graph from the entry, concatenating it into a single ES module. esbuild is a

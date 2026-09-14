@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Collects code coverage from the verify script's dev server.
+ * Collects code coverage from the dev server a site's end-to-end suite runs.
  *
  * A site's end-to-end verify script covers what unit tests structurally cannot — the real HTTP stack, the
  * front controller, the `header()` calls that are a no-op under CLI. None of that showed up in

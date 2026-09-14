@@ -18,9 +18,9 @@ use Phpanta\Support\File;
  * The ReleaseRecord class. The one directory where a push keeps the release it replaced, so that
  * `update v1 rollback` can put it back.
  *
- * **It is a record, not a staging area**, and the difference is the one {@link UpdateApplier}'s
- * docblock draws: a push still writes straight into the live tree, file by file, and there is still
- * nothing to recover from a half-run because nothing runs half-way. What this adds is the other
+ * **It is a record, not a staging area.** {@link UpdateApplier} stages what changes beside the roots
+ * and renames each file into place, so nothing live is written before every file is staged. What
+ * this adds is the other
  * direction — the bytes a push overwrites or deletes, copied aside *before* it does either, and the
  * names it adds, so that one step back is a signed request rather than a full deploy from an old
  * checkout.
@@ -98,8 +98,9 @@ final readonly class ReleaseRecord
      *
      * The order is the design. The old record is cleared first; the new index is written marked
      * incomplete, naming everything this will save; each copy is saved and checked against the digest
-     * it was recorded under; only then is the index written again, complete. A failure at any step
-     * clears what was begun, by that same index, and says what failed.
+     * it was recorded under; only then is the index written again, complete. A failure once the
+     * incomplete index is written clears what was begun, by that same index, and says what failed;
+     * one before it has begun nothing.
      *
      * @param int|null $serial The serial of the push taking the record.
      * @param Collection<RecordEntry> $entries

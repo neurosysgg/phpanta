@@ -14,8 +14,8 @@ use Phpanta\Exception\UpdateException;
  * It is {@link PasswordHash} for the other kind of credential, and it is written to the same shape
  * on purpose: the material is validated once where it is written down, the comparison is the one
  * thing that stays inside, and nothing else in `src/` calls the underlying primitive. **This is the
- * single `openssl_*` call site in the whole framework**, which the verify script pins the way it
- * pins `curl_` to one file of tooling.
+ * one `openssl_verify()` in the framework**; the only other `openssl_*` calls are
+ * {@link \Phpanta\Http\SessionSeal}'s encrypt and decrypt.
  *
  * **Why a key rather than a password.** The other gates are HTTP Basic, where the
  * secret is on the wire and the server holds something derived from it. This gate protects a route
@@ -33,9 +33,9 @@ use Phpanta\Exception\UpdateException;
  * not a convenience, exactly as it is on {@link PasswordHash}.
  *
  * Note that nothing here can sign, and that is structural rather than a matter of restraint: this
- * class holds a public key and calls one function. The verify script asserts that no file under
- * `src/` names a signing or key-minting call at all, so a private key arriving on the server would
- * have nothing to use it.
+ * class holds a public key and calls one function. No file under `src/` names a signing or
+ * key-minting call at all — a grep a site's own suite can hold it to — so a private key arriving on
+ * the server would have nothing to use it.
  */
 final readonly class PublicKey
 {

@@ -149,8 +149,8 @@ enum CodeSample: string
                 ├── Data/           SQLite through PDO: statements, typed rows, transactions, migrations
                 ├── Text/           Translatable, Translation, Language, Languages, an address per language
                 ├── Support/        Collection, File, Directory, Path and Route, Throttle, PublicKey, TarArchive
-                ├── Model/          Api/ (a signed call), Update/ (a push, the release it replaced), Health/ (requirements)
-                ├── Service/        Auth, Login, ApiGate, UpdateApplier, ReleaseRecord; Layer/, and the API's handlers
+                ├── Model/          Api/ (a signed call), Update/ (a push, the release it replaced), Health/, Passkey/
+                ├── Service/        Auth, Login, ApiGate, UpdateApplier, ReleaseRecord; Layer/, Passkey/, the API's handlers
                 └── Exception/      SiteException and every condition under it
                 TEXT,
         };

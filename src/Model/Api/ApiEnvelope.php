@@ -64,8 +64,8 @@ final readonly class ApiEnvelope
     /**
      * How deep the manifest JSON may nest.
      *
-     * Two, not one: this reads five scalars, but the same bytes are read again by whatever action
-     * the request names, and an action's own parameters may be an object. It is the argument
+     * More than one: this reads five scalars, but the same bytes are read again by whatever action
+     * the request names, and an action's own parameters may be an object holding objects. It is the argument
      * against an unbounded depth that matters rather than the number — `json_decode`'s default is
      * 512.
      */

@@ -30,7 +30,7 @@ What a site owes, and what it may add:
 |---|---|---|
 | owes | `name()` | the Basic Auth realm, and the title a page is named under |
 | | `above()` | the deployment directory — the one holding `autoload.php` |
-| | `routes()` | the site's routes; `routeTable()` appends the framework's API route after them |
+| | `routes()` | the site's routes; `routeTable()` appends the framework's four admin routes after them |
 | | `notFound()` | the page for an address the site does not have, to a method that reads |
 | | `languages()` | the languages it is written in, its default first |
 | | `shell()` | the document every page is rendered inside |
@@ -40,18 +40,24 @@ What a site owes, and what it may add:
 | may add | `contentHosts()` | third-party origins per CSP fetch directive; none by default |
 | | `strictTransportSecurity()` | the HSTS policy; a year, subdomains included, by default |
 | | `permissionsPolicy()` | the `Permissions-Policy`; every feature it knows denied by default |
+| | `crossOriginOpenerPolicy()`, `crossOriginResourcePolicy()` | the two cross-origin policies; `same-origin` both, by default |
+| | `origin()` | the origin it is served from; none by default, which means no sitemap and no browser at the admin |
+| | `languageAddresses()` | whether each language has an address of its own; `Shared` by default, `Suffixed` for a static host |
+| | `layers()` | what stands around every request, outermost first; none by default — see [Layers](#layers) |
 | | `ownRequirements()` | what it needs of its host beyond the framework's floor; none by default |
+| | `environment()` | development or production, from the server's `PHPANTA_ENVIRONMENT`; override only to pin production |
 
 **What the framework derives from those is final** — `data()`, `webroot()`, `updateSerial()`,
-`dataFile()`, `dataFiles()`, `logs()`, `errorLog()`, `requirements()`, `routeTable()` and `run()` —
+`dataFile()`, `dataFiles()`, `sessionSeal()`, `logs()`, `errorLog()`, `requirements()`,
+`routeTable()`, `adminRoutes()`, `layerTable()`, `handle()`, `run()` and `fault()` —
 because each derivation was measured into its shape, and a site getting one of them slightly
 different is how a mirror deletes the wrong tree. `webroot()` is the one path that is not derived:
 the directory is `public/` in a repository and whatever the host calls it on the server, so it is
 asked of `DOCUMENT_ROOT` — for its basename only, and refused with an `UpdateException` rather than
 guessed when that is blank, relative, a dot segment, outside the deployment or absent.
 
-`run()` is the request, in a fixed order: the error log, the security headers, the request, the site
-gate, the route. The site's `public/index.php` installs a last-resort exception handler first — one
+`run()` is the request, in a fixed order: the error log, the security headers, the request, the
+app's layers, the route. The site's `public/index.php` installs a last-resort exception handler first — one
 that depends on nothing, because it has to work when nothing else did — and then calls it.
 
 ## The request, traced
@@ -96,12 +102,14 @@ host's own log **without a word**. `health v1` warns about it; see [health.md](h
 
 [`SecurityHeaders::send()`](../src/Http/SecurityHeaders.php) runs *before* the request is
 even parsed, so nothing goes out without them — not even the site's last-resort 500, which is the one
-response that is not an answer. Every answer then carries the same five again, first:
+response that is not an answer. Every answer then carries the same seven again, first:
 `App::handle()` puts them ahead of whatever the route answered, so the 401 a gate refuses with, the
 405 the router refuses a POST with and a 303 a redirect answers with carry them as a value a test
 can read. Sending them replaces the ones already out rather than doubling them; see
-[`Answer::send()`](../src/Http/Answer.php). The CSP's third-party hosts, the HSTS policy and the
-`Permissions-Policy` are the app's to state — `TestApp` states none, so it sends the strict defaults.
+[`Answer::send()`](../src/Http/Answer.php); a response that carries one of them itself is refused
+rather than sent twice. The CSP's third-party hosts, the HSTS policy, the `Permissions-Policy` and
+the two cross-origin policies are the app's to state — `TestApp` states none, so it sends the strict
+defaults.
 
 It also *removes* one header — `X-Powered-By`, which PHP appends with its exact patch version before
 any of the framework's code runs. See [security.md](security.md) for the policies themselves.
@@ -341,8 +349,9 @@ what a site's end-to-end suite is still for; see [testing.md](testing.md).
 
 **Header names live in two enums on purpose.** `SecurityHeader` is exhaustive and tested as such —
 `SecurityHeaders::headers()` sends exactly its cases. `ResponseHeader` is everything else. Folding
-them together would make the exhaustiveness assertion meaningless. `RequestHeader` is the inbound
-direction; all three implement `HeaderName`, so `Header` formats any of them.
+them together would make the exhaustiveness assertion meaningless. Both implement `HeaderName`, so
+`Header` formats either. `RequestHeader` is the inbound direction, and implements nothing of the
+kind: a name a request carries is not one a response may send.
 
 **Header *values* are typed too, because a header value has a grammar** — a quoted `ETag`, a
 comma-separated `Allow`, `Basic realm="…"`, `max-age=…; includeSubDomains`, `no-store, private` —
@@ -466,7 +475,7 @@ Twenty-five classes — one of them abstract — and one interface, read from `s
 | `MimeTypeException` | `LogicException` | a media type is not one | `MimeType` |
 | `RequirementException` | `LogicException` | a requirement is declared with something it cannot check | 5 classes under `Model/Health/` |
 | `RouteException` | `LogicException` | a `Path` is given the wrong number of values, or one its placeholder's type does not take; a method set is empty | `FillsPlaceholders`, `PlaceholderType`, `MethodSet` |
-| `SecurityPolicyException` | `LogicException` | a policy or header value is not valid on the wire | 12 classes under `Http/` |
+| `SecurityPolicyException` | `LogicException` | a policy or header value is not valid on the wire | 13 classes under `Http/` |
 | `SessionException` | `RuntimeException` | a session is kept without a key to seal it, or grows past what a cookie holds | `Session`, `SessionSeal` |
 | `SqlException` | `LogicException` | a statement, a row read or a transaction is written wrong | `Sql`, `Row`, `Database` |
 | `ThrottleException` | `RuntimeException` | the throttle's record cannot be read or written, so it fails closed | `Throttle` |
@@ -599,8 +608,9 @@ that knows which language it is in.
 
 **A value with a *grammar* is a class, not a case**, and `attr()` takes one through an
 `AttributeValue` interface — the same shape `HeaderValue` has on the HTTP side, for the same reason:
-an `->attr(…)` call site is the one place a grammar cannot be checked. `ViewportContent` is the
-framework's implementation: `width=device-width, initial-scale=1.0` is a descriptor list of
+an `->attr(…)` call site is the one place a grammar cannot be checked. The framework has two:
+`FieldId`, the `for` a label and the `id` its control share, and `ViewportContent`, whose
+`width=device-width, initial-scale=1.0` is a descriptor list of
 name-value pairs. Its width is a `ViewportWidth` case and its scale is a `float`, so neither half can
 be misspelled. Note the two rules the class exists to keep: the scale renders `1.0` rather than PHP's
 `(string)` of it, which is `1` — the same instinct that keeps `Charset` carrying two spellings of one
@@ -610,8 +620,9 @@ a decimal comma and a comma is this grammar's own separator.
 **Unwrapping happens in `attr()`, and both guarantees stay in `render()`.** That is not a
 contradiction of the rule in the next section: unwrapping is *normalisation* — shorthand for the
 string a call site would otherwise have typed — where escaping and the scheme check are guarantees,
-which have to hold for an element built any way at all. `Attribute` holds a `?string`, so what a
-hostile `AttributeValue` returned is escaped exactly like anything else. `MarkupTest` builds one to
+which have to hold for an element built any way at all. `Attribute` holds a string, a
+`Translatable` or null — never the value object — so what a hostile `AttributeValue` returned is
+escaped exactly like anything else. `MarkupTest` builds one to
 prove it.
 
 ### The two guarantees, and where they live
@@ -650,9 +661,15 @@ the only thing standing in front of.
 
 ### Pretty-printing is not cosmetic
 
-An element whose children are all elements puts each on its own line; one with any `Text` among them
-stays on one line. Whitespace between inline content is content — without that rule
-`<h1>hello<span>.</span></h1>` would gain a space inside the title.
+Whitespace between inline content is content, so the printer only breaks a line where the browser
+drops the break. An element with any text among its children — a `Text`, a `TranslatedText`, a
+`Sentence`, or a `Fragment` holding one — stays on one line, and so does one whose content is itself
+a line of text, an `<a>` around an `<img>` (`HtmlTag::isInlineContainer()`). Otherwise each child
+goes on a line of its own, except two phrasing elements side by side, `<strong>` beside `<em>`,
+which share one (`HtmlTag::isPhrasing()`, `Fragment::lines()`). Without those rules
+`<h1>hello<span>.</span></h1>` would gain a space inside the title, and `<strong>a</strong><em>b</em>`
+would read "a b". A fragment is opened into its parent and laid out by the same rule, so the two
+cannot disagree.
 
 ### Hand-authored markup: `MarkupParser` and `containingHtml()`
 

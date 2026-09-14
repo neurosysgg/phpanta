@@ -42,7 +42,7 @@ use Phpanta\Tool\Update\TarWriter;
  *
  * It ships the **prod** tree — `build/dist/public/` rather than `public/` — so what lands is bundled
  * and minified with no source maps, and the stamped manifest goes with it. Building is the caller's
- * job: `npm run build:prod` first.
+ * job: `tools/build-prod.mjs` first.
  *
  * The framework ships out of the working tree too, so **it refuses a framework no commit of the site
  * reproduces** — one missing, edited and not committed, or not the one the site records — unless
@@ -122,7 +122,7 @@ final readonly class PushUpdate implements Command
         $dist = $this->root->directory('build')->directory('dist');
 
         if (!$dist->directory('public')->exists()) {
-            $output->error("build/dist/ is not there — run `npm run build:prod` first.\n");
+            $output->error("build/dist/ is not there — build the prod tree with tools/build-prod.mjs first.\n");
             return ExitCode::Failure;
         }
 
