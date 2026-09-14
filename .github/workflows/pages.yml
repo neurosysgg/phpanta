@@ -26,7 +26,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: shivammathur/setup-php@v2
         with:
@@ -35,7 +35,7 @@ jobs:
           extensions: dom, intl, openssl, zlib, pdo_sqlite
           coverage: none
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '26'
           cache: npm
@@ -50,10 +50,13 @@ jobs:
       - run: npm run site:test
       - run: npm run site:export
 
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+      # Dotfiles kept, as before v4 left them out: the export writes .nojekyll and its own
+      # .phpanta-export marker (docs/tooling.md), and the upload should be the export as written.
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: build/pages
+          include-hidden-files: true
 
   deploy:
     needs: build
@@ -63,4 +66,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
