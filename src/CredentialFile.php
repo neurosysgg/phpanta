@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Phpanta;
 
 /**
- * The CredentialFile enum. The four files in `data/` the framework itself reads: the two gates'
- * credentials, the API's key, and the key sessions are sealed with.
+ * The CredentialFile enum. The five files in `data/` the framework itself reads: the two gates'
+ * credentials, the admin's signing key, the key sessions are sealed with, and the devices that may
+ * open the admin in a browser.
  *
  * **Every one of them changes what the site does rather than what it shows**, which is why they
  * are the framework's rather than a site's: the site gate, the admin gate and the signed API are
@@ -14,8 +15,8 @@ namespace Phpanta;
  * in opposite directions, and that is the thing to read twice — see {@link self::SiteAuth} and
  * {@link self::UpdateKey}.
  *
- * All four hold live credentials, so a full deploy excludes all four; each that a deployment needs is
- * uploaded, or minted, by hand.
+ * All five hold live credentials, so a full deploy excludes all five; each that a deployment needs is
+ * uploaded, minted or enrolled by hand.
  */
 enum CredentialFile: string implements DataFileName
 {
@@ -63,16 +64,27 @@ enum CredentialFile: string implements DataFileName
     case SessionKey = 'session.key';
 
     /**
+     * The devices that may open the admin in a browser — each a passkey's public half. See
+     * {@link Service\Passkey\PasskeyRegistry}.
+     *
+     * **Absent is none**, with {@link self::UpdateKey}'s polarity: no file, no device, and a browser
+     * sees the entrance and nothing past it. Per deployment, written only by the signed `access v1
+     * enrol` and `revoke`, and never deployed — a copy from a laptop would put the laptop's list of
+     * devices on the live host.
+     */
+    case AdminPasskeys = 'admin-passkeys.json';
+
+    /**
      * Only the admin placeholder is tracked: the site gate's file exists per deployment and is
-     * gitignored, and the two keys are untracked because each deployment holds its own.
+     * gitignored, and the keys and the devices are untracked because each deployment holds its own.
      *
      * @return bool
      */
     public function isTracked(): bool
     {
         return match ($this) {
-            self::Admin                                       => true,
-            self::SiteAuth, self::UpdateKey, self::SessionKey => false,
+            self::Admin => true,
+            self::SiteAuth, self::UpdateKey, self::SessionKey, self::AdminPasskeys => false,
         };
     }
 }

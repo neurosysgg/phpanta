@@ -40,4 +40,5 @@ export enum HtmlAttribute {
   Autocomplete    = 'autocomplete',
   Checked         = 'checked',
   Selected        = 'selected',
+  Readonly        = 'readonly',
 }

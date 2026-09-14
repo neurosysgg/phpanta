@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Phpanta\Test\Unit;
 
+use Phpanta\Http\Api\AccessAction;
 use Phpanta\Http\Api\ActionField;
 use Phpanta\Http\Api\ApiListing;
 use Phpanta\Http\Api\ApiService;
@@ -12,6 +13,7 @@ use Phpanta\Http\Api\CapabilityAction;
 use Phpanta\Http\Api\HealthAction;
 use Phpanta\Http\Api\ListingEntry;
 use Phpanta\Http\Api\UpdateAction;
+use Phpanta\Http\HttpMethod;
 use Phpanta\Http\RequestHeader;
 use Phpanta\Model\Update\UpdateManifest;
 use Phpanta\Text\AdminText;
@@ -35,6 +37,7 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(UpdateAction::class)]
 #[CoversClass(HealthAction::class)]
 #[CoversClass(CapabilityAction::class)]
+#[CoversClass(AccessAction::class)]
 #[CoversClass(ActionField::class)]
 #[CoversClass(ApiListing::class)]
 #[CoversClass(ListingEntry::class)]
@@ -66,6 +69,7 @@ final class DiscoveryTest extends TestCase
         self::assertSame(UpdateAction::cases(), ApiService::Update->actions(ApiVersion::V1)->toValues());
         self::assertSame(HealthAction::cases(), ApiService::Health->actions(ApiVersion::V1)->toValues());
         self::assertSame(CapabilityAction::cases(), ApiService::Capability->actions(ApiVersion::V1)->toValues());
+        self::assertSame(AccessAction::cases(), ApiService::Access->actions(ApiVersion::V1)->toValues());
 
         foreach (ApiService::cases() as $service) {
             foreach ($service->actions(ApiVersion::V1) as $action) {
@@ -122,10 +126,21 @@ final class DiscoveryTest extends TestCase
         self::assertFalse(UpdateAction::Patch->fromBrowser());
         self::assertTrue(UpdateAction::Rollback->fromBrowser());
 
-        foreach ([...HealthAction::cases(), ...CapabilityAction::cases()] as $read) {
+        foreach ([...HealthAction::cases(), ...CapabilityAction::cases(), AccessAction::Passkeys] as $read) {
             self::assertTrue($read->fields()->isEmpty(), $read->value);
             self::assertTrue($read->fromBrowser(), $read->value);
         }
+
+        // Enrolment is where trust starts, so a browser cannot enrol itself; it can revoke.
+        self::assertSame(
+            [ActionField::Code, ActionField::Name, ActionField::Apply],
+            AccessAction::Enrol->fields()->toValues(),
+        );
+        self::assertSame([ActionField::Passkey, ActionField::Apply], AccessAction::Revoke->fields()->toValues());
+        self::assertFalse(AccessAction::Enrol->fromBrowser());
+        self::assertTrue(AccessAction::Revoke->fromBrowser());
+        self::assertSame(HttpMethod::Post, AccessAction::Enrol->method());
+        self::assertSame(HttpMethod::Get, AccessAction::Passkeys->method());
     }
 
     /**
@@ -138,9 +153,9 @@ final class DiscoveryTest extends TestCase
         $data = self::data(ApiListing::services(Language::English));
 
         self::assertSame('/admin', $data['address']);
-        self::assertSame(['update', 'health', 'capability'], array_column($data['entries'], 'name'));
+        self::assertSame(['update', 'health', 'capability', 'access'], array_column($data['entries'], 'name'));
         self::assertSame(
-            ['/admin/update', '/admin/health', '/admin/capability'],
+            ['/admin/update', '/admin/health', '/admin/capability', '/admin/access'],
             array_column($data['entries'], 'href'),
         );
         self::assertSame(

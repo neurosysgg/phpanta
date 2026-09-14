@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\Tool\Command;
 
 use Closure;
+use Phpanta\Http\Api\ActionField;
 use Phpanta\Http\Api\ApiService;
 use Phpanta\Http\Api\ApiVersion;
 use Phpanta\Http\Api\UpdateAction;
@@ -46,6 +47,11 @@ use Phpanta\Tool\Http\Url;
  * `--dry-run`, so the server reports what it would do, changes nothing and spends no serial. A
  * read, and a listing, refuse `--dry-run` rather than ignoring it: a flag that does nothing on one
  * address and everything on another is a flag somebody will one day trust on the wrong one.
+ *
+ * **Every other field an action reads is a flag of its own** — `--code` and `--name` for
+ * `access v1 enrol`, `--passkey` for `access v1 revoke` — and the action's own
+ * {@link \Phpanta\Http\Api\ApiAction::fields()} decides which it needs: a missing one is asked for,
+ * and one it does not take is refused rather than signed and ignored.
  *
  * **The exit code is the answer's**: 0 for a 2xx and 1 for anything else, so a failed `health`
  * check — a 503 with the report in its body — can end a script. A `401` is explained as the refusal
@@ -92,7 +98,8 @@ final readonly class ApiCall implements Command
      */
     public function usage(): string
     {
-        return '[<service> [<version> [<action>]]] [--dry-run] [--url <origin>] [--key <file>]';
+        return '[<service> [<version> [<action>]]] [--dry-run] [--code <code>] [--name <name>]'
+            . ' [--passkey <id>] [--url <origin>] [--key <file>]';
     }
 
     /**
@@ -173,6 +180,34 @@ final readonly class ApiCall implements Command
         // `apply: false`. The key is the server's own constant, so the two cannot drift.
         $fields = $write ? [UpdateManifest::APPLY => !$dryRun] : [];
 
+        // Every other field the action takes comes from its flag — asked for where it is missing,
+        // and a flag the action does not take is refused rather than signed and ignored.
+        foreach (ApiCallOption::cases() as $option) {
+            $field = $option->field();
+            $given = $input->value($option);
+
+            if ($field === null) {
+                continue;
+            }
+
+            $takes = $named->fields()->first(static fn(ActionField $each): bool => $each === $field) !== null;
+
+            if ($takes !== ($given !== null)) {
+                $output->error(sprintf(
+                    $takes ? "%s: %s needs --%s.\n" : "%s: %s takes no --%s.\n",
+                    $this->name(),
+                    $action,
+                    $option->flag(),
+                ));
+
+                return ExitCode::Usage;
+            }
+
+            if ($given !== null) {
+                $fields[$field->value] = $given;
+            }
+        }
+
         return $this->send($input, $output, static fn(Url $origin, PrivateKey $key): Request
             => SignedRequest::build($origin, $known, $revised, $named, '', $fields, $key));
     }
@@ -192,6 +227,14 @@ final readonly class ApiCall implements Command
             $output->error(sprintf("%s: a listing only reads, so it has no dry run.\n", $this->name()));
 
             return ExitCode::Usage;
+        }
+
+        foreach (ApiCallOption::cases() as $option) {
+            if ($option->field() !== null && $input->value($option) !== null) {
+                $output->error(sprintf("%s: a listing takes no --%s.\n", $this->name(), $option->flag()));
+
+                return ExitCode::Usage;
+            }
         }
 
         $path = match (true) {

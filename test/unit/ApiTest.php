@@ -1141,7 +1141,10 @@ final class ApiTest extends TestCase
             self::assertContains('Content-Type: application/json', self::lines($answer));
         }
 
-        self::assertSame(['update', 'health', 'capability'], array_column(self::decoded($top)['entries'], 'name'));
+        self::assertSame(
+            ['update', 'health', 'capability', 'access'],
+            array_column(self::decoded($top)['entries'], 'name'),
+        );
         self::assertSame(['v1'], array_column(self::decoded($service)['entries'], 'name'));
         self::assertSame(
             array_map(static fn(UpdateAction $action): string => $action->value, UpdateAction::cases()),

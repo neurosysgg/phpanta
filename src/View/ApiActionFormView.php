@@ -1,0 +1,120 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Phpanta\View;
+
+use Phpanta\Http\Api\ActionField;
+use Phpanta\Http\Api\ApiAction;
+use Phpanta\Http\RequestHeader;
+use Phpanta\Model\Passkey\CeremonyType;
+use Phpanta\Support\BareArray;
+use Phpanta\Text\AdminText;
+use Phpanta\Text\Translatable;
+use Phpanta\View\Html\Element;
+use Phpanta\View\Html\HtmlAttribute;
+use Phpanta\View\Html\HtmlTag;
+use Phpanta\View\Html\InputType;
+use Phpanta\View\Html\Node;
+
+/**
+ * The ApiActionFormView class. A write, offered to a browser the admin has let in: what it does, a
+ * field for each thing it takes, and two buttons — a dry run, and the real thing.
+ *
+ * Posted with the session's form token and answered, before it is sent, by the passkey that unlocked
+ * the admin, over a challenge minted for this one address and method — so a tap is one write, the way
+ * a signature is for the signing commands.
+ */
+final class ApiActionFormView extends View
+{
+    /**
+     * Constructs an instance of {@link self}.
+     *
+     * @param ApiAction $action    The write.
+     * @param string    $path      Its address.
+     * @param string    $token     The session's form token.
+     * @param string    $challenge The challenge minted for this write.
+     */
+    public function __construct(
+        private readonly ApiAction $action,
+        private readonly string    $path,
+        private readonly string    $token,
+        private readonly string    $challenge,
+    ) {}
+
+    /**
+     * @return Translatable
+     */
+    public function pageTitle(): Translatable
+    {
+        return self::title($this->path);
+    }
+
+    /**
+     * @return Node
+     */
+    public function content(): Node
+    {
+        $fields = $this->action->fields()
+            ->where(static fn(ActionField $field): bool => !$field->isFlag())
+            ->map(static fn(ActionField $field): Node => self::field($field))
+            ->toValues();
+
+        return new Element(HtmlTag::Section)->containing(
+            new Element(HtmlTag::H1)->containing($this->path),
+            new Element(HtmlTag::P)->containing($this->action->describe()),
+            AdminForm::posting($this->path, $this->token, CeremonyType::Get, $this->challenge)->containing(
+                ...$fields,
+                ...[
+                    AdminForm::button(AdminText::DryRun, ActionField::Apply, self::said(false)),
+                    AdminForm::button(AdminText::Apply, ActionField::Apply, self::said(true)),
+                ],
+            ),
+        );
+    }
+
+    /**
+     * Answered to a page request only.
+     *
+     * @return list<RequestHeader>
+     */
+    #[BareArray('overrides View::varyOn(), whose own attribute says why it is an array')]
+    public function varyOn(): array
+    {
+        return [RequestHeader::Accept];
+    }
+
+    /**
+     * $answer as a form sends a yes or a no — `true` or `false`, which the field's reader takes.
+     *
+     * @param bool $answer
+     * @return string
+     */
+    private static function said(bool $answer): string
+    {
+        return (string) json_encode($answer);
+    }
+
+    /**
+     * A labelled, required line of text for $field.
+     *
+     * Only text: `apply` is the two buttons, and the one other yes-or-no there is — a push's `mirror` —
+     * belongs to an action a browser may not carry out, so a form here never has one to write.
+     *
+     * @param ActionField $field
+     * @return Element
+     */
+    private static function field(ActionField $field): Element
+    {
+        return new Element(HtmlTag::P)->containing(
+            new Element(HtmlTag::Label)->containing(
+                $field->describe(),
+                ' ',
+                new Element(HtmlTag::Input)
+                    ->attr(HtmlAttribute::Type, InputType::Text)
+                    ->attr(HtmlAttribute::Name, $field)
+                    ->attr(HtmlAttribute::Required),
+            ),
+        );
+    }
+}

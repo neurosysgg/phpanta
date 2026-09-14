@@ -50,7 +50,12 @@ final readonly class Vocabulary
     {
         return new self(
             new Collection('string')->with(HtmlTag::class),
-            new Collection('string')->with(HtmlAttribute::class, LinkAttribute::class, RegionAttribute::class),
+            new Collection('string')->with(
+                HtmlAttribute::class,
+                LinkAttribute::class,
+                PasskeyAttribute::class,
+                RegionAttribute::class,
+            ),
         );
     }
 

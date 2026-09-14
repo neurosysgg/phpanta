@@ -125,14 +125,24 @@ These fail silently — no error, no log, a page that looks fine.
   turns into a 413 from the sender's `Content-Length`, rather than a form that sent nothing.
 
 **The API and deploying**
-- **`data/update.pub` absent means the admin lets nobody past its entrance; `data/site_auth.php`
-  absent means the site gate is off.** The two files look alike and have opposite polarity.
+- **`data/update.pub` absent means no signed call verifies and no device can be enrolled;
+  `data/site_auth.php` absent means the site gate is off.** The two files look alike and have
+  opposite polarity. `data/admin-passkeys.json` absent means no device is enrolled — per deployment,
+  written only by `access v1 enrol` and `revoke`, and never shipped.
+- **Passkeys are off unless the app names its origin** (`App::origin()`, never `Host`) **and the
+  deployment has `data/session.key`.** In development from loopback only, the request's `Origin`
+  comes first — before the app's — so a local copy runs a real ceremony where it is served. Otherwise the entrance says browsers cannot sign in, and nothing fails.
+  `data/throttle/` missing makes the entrance a `503`.
+- An unlocked session is re-checked against the passkey store on every request, so a revocation
+  takes effect on the next one. A browser write's tap binds `POST <path>`, not the field values —
+  those are held by the form token and the session.
 - **The admin negotiates, then verifies, then resolves.** A caller it cannot verify gets one answer
   at every depth below `/admin`, whether the address exists or not — a `303` for a page, a `401`
   challenging for `NS1` for data, never an `Allow`. An answer that differs for a real address tells
   a stranger what is in it, and looks like nothing at all.
 - `public/admin/` must never exist, and an admin action never reads a query parameter or a form
-  field — `InputTest` reads the API's code and fails on either.
+  field — `InputTest` reads the API's code and fails on either. A browser's form is read by
+  `AdminBrowser` alone, into a manifest of the fields the action declares.
 - A write spends its serial **before** applying, under a lock it holds to the end; a second write
   meanwhile is a 409 that spends nothing. A dry run and a read never spend one.
 - `App::webroot()` takes only `DOCUMENT_ROOT`'s basename and refuses a blank, relative,
@@ -153,10 +163,11 @@ These fail silently — no error, no log, a page that looks fine.
   beside the roots it removes again. It is a write — the lock and a serial — and answers facts only.
 - A health check **returns** its 503, and `Requirement::check()` never throws.
 - **`data/session.key` is per deployment and never ships.** Nothing asks for it until something keeps
-  a session; then its absence is a loud refusal, never a session sealed under something made up. A
-  session cookie that does not open is no session, not an error. `CsrfGuard` and `LoginGate` go on
-  routes, never on the app — as app layers they would stand in front of the admin, refusing a signed
-  write for the form token it does not carry and answering a stranger with a login page.
+  a session; then its absence is a loud refusal, never a session sealed under something made up —
+  except at the admin, which then lets no browser in. A session cookie that does not open is no
+  session, not an error. `CsrfGuard` and `LoginGate` go on routes, never on the app — as app layers
+  they would stand in front of the admin, refusing a signed write for the form token it does not
+  carry and answering a stranger with a login page. The admin checks a browser's token itself.
 - **A trace is shown only in development, and only to loopback.** Development is the server
   variable `PHPANTA_ENVIRONMENT=development`, exactly — `SetEnv` in a vhost, or the dev router for
   `php -S`, which hands its own environment to nothing. Any other value, a capital included, is
@@ -166,6 +177,9 @@ These fail silently — no error, no log, a page that looks fine.
 - The build tools find the project from where they are **run**, not from where they sit — which is
   inside `phpanta/`. The dev router and the coverage prepend take it from `DOCUMENT_ROOT`.
 - A bundled class name needs **both** esbuild `keepNames` and terser `keep_classnames`.
+- A site's entry script calls `Passkey.start()` **unconditionally**: a passkey form can arrive with a
+  `Navigation` swap after the script ran, so it listens at the document rather than for the forms
+  it finds at start.
 - Never cache-bust with `?v=` on an import specifier; the build stamp is a path segment.
 - The site reaches `assets/ts/` through a symlink; without `preserveSymlinks` it compiles outside
   `rootDir` and refuses.
@@ -208,8 +222,8 @@ serves its export; `.github/workflows/pages.yml` runs the suite first and publis
 | [docs/collections.md](docs/collections.md) | anything that holds a group |
 | [docs/guidelines.md](docs/guidelines.md) | a bare array, a bare string, an `array_*` call, an `@`, a `throw` |
 | [docs/language.md](docs/language.md) | any visible word, `Translation`, `Languages` |
-| [docs/frontend.md](docs/frontend.md) | the build, the element model, SPA navigation |
-| [docs/security.md](docs/security.md) | headers, the method gate, the guards, the admin and its signed calls |
+| [docs/frontend.md](docs/frontend.md) | the build, the element model, SPA navigation, the passkey forms |
+| [docs/security.md](docs/security.md) | headers, the method gate, the guards, the admin — its signed calls and its passkeys |
 | [docs/login.md](docs/login.md) | a login page — the recipe that puts `Form`, `Session`, the two guards and `Login` together |
 | [docs/health.md](docs/health.md) | `health` and `capability`, or a requirement to declare |
 | [docs/data.md](docs/data.md) | `Phpanta\Data` — a database, a statement, a row, a migration |

@@ -171,7 +171,7 @@ final readonly class ApiGate
         // there is no branch here, and a signed GET cannot smuggle a body past this for some later
         // action to read unsigned. hash_equals rather than === because one side is attacker-
         // supplied, which is the case it exists for.
-        if (strlen($body) !== $envelope->size || !hash_equals($envelope->digest, hash('sha256', $body))) {
+        if (strlen($body) !== $envelope->size || !hash_equals($envelope->digest, hash(PublicKey::DIGEST, $body))) {
             return null;
         }
 

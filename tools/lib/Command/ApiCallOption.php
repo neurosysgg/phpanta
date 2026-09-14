@@ -4,15 +4,17 @@ declare(strict_types=1);
 
 namespace Phpanta\Tool\Command;
 
+use Phpanta\Http\Api\ActionField;
 use Phpanta\Tool\Cli\Option;
 
 /**
  * The ApiCallOption enum. The flags `api` accepts.
  *
- * Three, and all are ones {@link PushUpdateOption} has for the same reasons — where to go, which key
- * to sign with, and whether a write is only a rehearsal. There is deliberately no flag that changes
- * *what* is asked for: that is the three operands, because a service, a version and an action are
- * what the address is, and a flag would let one of them be forgotten and defaulted.
+ * Three are ones {@link PushUpdateOption} has for the same reasons — where to go, which key to sign
+ * with, and whether a write is only a rehearsal. The rest are an action's own fields, each named by
+ * the {@link ActionField} it fills, so the command can refuse a flag the action does not take and ask
+ * for one it needs. There is deliberately no flag that changes *what* is asked for: that is the
+ * operands, because a service, a version and an action are what the address is.
  */
 enum ApiCallOption: string implements Option
 {
@@ -28,12 +30,36 @@ enum ApiCallOption: string implements Option
      */
     case DryRun = 'dry-run';
 
+    /** An enrolment's code, as the admin's entrance showed it. */
+    case Code = 'code';
+
+    /** An enrolment's name for the device. */
+    case Name = 'name';
+
+    /** A revocation's credential id. */
+    case Passkey = 'passkey';
+
     /**
      * @return string
      */
     public function flag(): string
     {
         return $this->value;
+    }
+
+    /**
+     * The action field this flag fills, or null for a flag that is the command's own.
+     *
+     * @return ActionField|null
+     */
+    public function field(): ?ActionField
+    {
+        return match ($this) {
+            self::Code    => ActionField::Code,
+            self::Name    => ActionField::Name,
+            self::Passkey => ActionField::Passkey,
+            default       => null,
+        };
     }
 
     /**

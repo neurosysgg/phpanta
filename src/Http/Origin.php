@@ -78,6 +78,16 @@ final readonly class Origin implements HeaderValue
     }
 
     /**
+     * The host alone — no scheme, no port — which is what WebAuthn names a relying party by.
+     *
+     * @return string
+     */
+    public function host(): string
+    {
+        return (string) Url::parse($this->origin)?->getAsciiHost();
+    }
+
+    /**
      * @return string
      */
     public function render(): string

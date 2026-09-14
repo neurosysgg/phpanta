@@ -35,4 +35,4 @@ a sentence of context is added in front of it rather than the passage being reph
 |---|---|
 | [types.md](types.md) | collections, exceptions, `Config` (now the app), `SitePath` (now `Path`), `File`, and the guidelines' first run |
 | [markup.md](markup.md) | the markup tree: attributes, the scheme check, `RawHtml` becoming `MarkupParser` |
-| [admin.md](admin.md) | `/api` becoming `/admin`, and the indistinguishability it gave up for uniformity |
+| [admin.md](admin.md) | `/api` becoming `/admin`, and the indistinguishability it gave up for uniformity; a browser let in by passkey |

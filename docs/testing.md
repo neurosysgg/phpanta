@@ -26,18 +26,18 @@ an app:
   paths the framework derives from an app then have somewhere real to land, and never land in a
   repository.
 
-`test/unit/` holds fifty-eight test classes, grouped by area:
+`test/unit/` holds sixty-two test classes, grouped by area:
 
 | Area | Tests |
 |---|---|
 | the app | `AppTest` (booting, what it derives, every `webroot()` refusal), `FaultTest` (who is told how a request broke) |
-| the admin | `ApiTest` (every depth, its gate — one answer to a stranger at every depth and under every verb, whether the address exists or not — and its three services), `DiscoveryTest` (what each service, version and action says of itself, and the listings built from it), `NegotiationTest` (a page, data or a `406`, chosen by `Accept`), `ApiResultTest` (one answer as a terminal's text, a script's data and a browser's page), `ApiClientTest` (signing against the real gate), `ApiCallTest`, `ResultReaderTest` and `ListingReaderTest` (what the CLI reads back out of an answer and a listing), `ApiTargetTest` |
+| the admin | `ApiTest` (every depth, its gate — one answer to a stranger at every depth and under every verb, whether the address exists or not — and its services), `AdminBrowserTest` (a browser let in: real P-256 ceremonies end to end through the controller — the entrance's one challenge, an unlock, a registration's code, the throttle, development's own origin, a write's form and its tap, a revoked passkey opening nothing at once), `AccessTest` (an enrolment code becoming a device, a dry run writing nothing, the devices listed and one revoked), `PasskeyTest` (what an assertion and a registration are checked for, a challenge answerable only for what it was minted for, the store, an enrolment code opening only where and while it should), `DiscoveryTest` (what each service, version and action says of itself, and the listings built from it), `NegotiationTest` (a page, data or a `406`, chosen by `Accept`), `ApiResultTest` (one answer as a terminal's text, a script's data and a browser's page), `ApiClientTest` (signing against the real gate), `ApiCallTest`, `ResultReaderTest` and `ListingReaderTest` (what the CLI reads back out of an answer and a listing), `ApiTargetTest` |
 | the push | `PushUpdateTest`, `FrameworkCheckoutTest`, `TarWriterTest`, `UpdateTest`, `RollbackTest` (what a push records of the release it replaces, and putting it back — or refusing to, once the deployment has moved on), `ProbeTest` (what the deployment's filesystem lets a push do, measured and taken away again) |
 | health and capability | `HealthTest`, `RequirementTest`, `CapabilityTest` |
 | HTTP | `AnswerTest` (every answer, end to end, through `TestRequest`), `ResponseTest`, `RevalidationTest`, `FileResponseTest` (ranges and their headers), `JsonResponseTest` (the encoding's flags, a value that cannot encode), `StreamResponseTest` (chunks made at send time, never for a HEAD), `MimeTypeTest`, `RequestTest`, `InputTest` (the query and the form, by parameter and by type — and the API reading neither), `UploadTest` (a file kept, refused by whose fault it was, a 413, and kept into place or left where it was), `SecurityHeadersTest`, `SecurityPolicyTest`, `SyntheticPageTest`, `SitemapTest` (every exported page, absolute, and no sitemap without an origin) |
 | forms | `FormTest` (fields, rules, files, a submission read and refused, the form re-rendered with what was entered and its errors) |
 | data | `DatabaseTest` (opening, statements and their parameters, typed rows, transactions, migrations). It needs `pdo_sqlite`, and its database tests are skipped, not failed, without it |
-| auth | `AuthTest` (the comparison, its timing, the gates, `PasswordHash`), `SessionTest` (the sealed cookie kept, opened, refused and expired; the form token; the login gate), `LoginTest` (a login, counted by address and name), `LoginRecipeTest` (the login page of [login.md](login.md), walked end to end with its cookie carried from answer to request), `ThrottleTest` (the sliding window, failing closed), `RateLimitTest` (the 429 and its `Retry-After`) |
+| auth | `AuthTest` (the comparison, its timing, the gates, `PasswordHash`), `SessionTest` (the sealed cookie kept, opened, refused and expired; the form token; the login gate), `SessionAdminTest` (the admin's unlock, spent challenge and eight hours, and what reads as neither), `LoginTest` (a login, counted by address and name), `LoginRecipeTest` (the login page of [login.md](login.md), walked end to end with its cookie carried from answer to request), `ThrottleTest` (the sliding window, failing closed), `RateLimitTest` (the 429 and its `Retry-After`) |
 | routing | `RouterTest`, `RouteTest`, `RoutingFeatureTest` (typed placeholders, method sets, `OPTIONS`, groups, what a request says back), `RouteExportTest`, `LayerTest` (the order layers run in, a route's past its method gate, the five that ship) |
 | the markup tree | `MarkupTest` (building, escaping, the URL checks, parsing against a vocabulary) |
 | the export | `ExportTest`, `BasePathTest` |
@@ -142,8 +142,8 @@ Two rules, the same as in any suite built on this one:
 - **Uncovered lines are a decision, not a budget.** A change that adds a guard covers it in the same
   commit. A guard no test can reach is deleted rather than covered by reflection.
 
-**The framework's suite alone covers nearly all of `src/`'s lines.** The figure was 99.44%
-(4114 of 4137) when last derived on 2026-09-14, with `pdo_sqlite` loaded; without it the database
+**The framework's suite alone covers nearly all of `src/`'s lines.** The figure was 99.51%
+(4658 of 4681) when last derived on 2026-09-14, with `pdo_sqlite` loaded; without it the database
 tests skip and `Data/` reads as untested. Re-derive it
 with `XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-text` rather than trusting this.
 

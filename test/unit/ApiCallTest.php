@@ -321,6 +321,46 @@ final class ApiCallTest extends TestCase
     }
 
     /**
+     * An action's own fields come from their flags: an enrolment is signed with the code and the name
+     * it was given, and a flag missing, one the action does not take, or one on a listing, is refused
+     * before anything is sent.
+     *
+     * @return void
+     */
+    public function testAnActionsFieldsComeFromItsFlags(): void
+    {
+        /** @var ArrayObject<int, Request> $sent */
+        $sent = new ArrayObject();
+
+        [$code] = $this->call(
+            200,
+            self::written(200, null, 'enrolled'),
+            'access',
+            'v1',
+            'enrol',
+            $sent,
+            ['--code', 'sealed', '--name', 'phone'],
+        );
+
+        self::assertSame(ExitCode::Success, $code);
+        self::assertCount(1, $sent);
+
+        $manifest = self::manifestOf($sent[0]);
+
+        self::assertSame(['sealed', 'phone', true], [$manifest['code'], $manifest['name'], $manifest['apply']]);
+
+        [$missing, , $needs]  = $this->call(200, '', 'access', 'v1', 'enrol', $sent, ['--code', 'sealed']);
+        [$extra, , $takes]    = $this->call(200, '', 'access', 'v1', 'passkeys', $sent, ['--passkey', 'one']);
+        [$listing, , $lists]  = $this->invoke(200, '', ['access'], $sent, ['--name', 'phone']);
+
+        self::assertSame([ExitCode::Usage, ExitCode::Usage, ExitCode::Usage], [$missing, $extra, $listing]);
+        self::assertStringContainsString('enrol needs --name', $needs);
+        self::assertStringContainsString('passkeys takes no --passkey', $takes);
+        self::assertStringContainsString('a listing takes no --name', $lists);
+        self::assertCount(1, $sent);
+    }
+
+    /**
      * An admin answer as the server writes one: a status and one section of lines.
      *
      * @param int $status

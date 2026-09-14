@@ -53,6 +53,18 @@ its listing: services, versions, or actions with their method and description. A
 the action, and that one the local enums must know — a listing says what the server has, and the
 command signs only what it can name.
 
+**An action's other fields are flags of their own.** `--code` and `--name` fill `access v1 enrol`'s,
+and `--passkey` fills `access v1 revoke`'s; `apply` is still the absence of `--dry-run`. Each
+`ApiCallOption` names the `ActionField` it fills, and the action's own `fields()` decides: a field it
+takes and was not given is asked for, a flag it does not take is refused rather than signed and
+ignored, and a listing takes none.
+
+```bash
+php tools/api.php access v1 enrol --code <code> --name phone   # the code the admin's entrance showed
+php tools/api.php access v1 passkeys
+php tools/api.php access v1 revoke --passkey <credential id>
+```
+
 **A refusal is explained as what it is.** A `401` is the admin's one answer to a request it cannot
 verify, which does not say which check failed; `ApiCall` lists the two a signing machine can check,
 a key that does not match `data/update.pub` and a clock more than five minutes out, and `PushUpdate`

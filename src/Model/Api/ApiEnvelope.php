@@ -6,6 +6,8 @@ namespace Phpanta\Model\Api;
 
 use JsonException;
 use Phpanta\Exception\ApiException;
+use Phpanta\Http\HttpMethod;
+use Phpanta\Support\PublicKey;
 
 /**
  * The ApiEnvelope class. What every signed request claims about itself, whatever it is asking for.
@@ -89,6 +91,20 @@ final readonly class ApiEnvelope
         public string $digest,
         public int    $size,
     ) {}
+
+    /**
+     * The envelope of a request the admin built itself rather than read out of a credential — a
+     * browser's, which a session and a passkey vouch for instead of a signature. It has no body.
+     *
+     * @param int        $serial
+     * @param HttpMethod $method
+     * @param string     $path
+     * @return self
+     */
+    public static function of(int $serial, HttpMethod $method, string $path): self
+    {
+        return new self($serial, $method->value, $path, hash(PublicKey::DIGEST, ''), 0);
+    }
 
     /**
      * Parses the envelope out of the signed manifest.

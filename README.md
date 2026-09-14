@@ -17,7 +17,8 @@ one that fails loudly:
 - **Visible text is a `Translatable`**, and a view never names a language: the tree puts every word
   into the nearest `lang` when it renders.
 - **Every write is signed.** `/admin/{service}/{version}/{action}` is the one address family that
-  writes, every call is signed with an ECDSA key the server cannot use, and a caller the admin cannot
+  writes. A call is signed with an ECDSA key the server cannot use — the signing commands' own, or,
+  in a browser, a passkey that key enrolled, tapped for each write — and a caller the admin cannot
   verify learns that it is there and nothing about what is in it.
 
 ## What it is made of

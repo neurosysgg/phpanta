@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\Http;
 
 use Phpanta\Exception\SessionException;
+use Phpanta\Support\Base64Url;
 use Phpanta\Support\Diagnostics;
 use Phpanta\Support\File;
 use SensitiveParameter;
@@ -116,7 +117,7 @@ final readonly class SessionSeal
             self::TAG_BYTES,
         );
 
-        return rtrim(strtr(base64_encode($nonce . $tag . $ciphertext), '+/', '-_'), '=');
+        return Base64Url::encode($nonce . $tag . $ciphertext);
     }
 
     /**
@@ -128,9 +129,9 @@ final readonly class SessionSeal
      */
     public function open(string $sealed): ?string
     {
-        $raw = base64_decode(strtr($sealed, '-_', '+/'), true);
+        $raw = Base64Url::decode($sealed);
 
-        if ($raw === false || strlen($raw) < self::NONCE_BYTES + self::TAG_BYTES) {
+        if ($raw === null || strlen($raw) < self::NONCE_BYTES + self::TAG_BYTES) {
             return null;
         }
 

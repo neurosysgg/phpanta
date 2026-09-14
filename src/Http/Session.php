@@ -8,6 +8,7 @@ use BackedEnum;
 use JsonException;
 use NoDiscard;
 use Phpanta\Exception\SessionException;
+use Phpanta\Model\Passkey\Challenge;
 use Phpanta\Support\BareString;
 use Phpanta\Support\Collection;
 use Phpanta\Support\SearchableCollection;
@@ -56,6 +57,18 @@ final readonly class Session
 
     /** The token a form must send back — see {@link \Phpanta\Service\Layer\CsrfGuard}. */
     private const string TOKEN = '_token';
+
+    /** Where the framework keeps the admin's unlock: when it happened, and with which passkey. */
+    private const string ADMIN = '_admin';
+
+    /** Where the framework keeps a challenge a page handed out, until it is answered. */
+    private const string CHALLENGE = '_challenge';
+
+    /**
+     * How long an unlock of the admin lasts, in seconds: eight hours, however long the cookie that
+     * carries it is kept. The admin is a working session rather than a place to stay signed in to.
+     */
+    public const int ADMIN_LIFETIME = 28_800;
 
     /**
      * @param SessionSeal                  $seal     What this session is sealed with on its way out.
@@ -228,6 +241,93 @@ final readonly class Session
     public function withToken(): self
     {
         return $this->token() === null ? $this->withNewToken() : $this;
+    }
+
+    // ───────────────────────── the admin ─────────────────────────
+
+    /**
+     * The passkey this session unlocked the admin with, if it did so less than
+     * {@link self::ADMIN_LIFETIME} seconds before $now — or null.
+     *
+     * @param int|null $now The time to judge the unlock's age at; a test seam.
+     * @return string|null The passkey's credential id.
+     */
+    #[NoDiscard('admin() only reads; a call whose result goes nowhere read nothing')]
+    public function admin(?int $now = null): ?string
+    {
+        [$since, $credential] = array_pad(explode(' ', $this->values->find(self::ADMIN) ?? '', 2), 2, '');
+
+        return preg_match(Input::WHOLE_NUMBER, $since) === 1
+            && ($now ?? time()) - (int) $since <= self::ADMIN_LIFETIME
+            && $credential !== ''
+            ? $credential
+            : null;
+    }
+
+    /**
+     * This session with the admin unlocked by the passkey $credential, at $now — with a new form token,
+     * for {@link self::withUser()}'s reason, and without the challenge the unlock answered, so it is
+     * spent.
+     *
+     * @param string   $credential
+     * @param int|null $now
+     * @return self
+     */
+    #[NoDiscard('withAdmin() copies rather than unlocks, so a call whose result goes nowhere unlocked nothing')]
+    public function withAdmin(string $credential, ?int $now = null): self
+    {
+        return $this->withValue(self::ADMIN, ($now ?? time()) . ' ' . $credential)
+            ->withoutValue(self::CHALLENGE)
+            ->withNewToken();
+    }
+
+    /**
+     * This session with the admin locked again — and everything else it kept forgotten, for
+     * {@link self::withoutUser()}'s reason.
+     *
+     * @return self
+     */
+    #[NoDiscard('withoutAdmin() copies rather than locks, so a call whose result goes nowhere locked nothing')]
+    public function withoutAdmin(): self
+    {
+        return self::fresh($this->seal);
+    }
+
+    /**
+     * The challenge this session's page handed out, or null where it handed out none.
+     *
+     * @return Challenge|null
+     */
+    #[NoDiscard('challenge() only reads; a call whose result goes nowhere read nothing')]
+    public function challenge(): ?Challenge
+    {
+        $stored = $this->values->find(self::CHALLENGE);
+
+        return $stored === null ? null : Challenge::fromStored($stored);
+    }
+
+    /**
+     * This session holding $challenge until it is answered — one at a time, so a newer page's
+     * challenge replaces an older one's.
+     *
+     * @param Challenge $challenge
+     * @return self
+     */
+    #[NoDiscard('withChallenge() copies rather than keeps, so a call whose result goes nowhere handed out nothing')]
+    public function withChallenge(Challenge $challenge): self
+    {
+        return $this->withValue(self::CHALLENGE, $challenge->stored());
+    }
+
+    /**
+     * This session with its challenge spent.
+     *
+     * @return self
+     */
+    #[NoDiscard('withoutChallenge() copies rather than spends, so a call whose result goes nowhere spent nothing')]
+    public function withoutChallenge(): self
+    {
+        return $this->withoutValue(self::CHALLENGE);
     }
 
     // ───────────────────────── a message for the next page ─────────────────────────

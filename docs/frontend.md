@@ -1,8 +1,8 @@
 # Front end — the framework
 
 The build that turns a site's TypeScript and CSS into what ships, the guards every element can
-lean on, and SPA navigation. A site's own elements and stylesheet are its own, and are documented
-with it.
+lean on, SPA navigation, and the admin's passkey forms. A site's own elements and stylesheet are its
+own, and are documented with it.
 
 ## The build
 
@@ -378,6 +378,41 @@ a second entry behind it for back to land on. Likewise `forDocument()` returns `
 no `#content`, which switches the whole router off with every link still working.
 
 Back and forward re-fetch the whole URL they arrive on, query and fragment included.
+
+---
+
+## Passkey forms
+
+[`Passkey`](../assets/ts/Passkey.ts) stands between a button and a post for the admin's forms that a
+passkey answers: the entrance's unlock and registration, and each write a browser makes. It is a
+plain module, like `LanguageChoice`, not an element. The server renders an ordinary `<form>` marked
+with `data-passkey` — the ceremony, `webauthn.get` or `webauthn.create` (`CeremonyType`) — and
+`data-challenge`, the challenge it minted; both are `PasskeyAttribute` cases in the standard
+vocabulary. The server checks everything; see [security.md](security.md#a-browser-by-passkey).
+
+```
+submit of a form[data-passkey], anywhere in the document
+  → no navigator.credentials → the form goes as it is, and the server refuses it
+  → preventDefault, before anything is awaited
+  → get(): an enrolled key signs the challenge, userVerification required
+    create(): a new key over it — ES256 (-7) only, residentKey and userVerification required
+  → cancelled, timed out or refused → nothing is sent, and the button can be pressed again
+  → the answer written as base64url hidden fields, named by PasskeyFormField:
+    credential, client-data, authenticator-data, and signature or key
+  → requestSubmit() with the same button, so "Dry run" and "Apply" stay two different posts
+```
+
+**Started once, unconditionally.** A site's entry script calls `Passkey.start()` whatever the page
+holds, and it listens to every submit at the document, asking each whether its form is a passkey
+form. A passkey form can arrive with a `Navigation` swap after the entry script ran — the admin's
+pages are swapped in like any other — so a module that looked for forms when it started would miss
+it, and the post would go without its answer.
+
+**The relying party is left to the browser**, which takes the page's own host — the one the server
+checks the answer against. There is no WebCrypto and no request of its own, so the policy's
+`default-src 'self'` needs nothing added. `PasskeyAttribute`, `PasskeyFormField` and `CeremonyType`
+are mirrored enums, compared case for case like every other. Passkey autofill (conditional
+mediation) is not offered: the unlock is one button.
 
 ---
 

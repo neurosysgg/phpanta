@@ -64,6 +64,12 @@ enum ApiService: string
     case Capability = 'capability';
 
     /**
+     * Who may open the admin in a browser: the devices whose passkeys are enrolled, and the enrolling
+     * and revoking of them. See {@link AccessAction}.
+     */
+    case Access = 'access';
+
+    /**
      * What this service is for, in the caller's language — what the admin's entrance says of it.
      *
      * @return Translatable
@@ -74,6 +80,7 @@ enum ApiService: string
             self::Update     => AdminText::ServiceUpdate,
             self::Health     => AdminText::ServiceHealth,
             self::Capability => AdminText::ServiceCapability,
+            self::Access     => AdminText::ServiceAccess,
         };
     }
 
@@ -110,6 +117,7 @@ enum ApiService: string
             $this === self::Update && $version === ApiVersion::V1     => UpdateAction::cases(),
             $this === self::Health && $version === ApiVersion::V1     => HealthAction::cases(),
             $this === self::Capability && $version === ApiVersion::V1 => CapabilityAction::cases(),
+            $this === self::Access && $version === ApiVersion::V1     => AccessAction::cases(),
 
             // A pair nothing has wired yet, which is only reachable once a second version exists.
             // Empty rather than an unhandled match: a version this service does not offer is an

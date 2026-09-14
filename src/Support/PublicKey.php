@@ -52,6 +52,14 @@ final readonly class PublicKey
     private const string CURVE = 'prime256v1';
 
     /**
+     * The digest every signature here is made over, as `hash()` names it — SHA-256, the "256" in
+     * ES256. Public, and the one spelling: a signed call's body digest, a passkey's client data and a
+     * passkey's fingerprint are all this digest, and three classes each writing the name would be three
+     * facts free to disagree about which one it is.
+     */
+    public const string DIGEST = 'sha256';
+
+    /**
      * Constructs an instance of {@link self}.
      *
      * @param OpenSSLAsymmetricKey $key A parsed EC public key.

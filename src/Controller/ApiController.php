@@ -6,13 +6,14 @@ namespace Phpanta\Controller;
 
 use Phpanta\Exception\ApiException;
 use Phpanta\Http\Allow;
+use Phpanta\Http\Api\AdminHeaders;
 use Phpanta\Http\Api\ApiAction;
 use Phpanta\Http\Api\ApiListing;
 use Phpanta\Http\Api\ApiResult;
 use Phpanta\Http\Api\ApiService;
 use Phpanta\Http\Api\ApiVersion;
-use Phpanta\Http\CacheControl;
 use Phpanta\Http\Header;
+use Phpanta\Http\HttpMethod;
 use Phpanta\Http\HttpStatusCode;
 use Phpanta\Http\JsonResponse;
 use Phpanta\Http\Location;
@@ -23,16 +24,16 @@ use Phpanta\Http\Request;
 use Phpanta\Http\RequestHeader;
 use Phpanta\Http\Response;
 use Phpanta\Http\ResponseHeader;
-use Phpanta\Http\RobotsPolicy;
 use Phpanta\Http\SignedChallenge;
 use Phpanta\Http\Vary;
 use Phpanta\Http\ViewResponse;
 use Phpanta\Model\Api\SerialRefusal;
 use Phpanta\Model\Api\VerifiedRequest;
 use Phpanta\Service\ApiGate;
+use Phpanta\Service\Passkey\AdminBrowser;
+use Phpanta\Service\Passkey\AdminCaller;
 use Phpanta\Support\AdminPath;
 use Phpanta\Support\Collection;
-use Phpanta\View\AdminEntranceView;
 use Phpanta\View\ApiListingView;
 use Phpanta\View\ApiResultView;
 
@@ -44,11 +45,12 @@ use Phpanta\View\ApiResultView;
  * 1. *What can the caller read?* A page by default, which is what a browser and `curl` get; data
  *    for `Accept: application/json`, which is what the signing commands ask for; a `406` for a
  *    request that named only types it cannot have.
- * 2. *Who is asking?* A request the gate cannot verify gets one answer at every depth below the
- *    entrance, **whether the address exists or not**: a page request is sent to `/admin`, a request
- *    for data is a `401` challenging for `NS1`. The entrance itself is a page anybody may see. So a
- *    stranger learns that there is an admin — which a site may say anyway, with a link to it — and
- *    nothing about what is in it.
+ * 2. *Who is asking?* A signing command, verified by {@link ApiGate}, or a browser the admin has let
+ *    in, by a session its entrance unlocked with a passkey — see {@link AdminBrowser}. Anybody else
+ *    gets one answer at every depth below the entrance, **whether the address exists or not**: a page
+ *    request is sent to `/admin`, a request for data is a `401` challenging for `NS1`. The entrance
+ *    itself is a page anybody may see. So a stranger learns that there is an admin — which a site may
+ *    say anyway, with a link to it — and nothing about what is in it.
  * 3. *What is here?* Only past the gate, and reported in full, because the caller has proved it
  *    holds the key: a listing of what is under the address, or the action's answer — and an unknown
  *    service, version or action is a real `404` with a sentence in it, a verb that is not the
@@ -77,12 +79,14 @@ final readonly class ApiController implements Controller
      * @param string|null $version Same, for the second; null above a version.
      * @param string|null $action  Same, for the third; null above an action.
      * @param ApiGate|null $gate A test seam: null is the real gate, and a test passes its own.
+     * @param AdminBrowser|null $browser The same, for the browser's side of the admin.
      */
     public function __construct(
-        private ?string  $service = null,
-        private ?string  $version = null,
-        private ?string  $action = null,
-        private ?ApiGate $gate = null,
+        private ?string       $service = null,
+        private ?string       $version = null,
+        private ?string       $action = null,
+        private ?ApiGate      $gate = null,
+        private ?AdminBrowser $browser = null,
     ) {}
 
     /**
@@ -101,7 +105,12 @@ final readonly class ApiController implements Controller
         $verified = $gate->accepts($request);
 
         if ($verified === null) {
-            return $this->unverified($request, $representation);
+            $browser = $this->browser ?? new AdminBrowser();
+            $caller  = $browser->caller($request);
+
+            return $caller === null
+                ? $this->unverified($request, $representation, $browser)
+                : $this->browsing($request, $representation, $gate, $browser, $caller);
         }
 
         if ($this->service === null || $this->version === null || $this->action === null) {
@@ -111,11 +120,7 @@ final readonly class ApiController implements Controller
         $action = $this->action();
 
         if ($action === null) {
-            return $this->answer($representation, ApiResult::refusal(HttpStatusCode::NotFound, sprintf(
-                'no such API action: %s %s',
-                $verified->envelope->method,
-                $this->address(),
-            )));
+            return $this->missing($representation, $verified->envelope->method);
         }
 
         // The gate has already checked that the *credential* was minted for this method; this asks
@@ -123,17 +128,107 @@ final readonly class ApiController implements Controller
         // both are needed — the first stops a read's credential being replayed as a write, and this
         // stops a correctly signed request asking for something that makes no sense.
         if ($action->method() !== $request->method()) {
-            return $this->answer(
-                $representation,
-                ApiResult::refusal(
-                    HttpStatusCode::MethodNotAllowed,
-                    sprintf('%s answers %s', $this->action, $action->method()->value),
-                ),
-                new Header(ResponseHeader::Allow, Allow::of($action->method())),
-            );
+            return $this->wrongMethod($representation, $action);
         }
 
         return $this->answer($representation, $this->run($gate, $verified, $action));
+    }
+
+    /**
+     * The admin, for a browser it has let in: what a signed caller gets, less what an action keeps for
+     * the signing key — and a write is its form for a read, and needs a fresh tap to be carried out.
+     *
+     * @param Request $request
+     * @param Representation $representation
+     * @param ApiGate $gate
+     * @param AdminBrowser $browser
+     * @param AdminCaller $caller
+     * @return Response
+     */
+    private function browsing(
+        Request $request,
+        Representation $representation,
+        ApiGate $gate,
+        AdminBrowser $browser,
+        AdminCaller $caller,
+    ): Response {
+        if ($this->service === null && $request->method() === HttpMethod::Post) {
+            return $browser->entrance($request);
+        }
+
+        if ($this->service === null || $this->version === null || $this->action === null) {
+            return $this->listing($request, $representation, $caller->session->token());
+        }
+
+        $action = $this->action();
+
+        if ($action === null) {
+            return $this->missing($representation, (string) $request->method()?->value);
+        }
+
+        if (!$action->fromBrowser()) {
+            return $this->answer($representation, ApiResult::refusal(
+                HttpStatusCode::Forbidden,
+                sprintf('%s is for the signing key alone', $this->action),
+            ));
+        }
+
+        $writes = $action->method() !== HttpMethod::Get;
+
+        if ($writes && $representation === Representation::Html && $request->isReadOnly()) {
+            return $browser->writeForm($caller, $action, $request->path());
+        }
+
+        if ($action->method() !== $request->method()) {
+            return $this->wrongMethod($representation, $action);
+        }
+
+        if (!$writes) {
+            return $this->answer($representation, $this->run($gate, $browser->read($request), $action));
+        }
+
+        $written = $browser->write($request, $caller, $action);
+
+        return $written->session->attachTo($this->answer($representation, $written->verified === null
+            ? ApiResult::refusal(
+                HttpStatusCode::Forbidden,
+                'refused: a write needs a fresh answer from the passkey that unlocked the admin',
+            )
+            : $this->run($gate, $written->verified, $action)));
+    }
+
+    /**
+     * The `404` for three segments that name no action.
+     *
+     * @param Representation $representation
+     * @param string $method
+     * @return Response
+     */
+    private function missing(Representation $representation, string $method): Response
+    {
+        return $this->answer($representation, ApiResult::refusal(
+            HttpStatusCode::NotFound,
+            sprintf('no such API action: %s %s', $method, $this->address()),
+        ));
+    }
+
+    /**
+     * The `405` for a method $action does not answer on, naming the one it does.
+     *
+     * @param Representation $representation
+     * @param ApiAction $action
+     * @return Response
+     */
+    private function wrongMethod(Representation $representation, ApiAction $action): Response
+    {
+        return $this->answer(
+            $representation,
+            ApiResult::refusal(
+                HttpStatusCode::MethodNotAllowed,
+                sprintf('%s answers %s', $this->action, $action->method()->value),
+            ),
+            new Header(ResponseHeader::Allow, Allow::of($action->method())),
+        );
     }
 
     /**
@@ -144,11 +239,15 @@ final readonly class ApiController implements Controller
      * a deeper address, existing or not, and a write of any kind, since a write that arrives without
      * a credential has nothing to be told but where to start.
      *
+     * The entrance itself is {@link AdminBrowser}'s, which offers a browser a way in where the
+     * deployment lets one in.
+     *
      * @param Request $request
      * @param Representation $representation
+     * @param AdminBrowser $browser
      * @return Response
      */
-    private function unverified(Request $request, Representation $representation): Response
+    private function unverified(Request $request, Representation $representation, AdminBrowser $browser): Response
     {
         if ($representation === Representation::Json) {
             return new JsonResponse(
@@ -161,8 +260,8 @@ final readonly class ApiController implements Controller
             );
         }
 
-        if ($this->service === null && $request->isReadOnly()) {
-            return new ViewResponse(new AdminEntranceView(), HttpStatusCode::Ok, self::private());
+        if ($this->service === null) {
+            return $browser->entrance($request);
         }
 
         return new RedirectResponse(
@@ -178,9 +277,10 @@ final readonly class ApiController implements Controller
      *
      * @param Request $request
      * @param Representation $representation
+     * @param string|null $token A browser's form token, for the page's way out; null for a signed caller.
      * @return Response
      */
-    private function listing(Request $request, Representation $representation): Response
+    private function listing(Request $request, Representation $representation, ?string $token = null): Response
     {
         if (!$request->isReadOnly()) {
             return $this->answer(
@@ -213,7 +313,11 @@ final readonly class ApiController implements Controller
         }
 
         return match ($representation) {
-            Representation::Html => new ViewResponse(new ApiListingView($listing), HttpStatusCode::Ok, self::private()),
+            Representation::Html => new ViewResponse(
+                new ApiListingView($listing, $token),
+                HttpStatusCode::Ok,
+                self::private(),
+            ),
             Representation::Json => new JsonResponse(
                 $listing,
                 HttpStatusCode::Ok,
@@ -320,11 +424,7 @@ final readonly class ApiController implements Controller
      */
     private static function private(Header ...$headers): Collection
     {
-        return new Collection(Header::class)->with(
-            new Header(ResponseHeader::CacheControl, CacheControl::doNotStore()),
-            new Header(ResponseHeader::Robots, RobotsPolicy::hide()),
-            ...$headers,
-        );
+        return AdminHeaders::with(...$headers);
     }
 
     /**

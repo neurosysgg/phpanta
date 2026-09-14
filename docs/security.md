@@ -1,7 +1,8 @@
 # Security — the framework
 
 What the framework does about the attack surface every site built on it shares: the headers,
-the method gate, the parsing, the markup tree's output safety, and the signed API. A site's own
+the method gate, the parsing, the markup tree's output safety, and the admin — its signed calls and
+its passkeys. A site's own
 gates, cookies, data and hosting are its own, and belong in its own documents.
 
 ## 1. Transport — HTTPS and HSTS
@@ -292,7 +293,8 @@ it to four things:
 - **The key is per deployment,** thirty-two random bytes in `data/session.key`. It is minted on the
   host it serves, gitignored, and excluded from a deploy like the other credentials. Nothing asks for
   it until something keeps a session, and a deployment that keeps one without it stops, saying how to
-  mint it.
+  mint it. The admin's browser side fails the other way: without the key it lets no browser in and
+  says so, while the signed calls go on as before.
 - **A login hands out a new form token,** so a token a page wrote before the login is worth nothing
   after it, and a logout forgets everything the session kept.
 
@@ -312,11 +314,13 @@ already refuses any other origin in the browser.
 every address, the admin's included: as one, `CsrfGuard` would refuse every signed write, which
 carries a signature rather than a form token, and `LoginGate` would answer a stranger at the admin
 with a login page instead of the admin's one answer. On a route, past its method gate, only the
-requests that route takes ever reach them.
+requests that route takes ever reach them. The admin's routes carry neither: it checks a browser's
+form token itself — see [A browser, by passkey](#a-browser-by-passkey).
 
 A site's own session keys are a [`SessionKey`](../src/Http/SessionKey.php) enum, and a key may not
-begin with `_`, where the framework keeps who is logged in and the token. Otherwise a site could log
-a visitor in by setting a value. A message left for the next page is a catalog case, so it is in the
+begin with `_`, where the framework keeps who is logged in, the token, the admin's unlock and a
+challenge a page handed out. Otherwise a site could log a visitor in, or unlock the admin, by setting
+a value. A message left for the next page is a catalog case, so it is in the
 visitor's language on whichever page shows it, and is shown once.
 
 ## The admin
@@ -340,12 +344,14 @@ listings the moment it exists. The signed commands resolve an address through th
 and nothing answers under any other prefix: an address outside `/admin` is a site's to route or to
 leave unrouted.
 
-`health` and `capability` are the second and third services, and each cost exactly that: an
+`health`, `capability` and `access` are the other three services, and each cost exactly that: an
 `ApiService` case, an action enum and its handlers.
 
 - `health` checks the site's declared requirements and answers `503` when a required one is unmet.
 - `capability` lists what the host has: every extension, every directive, the SAPI, the clock, the
   `data/` files, the error log's tail.
+- `access` holds the devices that may open the admin in a browser: `enrol`, `passkeys` and `revoke`
+  — see [A browser, by passkey](#a-browser-by-passkey).
 
 In anyone else's hands, either answer is reconnaissance. That is exactly why they are services
 behind this signature rather than the public `/health` a monitor would ping. See
@@ -367,15 +373,18 @@ order is the design:
    signing commands ask for; a request naming only other types gets a `406` in `text/plain` naming
    the two it can have. Asked before anything else, the `406` is the same at every address, and a
    write is never carried out for a caller who then could not be told how it went.
-2. **Who is asking?** A request [`ApiGate`](../src/Service/ApiGate.php) cannot verify gets **one
+2. **Who is asking?** A signing command, which [`ApiGate`](../src/Service/ApiGate.php) verifies, or
+   a browser whose session an enrolled passkey unlocked, which
+   [`AdminBrowser`](../src/Service/Passkey/AdminBrowser.php) recognises. Anybody else gets **one
    answer at every depth below the entrance, whether the address exists or not**, under every verb —
    one the framework does not recognise included, since `Request::method()` is null for it and the
    routes are `Delegated`. A page request is a `303` to `/admin`; a request for data is a `401`
    carrying `WWW-Authenticate: NS1` — [`SignedChallenge`](../src/Http/SignedChallenge.php), a
    scheme no browser has a prompt for, so none shows one — and a JSON refusal. No `Allow` header is
    ever sent to a stranger. `GET` or `HEAD /admin` itself is the entrance,
-   [`AdminEntranceView`](../src/View/AdminEntranceView.php), a `200` that says only that everything
-   there needs a credential; anything else at `/admin` is a `303` to it.
+   [`AdminEntranceView`](../src/View/AdminEntranceView.php), a `200` that offers a browser a way in
+   where the deployment lets one in, and says that it does not otherwise; a `POST` there is one of
+   the entrance's ceremonies, and anything else at `/admin` is a `303` to it.
 3. **What is here?** Only past the gate, and reported in full, because the caller has proved it holds
    the key — see [What a verified caller gets back](#what-a-verified-caller-gets-back).
 
@@ -399,15 +408,16 @@ different forms get different bytes, and none of it is for a cache to keep.
 
 ### What a verified caller gets back
 
-Past the gate the posture inverts, and failures are reported in full. Today the only caller the gate
-verifies is one whose `NS1` signature checks out, so a browser, which cannot sign, sees the entrance
-and nothing else.
+Past the gate the posture inverts, and failures are reported in full. A browser the admin has let in
+gets what a signed caller gets, less what an action keeps for the key, and a write is its form before
+it is a write — see [A browser, by passkey](#a-browser-by-passkey).
 
 - **Above an action, a listing.** At `/admin`, a service or a version, an
   [`ApiListing`](../src/Http/Api/ApiListing.php) names what is under it: for each entry its name,
   its address and a description, and for an action also its method, whether it writes, whether a
-  browser may run it (`ApiAction::fromBrowser()`, false only for `update v1 patch`, whose tree only
-  the signing commands can send), and the fields it takes beside its address. A service or version
+  browser may run it (`ApiAction::fromBrowser()`, false for `update v1 patch`, whose tree only the
+  signing commands can send, and for `access v1 enrol`, where trust starts), and the fields it takes
+  beside its address. A browser that asks for one of those two is refused with a `403`. A service or version
   that does not exist is a real `404` — `no such admin address: <path>` — and a listing answers reads
   only: anything else is a `405` with `Allow: GET, HEAD`.
 - **At an action, its answer.** An action that does not exist is a `404` — `no such API action: …` —
@@ -426,9 +436,100 @@ commands that read it back read the server's own names.
 address through the same set. `ApiAction` extends `BackedEnum`, so an action's segment is its value,
 spelled once. What a listing says of each entry is `describe()` — on `ApiService`, `ApiVersion` and
 `ApiAction` alike — from the framework's own catalog, `AdminText`, in English and German. An action's
-fields are [`ActionField`](../src/Http/Api/ActionField.php) cases, `apply` and `mirror`, whose values
-are `UpdateManifest::APPLY` and `UpdateManifest::MIRROR`: one spelling for what a listing names and
-what a manifest carries.
+fields are [`ActionField`](../src/Http/Api/ActionField.php) cases — `apply` and `mirror`, whose
+values are `UpdateManifest::APPLY` and `UpdateManifest::MIRROR`, and `code`, `name` and `passkey`
+for `access` — one spelling for what a listing names, what a manifest carries and what a browser's
+form sends.
+
+### A browser, by passkey
+
+A browser cannot sign: a navigation sends no header a page chose, so it never carries `NS1`. It is
+let in by **a passkey** (WebAuthn) instead — a key pair per device, its private half in the
+platform's secure hardware or its password manager, used with one tap or a biometric. The server
+keeps only the public half, the property `data/update.pub` has: a key the server cannot use. A TLS
+client certificate would be the other browser-native credential, and a host that ends TLS at its
+front proxy never lets the application see one. ([history](history/admin.md))
+
+**ES256, through the one key reader there is.** WebAuthn's default algorithm is ECDSA over P-256 with
+SHA-256, and an assertion's signature is DER over `authenticatorData ‖ sha256(clientDataJSON)` —
+which is what `PublicKey::verifies()` already checks for the signing key. The client asks for ES256
+alone, so a key of another kind is never made, and no CBOR is parsed: a registering browser's own
+`getPublicKey()` hands over SPKI DER, which `PublicKey` reads.
+[`PasskeyVerifier`](../src/Service/Passkey/PasskeyVerifier.php) makes every check every time: the
+ceremony's type, the challenge (`hash_equals`), the origin and that it did not run in another
+origin's frame, the relying party's hash (`sha256` of the origin's host), the user-present and
+user-verified flags, the signature, and a signature count that must rise whenever it is not zero —
+the same count twice is two authenticators answering for one key. A registration also needs the
+attested-credential flag. Nothing about the device is attested: trust comes from the signed
+enrolment, not from the hardware.
+
+**Enrolment is rooted in the signing key**, and nothing a browser does on its own writes to the
+server:
+
+1. At the entrance, *Register this device* runs `navigator.credentials.create()` over a challenge
+   the session holds. The server checks the answer and stores nothing. It shows an **enrolment
+   code** — the credential id, the key and the time, sealed under `data/session.key` and good for
+   ten minutes — and the key's fingerprint, the first sixteen hex digits of `sha256` of its SPKI.
+   [`AdminEnrolmentView`](../src/View/AdminEnrolmentView.php) writes the code as a command ready to
+   run.
+2. `access v1 enrol`, a signed write taking `code` and `name`, opens the code — which proves this
+   deployment made it, and lately — and adds the device to `data/admin-passkeys.json`
+   (`CredentialFile::AdminPasskeys`, kept by
+   [`PasskeyRegistry`](../src/Service/Passkey/PasskeyRegistry.php)).
+3. `access v1 passkeys` lists the devices — name, fingerprint, credential id, when each was added —
+   and `access v1 revoke`, a write taking `passkey`, takes one away.
+
+`enrol` is the signing key's alone: a browser that could enrol would be a browser vouching for
+itself.
+
+**Unlocking.** *Unlock with a passkey* runs `navigator.credentials.get()` over the same challenge:
+the entrance mints **one challenge for both ceremonies**, held in the session for two minutes and
+spent by whichever answers it. An enrolled passkey that answers puts the unlock in the session — the
+credential id and the time — and hands out a new form token. The unlock lasts
+`Session::ADMIN_LIFETIME`, eight hours, however long the cookie is kept, and **every request asks the
+store again whether that passkey is still enrolled**, so a revocation takes effect on the next
+request. *Lock the admin*, on a browser's listings, is a `POST` to the entrance that ends the session.
+
+**Every write needs a fresh tap.** A browser's `GET` of a write action is its form —
+[`ApiActionFormView`](../src/View/ApiActionFormView.php): the action's fields, *Dry run* and
+*Apply* — holding a single-use challenge minted for `POST <path>`. The post must carry the session's
+form token and that challenge answered by the passkey that unlocked the session. The challenge binds
+the method and the address, not the field values, which the form token and the session hold. It is
+spent whether the write is let through or not, so a replayed tap is a `403`, as is a write with no
+answer. A signed `GET` of a write is still the `405` it always was. A browser's write becomes the same
+`VerifiedRequest` a signed one does (`ApiEnvelope::of()`), and takes the same lock and spends a
+serial in the same record — [below](#what-a-signature-covers-and-why-replay-is-closed).
+
+**The form token is the admin's to check, not `CsrfGuard`'s.** The guard reads a `_csrf` field, so
+on the admin's routes it would refuse every signed write, which carries a signature instead.
+`AdminBrowser` checks the token itself, for a browser only, and it is the one reader of a form under
+`/admin`.
+
+**The entrance counts its posts**: ten per remote address in fifteen minutes, through `Throttle`
+over `data/throttle/`, counted before anything is read. Past that is a `429` with `Retry-After`. The
+directory is made by hand and must be writable by PHP; without it the entrance answers `503` and
+takes nothing, failing closed.
+
+**Off unless the deployment says where it is.** A passkey is bound to an origin, and the admin takes
+its origin from `App::origin()`, never from the `Host` a request names. An app whose `origin()` is
+null lets no browser in. In development and from loopback only, the request's own `Origin` comes
+first — before the app's — so a local copy of a site that names its public origin runs a real
+ceremony at the address it is served on; a key registered there opens nothing anywhere else, since a
+passkey is bound to its host. A deployment with no `data/session.key`
+lets no browser in either. In both cases the entrance says browsers cannot sign in here, and the
+signed calls go on as before. `data/admin-passkeys.json` absent is no device enrolled, with
+`data/update.pub`'s polarity, and a store that does not parse reads the same way. The session key and
+the store are per deployment and never shipped.
+
+**A stranger still sees the entrance and nothing else.** A session cookie that no enrolled passkey
+unlocked is no caller, so every depth below the entrance still gives the one answer. The entrance's
+own answers — its page, a `303` back to it, a `429`, a `503` — say whether browsers may sign in here
+and whether the sender has posted too often, never whether a credential is enrolled: an unlock by an
+unknown passkey and one with a wrong signature leave the same message.
+
+**The server still holds nothing that signs**: public keys, and `data/session.key`. Somebody who
+takes the account could forge an unlocked session and read what a browser may read; a write still
+needs the passkey's tap, and a push or an enrolment the signing key.
 
 ### The credential is a key the server cannot use
 
@@ -450,8 +551,9 @@ SHA-256 signature just as happily, which would widen the algorithm without anybo
 
 **Its absence is the off switch, with the opposite polarity to `data/site_auth.php`.** No key file,
 no signed call verifies, for anyone, forever: the entrance still answers, and every stranger still
-gets the one answer, but there is nobody the gate lets past — and a deployment holding no key does
-no verification work at all. So a fresh clone and every machine that has not deliberately been given a key are closed rather
+gets the one answer, but there is nobody the gate lets past, and no device can be enrolled — and a
+deployment holding no key does no verification work at all. A browser whose device was enrolled
+before the key went still opens the admin; revoking it needs the key or that browser. So a fresh clone and every machine that has not deliberately been given a key are closed rather
 than open — worth reading twice, because the two files look alike and mean opposite things.
 
 `PublicKey` is the only `openssl_*` call site under `src/`. It asks `=== 1`, because
@@ -493,7 +595,10 @@ discovered rather than read:
 - The **query string is not covered**. A page may read one — `Request::query()` — but an API action
   never does, nor a form: either would be the one input reaching a verified caller's handler
   unsigned. `InputTest` reads the API's code and fails on a call to either, so this is held rather
-  than remembered. A parameter belongs in the manifest or in the body. `health` and `capability` have an obvious temptation here, a `?verbose` or an
+  than remembered. A parameter belongs in the manifest or in the body. A browser's write is the one
+  form read under `/admin`, by `AdminBrowser` before any handler runs: only the fields the action
+  declares, and only once the passkey has answered, into a manifest of the shape a signed call
+  carries — so a handler reads a manifest whichever door the call came through. `health` and `capability` have an obvious temptation here, a `?verbose` or an
   `?area=`, and take none. One area is asked for by an address of its own (`health v1 settings`),
   and each action reports everything it reports, always. The note saying so is on `HealthCheck`
   and `ApiEnvelope` as well as here.
@@ -536,7 +641,9 @@ credential to replay). A write that finds the lock held, or finds a newer serial
 was verified, is a **`409`** that spends nothing and touches nothing; one whose serial cannot be
 recorded is a `500`, with nothing written. The caller is already verified by then, so the sentence
 is allowed. Reads never lock. A lock file is never deleted, since deleting it would let two
-processes hold locks on two inodes under one name.
+processes hold locks on two inodes under one name. A browser's write takes the same lock and spends
+a serial in the same record — the time, as a signing command's is — so a browser's write and a push
+never overlap, and neither follows the other within the same second.
 
 **Why a header is acceptable here.** `Authorization` is a `ServerVariable`, not a `RequestHeader`,
 so it has no TypeScript mirror and puts nothing in the browser's bundle. The live risk is that a

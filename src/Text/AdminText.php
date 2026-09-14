@@ -133,6 +133,93 @@ enum AdminText: string implements Translatable
     )]
     case CapabilityErrors = 'capability-errors';
 
+    #[Translation(en: 'Unlock with a passkey', de: 'Mit Passkey entsperren')]
+    case Unlock = 'unlock';
+
+    #[Translation(en: 'Register this device', de: 'Dieses Gerät registrieren')]
+    case RegisterDevice = 'register-device';
+
+    #[Translation(
+        en: 'A device is registered here and enrolled by the signing key: registering shows a code, and'
+            . ' the code is what access v1 enrol takes.',
+        de: 'Ein Gerät wird hier registriert und mit dem Signierschlüssel eingetragen: die Registrierung'
+            . ' zeigt einen Code, und diesen Code nimmt access v1 enrol.',
+    )]
+    case RegisterHowTo = 'register-how-to';
+
+    #[Translation(
+        en: 'This deployment has no sign-in for browsers; it answers signed requests only.',
+        de: 'Diese Installation hat keine Anmeldung für Browser; sie beantwortet nur signierte Anfragen.',
+    )]
+    case PasskeysOff = 'passkeys-off';
+
+    #[Translation(en: 'That passkey did not open the admin.', de: 'Dieser Passkey hat die Verwaltung nicht geöffnet.')]
+    case UnlockRefused = 'unlock-refused';
+
+    #[Translation(en: 'That registration was not accepted.', de: 'Diese Registrierung wurde nicht angenommen.')]
+    case RegistrationRefused = 'registration-refused';
+
+    #[Translation(
+        en: 'The entrance cannot count attempts, so it takes none: data/throttle/ is missing or not writable.',
+        de: 'Der Eingang kann Versuche nicht zählen und nimmt daher keine an: data/throttle/ fehlt oder ist'
+            . ' nicht beschreibbar.',
+    )]
+    case EntranceUncounted = 'entrance-uncounted';
+
+    #[Translation(en: 'Enrolment code', de: 'Eintragungscode')]
+    case EnrolmentCode = 'enrolment-code';
+
+    #[Translation(
+        en: 'Valid for ten minutes. On the machine that holds the signing key, run:',
+        de: 'Zehn Minuten gültig. Auf dem Rechner mit dem Signierschlüssel ausführen:',
+    )]
+    case EnrolmentHowTo = 'enrolment-how-to';
+
+    #[Translation(en: 'Fingerprint', de: 'Fingerabdruck')]
+    case Fingerprint = 'fingerprint';
+
+    #[Translation(en: 'Lock the admin', de: 'Verwaltung sperren')]
+    case Logout = 'logout';
+
+    #[Translation(en: 'Dry run', de: 'Probelauf')]
+    case DryRun = 'dry-run';
+
+    #[Translation(en: 'Apply', de: 'Ausführen')]
+    case Apply = 'apply';
+
+    #[Translation(
+        en: 'Who may open the admin in a browser: the devices whose passkeys are enrolled.',
+        de: 'Wer die Verwaltung im Browser öffnen darf: die Geräte, deren Passkeys eingetragen sind.',
+    )]
+    case ServiceAccess = 'service-access';
+
+    #[Translation(
+        en: 'Enrol a device the entrance registered, from the code it showed.',
+        de: 'Ein Gerät eintragen, das der Eingang registriert hat, anhand des Codes, den er angezeigt hat.',
+    )]
+    case AccessEnrol = 'access-enrol';
+
+    #[Translation(
+        en: 'The devices enrolled, each with its fingerprint.',
+        de: 'Die eingetragenen Geräte, jedes mit seinem Fingerabdruck.',
+    )]
+    case AccessPasskeys = 'access-passkeys';
+
+    #[Translation(en: "Take one device's passkey away.", de: 'Einem Gerät seinen Passkey wieder entziehen.')]
+    case AccessRevoke = 'access-revoke';
+
+    #[Translation(
+        en: 'The code the entrance showed when the device registered.',
+        de: 'Der Code, den der Eingang bei der Registrierung des Geräts angezeigt hat.',
+    )]
+    case FieldCode = 'field-code';
+
+    #[Translation(en: 'What to call the device: phone, laptop.', de: 'Wie das Gerät heißen soll: Handy, Laptop.')]
+    case FieldName = 'field-name';
+
+    #[Translation(en: "The passkey's credential id, as listed.", de: 'Die Kennung des Passkeys, wie aufgelistet.')]
+    case FieldPasskey = 'field-passkey';
+
     #[Translation(
         en: 'Carry it out. Without it, a dry run that changes nothing.',
         de: 'Ausführen. Ohne das ein Probelauf, der nichts ändert.',

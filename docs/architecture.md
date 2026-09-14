@@ -218,8 +218,11 @@ data, where a browser's header would make it one for a page and a type it has ne
 every `null` — no `NS1` credential, no `data/update.pub`, a signature that fails, an envelope minted
 for another method or path, a stale serial, a body that is not the one signed — is the one answer a
 caller it cannot verify gets: for data, a `401` challenging for `NS1`, the same at every depth
-whether the address exists or not. **On `TestApp` as it ships, that is where this request ends**: the
-fixture holds no key, so no signed call verifies, and the `GET` gets the `401`.
+whether the address exists or not — unless
+[`AdminBrowser`](../src/Service/Passkey/AdminBrowser.php) recognises a browser whose session an
+enrolled passkey unlocked, which this request, carrying no cookie, is not. **On `TestApp` as it
+ships, that is where this request ends**: the fixture holds no key, so no signed call verifies, and
+the `GET` gets the `401`.
 
 With a key in place and a credential it verifies, the posture inverts and failures are reported in
 full: `ApiService::Update` at `ApiVersion::V1` names `UpdateAction::Version`, whose method is `GET`,

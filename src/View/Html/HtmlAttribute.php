@@ -89,6 +89,7 @@ enum HtmlAttribute: string implements AttributeName
     case Autocomplete = 'autocomplete';
     case Checked      = 'checked';
     case Selected     = 'selected';
+    case Readonly     = 'readonly';
 
     /**
      * @return string

@@ -71,3 +71,57 @@ never carried out for a caller who then could not be told how it went.
 
 CLAUDE.md's traps said `data/update.pub` absent meant `/api` was off, and that `CsrfGuard` and
 `LoginGate` go on routes because as app layers "they would tell an absent address from the API".
+
+## A browser in the admin
+
+### 2026-09-14 — passkeys, enrolled by the signing key
+
+*From security.md's "The admin", "What a verified caller gets back" and "Sessions, the form token and
+the login", and CLAUDE.md's "The API and deploying".*
+
+The admin came to let a browser in, where before only a signed call got past its entrance. It was
+asked for with the move to `/admin`: a page by default, opened by something built into the browser
+rather than a password.
+
+**A client certificate was the first idea, and could not work.** A shared host that ends TLS at its
+front proxy — the kind whose redirect has to ask `X-Forwarded-Proto` — never shows the handshake to
+Apache or PHP, and `.htaccess` has nothing to request one with. The browser credential that does
+work over plain HTTPS is WebAuthn, and it has the property the signing key has: the server keeps only
+a public key. Its default algorithm, ES256, is exactly what `PublicKey::verifies()` already checked,
+and a registering browser's `getPublicKey()` hands over SPKI DER, so it needed no new cryptography
+and no CBOR reader.
+
+**Sodium was weighed and left out.** It would have allowed Ed25519 passkeys, mostly a hardware-key
+option; Ed25519 for `NS1`, whose signer already had a proper RNG; and XChaCha20 for the session seal,
+whose nonce size mattered at no scale this has. None closed a real hole, and each would have added a
+floor and an extension the host had and the local runtimes did not. One family, P-256 through
+openssl, served both callers, and the client asks for ES256 alone so a key sodium would be needed for
+is never made.
+
+Four decisions shaped the rest:
+
+- **Enrolment is rooted in the signing key.** Registering at the entrance stores nothing and earns a
+  sealed code; only the signed `access v1 enrol` turns it into a device, so no unauthenticated
+  request ever writes to the server and a browser never vouches for itself.
+- **One challenge for both of the entrance's ceremonies**, so the page holds one pending challenge
+  in the session, spent by whichever answers it.
+- **A passkey tap for every browser write**, with `update v1 patch` and `access v1 enrol` kept for
+  the signing key. The plan bound each tap to a hash of the write's fields; it was built bound to
+  `POST <path>`, with the fields held by the form token and the session.
+- **The form token checked by the admin, not by `CsrfGuard`** — the plan had put the guard on the
+  route, where it would have refused every signed write.
+
+The client was planned as a custom element, `<admin-passkey>`, posting with `fetch`. It became a
+plain module that holds a real form's submit and sends it with the same button, and `data-passkey`
+became an attribute enum of its own rather than a `RegionAttribute` case. It is started
+unconditionally, because the admin's pages arrive by `Navigation` swaps after the entry script has
+run. Passkey autofill was deferred; the unlock is one button.
+
+security.md said of a verified caller:
+
+Today the only caller the gate verifies is one whose `NS1` signature checks out, so a browser, which
+cannot sign, sees the entrance and nothing else.
+
+and of the entrance, that it was "a `200` that says only that everything there needs a credential".
+`ApiAction::fromBrowser()` was "false only for `update v1 patch`". CLAUDE.md's trap read:
+`data/update.pub` absent means the admin lets nobody past its entrance.
