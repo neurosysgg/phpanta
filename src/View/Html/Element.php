@@ -9,6 +9,7 @@ use NoDiscard;
 use Phpanta\App;
 use Phpanta\Exception\ElementException;
 use Phpanta\Exception\MarkupException;
+use Phpanta\Support\BareArray;
 use Phpanta\Support\BareCall;
 use Phpanta\Support\Collection;
 use Phpanta\Support\SearchableCollection;
@@ -71,6 +72,10 @@ final readonly class Element implements Node
      *
      * @var list<UrlScheme>
      */
+    #[BareArray(
+        'the schemes a render may emit, asked by array_any() on the hottest path there is — every URL '
+        . 'attribute of every page — where a Collection would be built once per attribute.',
+    )]
     private const array URL_SCHEMES = [UrlScheme::Https, UrlScheme::Mailto];
 
     /**

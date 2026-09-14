@@ -103,9 +103,10 @@ final class GuidelineTest extends TestCase
     /**
      * Every `array` in a declared type under `src/` carries an excuse.
      *
-     * Parameters, returns and properties, reflected rather than grepped: the engine is what knows
-     * what a signature says, and a docblock's `list<Element>` is exactly the promise this rule
-     * exists to stop trusting.
+     * Parameters, returns, properties and typed constants, reflected rather than grepped: the engine
+     * is what knows what a signature says, and a docblock's `list<Element>` is exactly the promise
+     * this rule exists to stop trusting. And closures, read from the tokens — reflection reaches a
+     * closure only once it exists — each excused by a `#[BareArray]` written on it.
      *
      * A **variadic** is not on the list and never will be. `deny(PermissionsPolicyFeature
      * ...$features)` is a check PHP makes for free, and a collection parameter there would replace
@@ -137,6 +138,9 @@ final class GuidelineTest extends TestCase
      *   order, which is the one shape a homogeneous collection cannot hold.
      * - **An accumulator.** `$qualities` is written to in a loop, where `with()` would copy.
      *
+     * A closure is named by the method it is written in and a count — `Class::method()_1` is the
+     * first closure there that names an array — and a typed constant by its own name.
+     *
      * The collections' own members appear three times each. That is this test working and not
      * failing, for the reason {@link NoDiscardTest} states about the same trait: PHP flattens a
      * trait's members into each using class, and counting one twice is the direction a test like
@@ -148,12 +152,15 @@ final class GuidelineTest extends TestCase
     {
         self::assertSame(
             [
+                'Phpanta\App::adminRoutes()_1',
                 'Phpanta\Data\Row::$values',
                 'Phpanta\Data\Row::__construct()',
+                'Phpanta\Data\Sql::__construct()_1',
                 'Phpanta\Http\AcceptedLanguages::$qualities',
                 'Phpanta\Http\AcceptedLanguages::__construct()',
                 'Phpanta\Http\AcceptedLanguages::entry()',
                 'Phpanta\Http\AuthScheme::credentials()',
+                'Phpanta\Http\BasicChallenge::encoding()_1',
                 'Phpanta\Http\MultipartParameters::$fields',
                 'Phpanta\Http\MultipartParameters::$files',
                 'Phpanta\Http\MultipartParameters::__construct()',
@@ -162,22 +169,30 @@ final class GuidelineTest extends TestCase
                 'Phpanta\Http\Security\ContentSecurityPolicy::hosts()',
                 'Phpanta\Http\ServerParameters::$values',
                 'Phpanta\Http\ServerParameters::__construct()',
+                'Phpanta\Service\FilesystemProbe::device()_1',
+                'Phpanta\Service\FilesystemProbe::strays()_1',
                 'Phpanta\Service\UpdateApplier::directories()',
                 'Phpanta\Service\UpdateApplier::entries()',
+                'Phpanta\Service\UpdateApplier::entries()_1',
                 'Phpanta\Service\UpdateApplier::surplusIn()',
                 'Phpanta\Service\UpdateApplier::walk()',
                 'Phpanta\Support\Collection::$items',
                 'Phpanta\Support\Collection::$steps',
+                'Phpanta\Support\Collection::SCALARS',
                 'Phpanta\Support\Collection::stringKeyed()',
                 'Phpanta\Support\Collection::toArray()',
                 'Phpanta\Support\Collection::toKeys()',
                 'Phpanta\Support\Collection::toValues()',
                 'Phpanta\Support\Directory::entries()',
+                'Phpanta\Support\Directory::entries()_1',
                 'Phpanta\Support\File::lines()',
+                'Phpanta\Support\File::lines()_1',
+                'Phpanta\Support\FillsPlaceholders::to()_1',
                 'Phpanta\Support\Route::createController()',
                 'Phpanta\Support\Route::matches()',
                 'Phpanta\Support\SearchableCollection::$items',
                 'Phpanta\Support\SearchableCollection::$steps',
+                'Phpanta\Support\SearchableCollection::SCALARS',
                 'Phpanta\Support\SearchableCollection::stringKeyed()',
                 'Phpanta\Support\SearchableCollection::toArray()',
                 'Phpanta\Support\SearchableCollection::toKeys()',
@@ -187,6 +202,7 @@ final class GuidelineTest extends TestCase
                 'Phpanta\Support\Throttle::times()',
                 'Phpanta\Support\TypedItems::$items',
                 'Phpanta\Support\TypedItems::$steps',
+                'Phpanta\Support\TypedItems::SCALARS',
                 'Phpanta\Support\TypedItems::stringKeyed()',
                 'Phpanta\Support\TypedItems::toArray()',
                 'Phpanta\Support\TypedItems::toKeys()',
@@ -198,6 +214,7 @@ final class GuidelineTest extends TestCase
                 'Phpanta\View\ApiActionFormView::varyOn()',
                 'Phpanta\View\ApiListingView::varyOn()',
                 'Phpanta\View\ApiResultView::varyOn()',
+                'Phpanta\View\Html\Element::URL_SCHEMES',
                 'Phpanta\View\View::varyOn()',
             ],
             array_keys(self::bareArrays()['excused']),
@@ -546,13 +563,23 @@ final class GuidelineTest extends TestCase
         $missing = [];
 
         foreach (SourceTree::framework()->classes() as $path => $class) {
+            $tokens = PhpToken::tokenize(file_get_contents($path));
             $strict = false;
 
-            foreach (PhpToken::tokenize(file_get_contents($path)) as $token) {
-                if ($token->id === T_DECLARE) {
-                    $strict = true;
-                    break;
+            foreach ($tokens as $at => $token) {
+                if ($token->id !== T_DECLARE) {
+                    continue;
                 }
+
+                // The whole statement, because any other declare — ticks, an encoding — is not this.
+                $declared = '';
+
+                for ($k = $at; isset($tokens[$k]) && $tokens[$k]->text !== ';'; $k++) {
+                    $declared .= $tokens[$k]->is(T_WHITESPACE) ? '' : $tokens[$k]->text;
+                }
+
+                $strict = strtolower($declared) === 'declare(strict_types=1)';
+                break;
             }
 
             if (!$strict) {
@@ -714,8 +741,8 @@ final class GuidelineTest extends TestCase
                 $variable = null;
 
                 for ($j = $i; $j < $count && $tokens[$j]->text !== '{'; $j++) {
-                    if ($tokens[$j]->id === T_STRING) {
-                        $types[] = $tokens[$j]->text;
+                    if ($tokens[$j]->is([T_STRING, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED])) {
+                        $types[] = ltrim($tokens[$j]->text, '\\');
                     } elseif ($tokens[$j]->id === T_VARIABLE) {
                         $variable = $tokens[$j]->text;
                     }
@@ -744,18 +771,20 @@ final class GuidelineTest extends TestCase
                         continue;
                     }
 
-                    $arguments = '';
+                    $keeps  = false;
+                    $opened = false;
 
                     for ($parens = 0, $a = $k; $a < $count; $a++) {
+                        $opened  = $opened || $tokens[$a]->text === '(';
                         $parens += (int) ($tokens[$a]->text === '(') - (int) ($tokens[$a]->text === ')');
-                        $arguments .= $tokens[$a]->text;
+                        $keeps   = $keeps || self::handsOn($tokens, $a, $variable);
 
-                        if ($parens === 0 && str_contains($arguments, '(')) {
+                        if ($parens === 0 && $opened) {
                             break;
                         }
                     }
 
-                    if (!str_contains($arguments, $variable)) {
+                    if (!$keeps) {
                         $unwrapped[] = $class . ':' . $tokens[$k]->line . ' throws without ' . $variable;
                     }
                 }
@@ -890,6 +919,242 @@ final class GuidelineTest extends TestCase
     }
 
     /**
+     * One file's closures that name an array or carry a `#[BareArray]`, keyed `Class::method()_n`:
+     * the nth such closure written in that method, in source order, so adding a closure that names
+     * no array renumbers nothing. Valued `[bare, reason]` — bare if its return, or a parameter that
+     * is not variadic, names `array`; the reason its excuse gives, `''` for one that gives none, or
+     * null for no excuse.
+     *
+     * Read from the tokens, because reflection reaches a closure only once it exists, and nothing
+     * here runs one.
+     *
+     * @param string                  $path
+     * @param ReflectionClass<object> $reflection The class the file declares.
+     * @return array<string, array{bool, ?string}>
+     */
+    private static function closures(string $path, ReflectionClass $reflection): array
+    {
+        $methods = [];
+
+        foreach ($reflection->getMethods() as $method) {
+            if ($method->getFileName() === $path) {
+                $methods[$method->getName()] = [$method->getStartLine(), $method->getEndLine()];
+            }
+        }
+
+        $tokens  = PhpToken::tokenize(file_get_contents($path));
+        $counted = [];
+        $found   = [];
+
+        foreach ($tokens as $i => $token) {
+            if (!$token->is([T_FN, T_FUNCTION])) {
+                continue;
+            }
+
+            $open = self::meaningful($tokens, $i + 1);
+
+            if ($tokens[$open]->text === '&') {
+                $open = self::meaningful($tokens, $open + 1);
+            }
+
+            // A function with a name is a method, and reflection reads those.
+            if ($tokens[$open]->text !== '(') {
+                continue;
+            }
+
+            [$bare, $close] = self::arrayInParameters($tokens, $open);
+            $bare           = self::arrayInReturn($tokens, $close) || $bare;
+            $reason         = self::excuseBefore($tokens, $i);
+
+            if (!$bare && $reason === null) {
+                continue;
+            }
+
+            $where = '<no method>';
+
+            foreach ($methods as $name => [$from, $to]) {
+                if ($token->line >= $from && $token->line <= $to) {
+                    $where = $name . '()';
+                    break;
+                }
+            }
+
+            $counted[$where] = ($counted[$where] ?? 0) + 1;
+            $found[$reflection->getName() . '::' . $where . '_' . $counted[$where]] = [$bare, $reason];
+        }
+
+        return $found;
+    }
+
+    /**
+     * Whether a parameter in the list opening at $open names `array` in its type — a variadic
+     * excepted — and the index of the `)` that closes the list.
+     *
+     * @param list<PhpToken> $tokens
+     * @param int            $open
+     * @return array{bool, int}
+     */
+    private static function arrayInParameters(array $tokens, int $open): array
+    {
+        $bare     = false;
+        $typed    = false;
+        $variadic = false;
+        $inType   = true;
+        $depth    = 0;
+
+        for ($i = $open; isset($tokens[$i]); $i++) {
+            $text = $tokens[$i]->text;
+
+            if ($text === '(') {
+                $depth++;
+                continue;
+            }
+
+            if ($text === ')' && --$depth === 0) {
+                return [$bare || ($typed && !$variadic), $i];
+            }
+
+            if ($depth !== 1) {
+                continue;
+            }
+
+            if ($text === ',') {
+                $bare     = $bare || ($typed && !$variadic);
+                $typed    = false;
+                $variadic = false;
+                $inType   = true;
+            } elseif ($tokens[$i]->is(T_ELLIPSIS)) {
+                $variadic = true;
+            } elseif ($tokens[$i]->is(T_VARIABLE)) {
+                $inType = false;
+            } elseif ($inType && $tokens[$i]->is(T_ARRAY)) {
+                $typed = true;
+            }
+        }
+
+        return [$bare, $i];
+    }
+
+    /**
+     * Whether the closure whose parameter list closes at $close declares a return type naming
+     * `array` — past its `use (…)`, which comes between the two.
+     *
+     * @param list<PhpToken> $tokens
+     * @param int            $close
+     * @return bool
+     */
+    private static function arrayInReturn(array $tokens, int $close): bool
+    {
+        $i = self::meaningful($tokens, $close + 1);
+
+        if ($tokens[$i]->is(T_USE)) {
+            for ($depth = 0; isset($tokens[$i]); $i++) {
+                $depth += (int) ($tokens[$i]->text === '(');
+
+                if ($tokens[$i]->text === ')' && --$depth === 0) {
+                    break;
+                }
+            }
+
+            $i = self::meaningful($tokens, $i + 1);
+        }
+
+        if ($tokens[$i]->text !== ':') {
+            return false;
+        }
+
+        for ($i++; isset($tokens[$i]) && $tokens[$i]->text !== '{' && !$tokens[$i]->is(T_DOUBLE_ARROW); $i++) {
+            if ($tokens[$i]->is(T_ARRAY)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The reason a `#[BareArray]` written just before the closure at $at gives — `''` where it gives
+     * none — or null where none is written there.
+     *
+     * @param list<PhpToken> $tokens
+     * @param int            $at
+     * @return string|null
+     */
+    private static function excuseBefore(array $tokens, int $at): ?string
+    {
+        while (true) {
+            $at--;
+
+            while ($at >= 0 && $tokens[$at]->is([T_WHITESPACE, T_COMMENT, T_DOC_COMMENT, T_STATIC])) {
+                $at--;
+            }
+
+            if ($at < 0 || $tokens[$at]->text !== ']') {
+                return null;
+            }
+
+            // Back to the `#[` that opens this group of attributes.
+            $end = $at;
+
+            for ($depth = 0; $at >= 0; $at--) {
+                $depth += (int) ($tokens[$at]->text === ']')
+                    - (int) ($tokens[$at]->text === '[' || $tokens[$at]->is(T_ATTRIBUTE));
+
+                if ($depth === 0) {
+                    break;
+                }
+            }
+
+            $excuse = false;
+            $reason = '';
+
+            for ($k = $at; $k <= $end; $k++) {
+                if ($tokens[$k]->is([T_STRING, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED])) {
+                    $excuse = $excuse || str_ends_with($tokens[$k]->text, 'BareArray');
+                } elseif ($tokens[$k]->is(T_CONSTANT_ENCAPSED_STRING)) {
+                    $reason .= stripcslashes(substr($tokens[$k]->text, 1, -1));
+                }
+            }
+
+            if ($excuse) {
+                return $reason;
+            }
+        }
+    }
+
+    /**
+     * The index of the first token at or after $i that is not whitespace or a comment.
+     *
+     * @param list<PhpToken> $tokens
+     * @param int            $i
+     * @return int
+     */
+    private static function meaningful(array $tokens, int $i): int
+    {
+        while (isset($tokens[$i]) && $tokens[$i]->is([T_WHITESPACE, T_COMMENT, T_DOC_COMMENT])) {
+            $i++;
+        }
+
+        return $i;
+    }
+
+    /**
+     * Whether the token at $at is $variable itself, handed on — not a member read off it, such as
+     * its message, which keeps the words and drops the cause.
+     *
+     * @param list<PhpToken> $tokens
+     * @param int            $at
+     * @param string         $variable
+     * @return bool
+     */
+    private static function handsOn(array $tokens, int $at, string $variable): bool
+    {
+        return $tokens[$at]->is(T_VARIABLE)
+            && $tokens[$at]->text === $variable
+            && !in_array(($tokens[self::meaningful($tokens, $at + 1)] ?? null)?->text, ['->', '?->', '[', '::'], true);
+    }
+
+    /**
      * Every `array` in a declared type under `src/`, judged against its `#[BareArray]`.
      *
      * `excused` is keyed `Class::member()` and valued by the reason; `unexcused` and `stale` are
@@ -903,7 +1168,7 @@ final class GuidelineTest extends TestCase
         $unexcused = [];
         $stale     = [];
 
-        foreach (SourceTree::framework()->classes() as $class) {
+        foreach (SourceTree::framework()->classes() as $path => $class) {
             $reflection = new ReflectionClass($class);
             $declared   = [];
 
@@ -941,6 +1206,16 @@ final class GuidelineTest extends TestCase
                 ];
             }
 
+            // A typed constant is a declaration like any other; an enum's cases carry no type.
+            foreach ($reflection->getReflectionConstants() as $constant) {
+                if ($constant->getDeclaringClass()->getName() === $class) {
+                    $declared[$class . '::' . $constant->getName()] = [
+                        self::namesAnArray($constant->getType()),
+                        $constant,
+                    ];
+                }
+            }
+
             foreach ($declared as $name => [$bare, $member]) {
                 $attributes = $member->getAttributes(BareArray::class);
 
@@ -949,6 +1224,16 @@ final class GuidelineTest extends TestCase
                 } elseif ($bare) {
                     $excused[$name] = $attributes[0]->newInstance()->reason;
                 } elseif ($attributes !== []) {
+                    $stale[] = $name;
+                }
+            }
+
+            foreach (self::closures($path, $reflection) as $name => [$bare, $reason]) {
+                if ($bare && ($reason ?? '') === '') {
+                    $unexcused[] = $name;
+                } elseif ($bare) {
+                    $excused[$name] = $reason;
+                } elseif ($reason !== null) {
                     $stale[] = $name;
                 }
             }
@@ -1056,7 +1341,10 @@ final class GuidelineTest extends TestCase
         for ($i = 0; $i < $count; $i++) {
             $token = $tokens[$i];
 
-            if ($token->id !== T_STRING || !isset(self::COLLECTION_MEMBERS[$token->text])) {
+            // `\array_map(` is the same call, written from inside a namespace.
+            $name = ltrim($token->text, '\\');
+
+            if (!$token->is([T_STRING, T_NAME_FULLY_QUALIFIED]) || !isset(self::COLLECTION_MEMBERS[$name])) {
                 continue;
             }
 
@@ -1073,7 +1361,7 @@ final class GuidelineTest extends TestCase
                 : $tokens[$i + 1] ?? null;
 
             if ($after?->text === '(') {
-                $calls[] = [$token->text, $token->line];
+                $calls[] = [$name, $token->line];
             }
         }
 

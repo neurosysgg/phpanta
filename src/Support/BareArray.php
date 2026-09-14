@@ -8,8 +8,8 @@ use Attribute;
 use Phpanta\Exception\GuidelineException;
 
 /**
- * The BareArray attribute. Excuses one declaration from the rule that a group of things is a
- * {@link Collection}, and says why.
+ * The BareArray attribute. Excuses one declaration — a method, a property, a typed constant or a
+ * closure — from the rule that a group of things is a {@link Collection}, and says why.
  *
  * A bare `array` is the shape every collection here was written to replace: it announces nothing
  * about what it holds, so `array<string, float>` is a docblock's promise where
@@ -30,7 +30,12 @@ use Phpanta\Exception\GuidelineException;
  *
  * @see BareString for the same arrangement one type down.
  */
-#[Attribute(Attribute::TARGET_METHOD | Attribute::TARGET_PROPERTY)]
+#[Attribute(
+    Attribute::TARGET_METHOD
+    | Attribute::TARGET_PROPERTY
+    | Attribute::TARGET_CLASS_CONSTANT
+    | Attribute::TARGET_FUNCTION,
+)]
 final readonly class BareArray
 {
     /**

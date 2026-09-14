@@ -9,6 +9,7 @@
     },
     "scripts": {
         "check": "tsc -p tsconfig.json",
+        "test": "node --test 'test/js/*.test.mjs'",
         "site:build": "cd site && tsc -p . && node ../tools/build-css.mjs && node ../tools/build-assets.mjs",
         "site:prod": "npm run site:build && cd site && node ../tools/build-prod.mjs",
         "site:test": "vendor/bin/phpunit -c site/phpunit.xml.dist",

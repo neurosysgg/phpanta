@@ -164,6 +164,10 @@ trait TypedItems
      * and it is why a callback that wants to hand back a pair maps to a small value object — a
      * `JsonSerializable`, say — rather than to an `array`.
      */
+    #[BareArray(
+        'the engine\'s own scalar type names, as get_debug_type() spells them — and the list a collection '
+        . 'consults to know what it may hold, so it cannot be a collection itself.',
+    )]
     private const array SCALARS = ['string', 'int', 'float', 'bool'];
 
     /**
@@ -181,7 +185,7 @@ trait TypedItems
      * third question: `class_exists()` already answers `true` for them.
      *
      * It is also the check {@link self::map()} leans on. A callback declaring `: void`, `: never`,
-     * `: array`, `: object` or `: static` produces a type name that answers none of these three
+     * `: array` or `: object` produces a type name that answers none of these three
      * questions, and the message below names it — so the whole vocabulary of return types a mapped
      * collection cannot be built from is refused in one place rather than listed in two.
      *

@@ -55,27 +55,6 @@ use Phpanta\Support\Diagnostics;
 final readonly class MarkupParser
 {
     /**
-     * The elements that make a document rather than content, refused wherever they appear.
-     *
-     * Not only where the parser hoists them. At the top of a fragment a `<title>` is moved into the
-     * head, which {@link self::parse()} checks for; inside content the parser leaves a `<title>`, a
-     * `<meta>` or a `<link>` where it found it, and a view rendering one would put a document's
-     * metadata in the middle of a page — a second title the browser ignores, or a stylesheet nobody
-     * reviewed. `<html>`, `<head>` and `<body>` inside content are parse errors, which
-     * {@link self::read()} refuses first; they are listed so the set says what it means.
-     *
-     * @var list<HtmlTag>
-     */
-    private const array DOCUMENT_TAGS = [
-        HtmlTag::Html,
-        HtmlTag::Head,
-        HtmlTag::Body,
-        HtmlTag::Title,
-        HtmlTag::Meta,
-        HtmlTag::Link,
-    ];
-
-    /**
      * Parses $html into nodes, refusing anything the tree cannot hold.
      *
      * Answers with a collection rather than a single node because a document is not an element: a
@@ -263,7 +242,7 @@ final readonly class MarkupParser
             ));
         }
 
-        if (in_array($tag, self::DOCUMENT_TAGS, true)) {
+        if ($tag instanceof HtmlTag && $tag->belongsToTheDocument()) {
             throw new ParserException(sprintf(
                 '<%s> belongs to the document around a page, not to content a view parses.',
                 $tag->tagName(),

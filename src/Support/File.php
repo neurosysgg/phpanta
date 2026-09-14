@@ -140,7 +140,10 @@ final readonly class File
     )]
     public function lines(): array
     {
-        $lines = Diagnostics::muted(fn(): array|false => file($this->path, FILE_IGNORE_NEW_LINES));
+        $lines = Diagnostics::muted(
+            #[BareArray('file() answers in an array, or false: this is the door it comes through')]
+            fn(): array|false => file($this->path, FILE_IGNORE_NEW_LINES),
+        );
 
         return $lines === false ? [] : array_values($lines);
     }

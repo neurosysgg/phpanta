@@ -70,6 +70,7 @@ trait FillsPlaceholders
         // for a visitor who followed it.
         return preg_replace_callback(
             Route::PLACEHOLDER_PATTERN,
+            #[BareArray('preg_replace_callback() hands each match over as an array')]
             static function (array $placeholder) use (&$values): string {
                 $value = (string) array_shift($values);
                 $type  = PlaceholderType::named($placeholder[2] ?? '');

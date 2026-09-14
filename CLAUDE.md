@@ -212,13 +212,14 @@ These fail silently — no error, no log, a page that looks fine.
 
 ```bash
 vendor/bin/phpunit -c phpanta/phpunit.xml.dist   # the framework's suite, under TestApp
+node --test 'phpanta/test/js/*.test.mjs'         # its mirrored TypeScript enums against the PHP
 node phpanta/tools/build-assets.mjs              # run from the site's root
 php -S localhost:8080 -t public phpanta/tools/dev-router.php
 php phpanta/tools/export.php --out <dir> [--base /path/] [--debug]   # a static copy of the site
 ```
 
 Checked out on its own, `composer install`, `npm install`, then `vendor/bin/phpunit`, `npm run
-check`, and `npm run site:build` / `site:test` / `site:dev` / `site:prod` / `site:export` for its own site in
+check`, `npm test`, and `npm run site:build` / `site:test` / `site:dev` / `site:prod` / `site:export` for its own site in
 `site/` — a site like any other, whose framework is `..` rather than `phpanta/`. GitHub Pages
 serves its export; `.github/workflows/pages.yml` runs the suite first and publishes on every push.
 

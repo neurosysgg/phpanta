@@ -29,6 +29,7 @@ use Phpanta\Http\ServerVariable;
 use Phpanta\Http\SessionSeal;
 use Phpanta\Model\Health\Requirement;
 use Phpanta\Support\AdminPath;
+use Phpanta\Support\BareArray;
 use Phpanta\Support\Collection;
 use Phpanta\Support\Directory;
 use Phpanta\Support\ErrorLog;
@@ -608,7 +609,8 @@ abstract class App
         // recognise included, because the controller answers a caller it cannot verify the same way
         // at every depth — see MethodPolicy. And none is a page of a static export: an anonymous
         // request is all an export makes, and the admin has nothing to show one.
-        $none = static fn(): array => [];
+        $none = #[BareArray('the shape a Route asks its export for — the pages to write — and the admin writes none')]
+            static fn(): array => [];
 
         return new Collection(Route::class)->with(
             new Route(AdminPath::Index, fn() => new ApiController(), MethodPolicy::Delegated, $none),

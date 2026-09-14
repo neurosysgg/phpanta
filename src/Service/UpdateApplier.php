@@ -1270,7 +1270,12 @@ final readonly class UpdateApplier
     {
         $entries = [];
 
-        foreach (Diagnostics::muted(static fn(): array|false => scandir($directory->path)) ?: [] as $entry) {
+        $names = Diagnostics::muted(
+            #[BareArray('scandir() answers in an array, or false: this is the door it comes through')]
+            static fn(): array|false => scandir($directory->path),
+        );
+
+        foreach ($names ?: [] as $entry) {
             if ($entry === '.' || $entry === '..') {
                 continue;
             }

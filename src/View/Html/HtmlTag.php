@@ -174,4 +174,25 @@ enum HtmlTag: string implements TagName
     {
         return $this === self::Script || $this === self::Iframe;
     }
+
+    /**
+     * True if the element makes a document rather than content — which {@link MarkupParser} refuses
+     * wherever it appears.
+     *
+     * Not only where the parser hoists them. At the top of a fragment a `<title>` is moved into the
+     * head, which the parser checks for on its own; inside content it leaves a
+     * `<title>`, a `<meta>` or a `<link>` where it found it, and a view rendering one would put a
+     * document's metadata in the middle of a page — a second title the browser ignores, or a
+     * stylesheet nobody reviewed. `<html>`, `<head>` and `<body>` inside content are parse errors,
+     * which the parser refuses first; they answer yes so the set says what it means.
+     *
+     * @return bool
+     */
+    public function belongsToTheDocument(): bool
+    {
+        return match ($this) {
+            self::Html, self::Head, self::Body, self::Title, self::Meta, self::Link => true,
+            default                                                                  => false,
+        };
+    }
 }

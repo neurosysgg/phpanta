@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\Http;
 
 use Phpanta\Exception\SecurityPolicyException;
+use Phpanta\Support\BareArray;
 
 /**
  * The BasicChallenge class. The `WWW-Authenticate` value every gate answers a 401 with.
@@ -110,6 +111,7 @@ final readonly class BasicChallenge implements HeaderValue
     {
         return new self(preg_replace_callback(
             '/[^\t\x20\x21\x23\x24\x26-\x5B\x5D-\x7E]/',
+            #[BareArray('preg_replace_callback() hands each match over as an array, and this reads one byte of it')]
             static fn(array $byte): string => sprintf('%%%02X', ord($byte[0])),
             $text,
         ));

@@ -128,9 +128,13 @@ A site that vendors the framework runs the same three rules over its own tree, w
 pointed at it, and keeps what only it can check: a grep over everything under `phpanta/` for its own
 namespace, comments and docs included, and the links in the framework's documents staying inside it.
 
-**The framework has no client tests of its own.** Its modules are compiled into a site's tree and
-tested there, through that site's `main.js`, alongside the site's own elements. Here, `npm run check`
-type-checks them.
+**The framework's own client suite is its mirrored enums.** `test/js/enum-parity.test.mjs` compares
+every enum in `assets/ts/model/` with the PHP one it mirrors, case for case and in order, and fails
+on a mirror it does not compare. It reads the TypeScript source, because a checkout of the framework
+compiles nothing, and needs only `node:test`: `npm test` runs it with no `npm install`, and CI runs
+it before the site builds. The modules themselves are compiled into a site's tree and tested there,
+through that site's `main.js`, alongside the site's own elements; here, `npm run check` type-checks
+them.
 
 ## Coverage
 

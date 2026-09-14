@@ -10,6 +10,7 @@ use Phpanta\Model\Health\HealthFact;
 use Phpanta\Model\Update\Deployment;
 use Phpanta\Model\Update\ProbeReport;
 use Phpanta\Model\Update\UpdateRoot;
+use Phpanta\Support\BareArray;
 use Phpanta\Support\Collection;
 use Phpanta\Support\Diagnostics;
 
@@ -139,7 +140,10 @@ final readonly class FilesystemProbe
      */
     private static function device(string $path): ?int
     {
-        $stat = Diagnostics::muted(static fn(): array|false => stat($path));
+        $stat = Diagnostics::muted(
+            #[BareArray('stat() answers in an array, or false: this is the door it comes through')]
+            static fn(): array|false => stat($path),
+        );
 
         return $stat === false ? null : $stat['dev'];
     }
@@ -440,7 +444,10 @@ final readonly class FilesystemProbe
      */
     private static function strays(string $directory): int
     {
-        $names = Diagnostics::muted(static fn(): array|false => scandir($directory));
+        $names = Diagnostics::muted(
+            #[BareArray('scandir() answers in an array, or false: this is the door it comes through')]
+            static fn(): array|false => scandir($directory),
+        );
         $count = 0;
 
         foreach ($names === false ? [] : $names as $name) {

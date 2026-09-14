@@ -45,6 +45,8 @@ jobs:
 
       - run: npm ci
       - run: npm run check
+      # The mirrored enums in assets/ts/model/ against the PHP they repeat.
+      - run: npm test
       - run: npm run site:prod
       # The site's own suite, once its manifest has been built: every page in every language.
       - run: npm run site:test

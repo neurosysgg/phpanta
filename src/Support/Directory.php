@@ -207,7 +207,10 @@ final readonly class Directory
     )]
     private function entries(): array
     {
-        $names = Diagnostics::muted(fn(): array|false => scandir($this->path));
+        $names = Diagnostics::muted(
+            #[BareArray('scandir() answers in an array, or false: this is the door it comes through')]
+            fn(): array|false => scandir($this->path),
+        );
 
         return $names === false ? [] : $names;
     }

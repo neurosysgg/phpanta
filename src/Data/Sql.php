@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\Data;
 
 use Phpanta\Exception\SqlException;
+use Phpanta\Support\BareArray;
 use Phpanta\Support\SearchableCollection;
 
 /**
@@ -123,6 +124,7 @@ final readonly class Sql
 
         $prepared = preg_replace_callback(
             self::TOKENS,
+            #[BareArray('preg_replace_callback() hands each match over as an array, offsets and all')]
             static function (array $match) use (&$placeholders, &$foreign, &$end, $bindings): string {
                 [$token, $offset] = $match[0];
 

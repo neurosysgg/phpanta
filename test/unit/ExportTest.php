@@ -62,7 +62,7 @@ final class ExportTest extends TestCase
      */
     protected function tearDown(): void
     {
-        exec('rm -rf ' . escapeshellarg($this->scratch));
+        UpdateFixture::removeTree($this->scratch);
     }
 
     /**
