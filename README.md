@@ -46,6 +46,163 @@ phpanta/
 └── docs/            ← the documents; start at architecture.md
 ```
 
+## Hello, world
+
+[`examples/hello/`](examples/hello/) is a whole site in seven files, with no build step, no
+composer and nothing to configure. In a checkout of Phpanta:
+
+```bash
+php -S localhost:8082 -t examples/hello/public     # or: npm run hello:dev
+```
+
+`/` says *Hello, world!* — *Hallo, Welt!* to a browser that asks for German — and `/hello/Ada`
+greets Ada and counts her letters by each language's own plural rules. Three files do the work.
+An address is a case, and a link is that case filled in:
+
+<!-- examples/hello/src/Hello/HelloPath.php -->
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace Hello;
+
+use Phpanta\Support\FillsPlaceholders;
+use Phpanta\Support\Path;
+
+/**
+ * Every address the example answers on: the route matches the value, and a link fills it in.
+ */
+enum HelloPath: string implements Path
+{
+    use FillsPlaceholders;
+
+    case World   = '/';
+    case Someone = '/hello/{name}';
+}
+```
+
+Every word is a case, in both languages at once — ICU picks *one letter* or *3 letters*, *einen
+Buchstaben* or *3 Buchstaben*:
+
+<!-- examples/hello/src/Hello/HelloText.php -->
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace Hello;
+
+use Phpanta\Text\Translatable;
+use Phpanta\Text\Translated;
+use Phpanta\Text\Translation;
+
+/**
+ * Every word the example says, in both of its languages.
+ */
+enum HelloText: string implements Translatable
+{
+    use Translated;
+
+    #[Translation(en: 'Hello, world!', de: 'Hallo, Welt!')]
+    case World = 'world';
+
+    #[Translation(en: 'Now greet {someone}.', de: 'Jetzt grüß {someone}.')]
+    case GreetSomeone = 'greet-someone';
+
+    #[Translation(en: 'Hello, {name}!', de: 'Hallo, {name}!')]
+    case Someone = 'someone';
+
+    #[Translation(
+        en: 'Your name has {letters, plural, one {one letter} other {# letters}}.',
+        de: 'Dein Name hat {letters, plural, one {einen Buchstaben} other {# Buchstaben}}.',
+    )]
+    case Letters = 'letters';
+
+    #[Translation(en: 'Back to the world', de: 'Zurück zur Welt')]
+    case Back = 'back';
+
+    #[Translation(en: 'Nobody lives here.', de: 'Hier wohnt niemand.')]
+    case Nobody = 'nobody';
+}
+```
+
+And a page is a tree, never a string, which is why `/hello/<script>` greets a `<script>` rather
+than running one:
+
+<!-- examples/hello/src/Hello/Greeting.php -->
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace Hello;
+
+use Phpanta\Text\Translatable;
+use Phpanta\View\Html\Element;
+use Phpanta\View\Html\HtmlAttribute;
+use Phpanta\View\Html\HtmlTag;
+use Phpanta\View\Html\Node;
+use Phpanta\View\Html\Sentence;
+use Phpanta\View\View;
+
+/**
+ * The page: a tree of nodes, never a string, so a name with markup in it is only ever text.
+ */
+final class Greeting extends View
+{
+    /** Whom the world page suggests greeting next. */
+    private const string SOMEONE = 'Ada';
+
+    /**
+     * @param string|null $name
+     */
+    public function __construct(private ?string $name = null) {}
+
+    /**
+     * @return Translatable
+     */
+    public function pageTitle(): Translatable
+    {
+        return self::title($this->name);
+    }
+
+    /**
+     * @return Node
+     */
+    public function content(): Node
+    {
+        if ($this->name === null) {
+            return new Element(HtmlTag::Main)->containing(
+                new Element(HtmlTag::H1)->containing(HelloText::World),
+                new Element(HtmlTag::P)->containing(new Sentence(
+                    HelloText::GreetSomeone,
+                    someone: new Element(HtmlTag::A)
+                        ->attr(HtmlAttribute::Href, HelloPath::Someone->to(self::SOMEONE))
+                        ->containing(self::SOMEONE),
+                )),
+            );
+        }
+
+        return new Element(HtmlTag::Main)->containing(
+            new Element(HtmlTag::H1)->containing(HelloText::Someone->with(name: $this->name)),
+            new Element(HtmlTag::P)->containing(HelloText::Letters->with(letters: mb_strlen($this->name))),
+            new Element(HtmlTag::A)->attr(HtmlAttribute::Href, HelloPath::World->to())->containing(HelloText::Back),
+        );
+    }
+}
+```
+
+The rest is [the app](examples/hello/src/Hello/Hello.php) — everything the framework asks of a
+site, answered in one class — [a controller](examples/hello/src/Hello/Greet.php),
+[the autoloader](examples/hello/autoload.php) and [`public/index.php`](examples/hello/public/index.php).
+What it never wrote a line for comes anyway: the security headers, a 405 for a write, a 404 in the
+visitor's language, and the admin at `/admin`. [Its suite](examples/hello/test/HelloTest.php) asks
+all of it in-process — `npm run hello:test`.
+
+**These blocks are the files, not copies of them.** `ReadmeTest` fails the moment one changes
+without the other, so this page cannot go on showing a site that no longer runs.
+
 ## Using it in a site
 
 A site is laid out by convention rather than configuration:
@@ -62,11 +219,11 @@ site/
 └── phpanta/              ← this directory, as a git submodule
 ```
 
-[`site/`](site/) is a complete one, laid out the same way with `..` for `phpanta/`: its
+[Hello, world](#hello-world) is the smallest one that runs, laid out this way with `../..` for
+`phpanta/`. [`site/`](site/), the framework's own site, is a larger one with a front end: its
 [`autoload.php`](site/autoload.php), [`public/index.php`](site/public/index.php) and
-[`Site.php`](site/src/PhpantaSite/Site.php) are the three files a new site starts from, and
-`npm run site:dev` serves it. The smallest app there is, [`TestApp`](test/TestApp.php), is the
-framework's test fixture.
+[`Site.php`](site/src/PhpantaSite/Site.php) are where a site with assets starts from, and
+`npm run site:dev` serves it.
 
 Vendoring it is a submodule and four lines of wiring:
 
@@ -176,6 +333,7 @@ English and German, every page a markup tree its view builds: its source is [`si
 
 ```bash
 composer install && vendor/bin/phpunit    # the framework's suite
+npm run hello:test                        # the example's suite, under its own app
 npm install && npm run check              # the framework's TypeScript, type-checked
 npm run site:build && npm run site:dev    # its site, served at localhost:8081
 npm run site:test                         # the site's own suite: every page, every address, both languages

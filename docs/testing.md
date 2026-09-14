@@ -46,6 +46,7 @@ an app:
 | the CLI layer | `CliTest` |
 | the rules | `BoundaryTest`, `GuidelineTest`, `NoDiscardTest` — see [below](#the-rules-the-framework-holds-itself-to) |
 | the framework's own site | none here: it has a suite of its own, see [below](#the-sites-own-suite) |
+| the README | `ReadmeTest`: every file the README quotes from `examples/hello/` is that file, byte for byte. The example itself runs under its own app, in `examples/hello/test/` — `npm run hello:test` |
 
 Thirty-three fixtures sit beside the tests — `UpdateFixture`, `TextFixture`, `RoutePatternFixture`,
 `ExportFixturePath`, `ReadonlyFixture`, `CliOptionFixture`, `TagFixture`, `AttributeFixture`,

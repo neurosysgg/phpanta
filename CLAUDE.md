@@ -212,6 +212,7 @@ These fail silently — no error, no log, a page that looks fine.
 
 ```bash
 vendor/bin/phpunit -c phpanta/phpunit.xml.dist   # the framework's suite, under TestApp
+vendor/bin/phpunit -c phpanta/examples/hello/phpunit.xml.dist   # the hello-world example, under its own app
 node --test 'phpanta/test/js/*.test.mjs'         # its mirrored TypeScript enums against the PHP
 node phpanta/tools/build-assets.mjs              # run from the site's root
 php -S localhost:8080 -t public phpanta/tools/dev-router.php
