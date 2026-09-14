@@ -104,7 +104,7 @@ final readonly class Session
     public static function of(Request $request, SessionSeal $seal, ?int $now = null): self
     {
         $sealed  = $request->cookies()->value(CookieName::Session);
-        $opened  = $sealed === null ? null : $seal->open($sealed);
+        $opened  = $sealed === null ? null : $seal->open($sealed, SealContext::Session);
         $session = self::fresh($seal);
 
         if ($opened === null) {
@@ -265,6 +265,20 @@ final readonly class Session
     }
 
     /**
+     * When this session unlocked the admin, or null where it did not — however long ago; whether the
+     * unlock is still good is {@link self::admin()}'s question.
+     *
+     * @return int|null
+     */
+    #[NoDiscard('adminSince() only reads; a call whose result goes nowhere read nothing')]
+    public function adminSince(): ?int
+    {
+        [$since] = explode(' ', $this->values->find(self::ADMIN) ?? '', 2);
+
+        return preg_match(Input::WHOLE_NUMBER, $since) === 1 ? (int) $since : null;
+    }
+
+    /**
      * This session with the admin unlocked by the passkey $credential, at $now — with a new form token,
      * for {@link self::withUser()}'s reason, and without the challenge the unlock answered, so it is
      * spent.
@@ -407,7 +421,7 @@ final readonly class Session
             'e' => ($now ?? time()) + self::LIFETIME,
             'v' => $this->values->toArray(),
             'm' => $this->messages->toValues(),
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), SealContext::Session);
 
         if (strlen($sealed) > self::MAX_SEALED) {
             throw new SessionException(sprintf(

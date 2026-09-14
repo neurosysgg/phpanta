@@ -86,6 +86,16 @@ final readonly class ApiGate
     private const int MAX_SKEW = 300;
 
     /**
+     * How far ahead of this server's clock a write's serial may be, in seconds.
+     *
+     * A write records its serial, so one from a clock running fast would sit in the future and refuse
+     * every correctly timed call as stale until time caught up — for up to {@link self::MAX_SKEW}.
+     * Five seconds covers rounding and a clock NTP keeps; a machine further ahead is told so, and
+     * nothing is written. A read records nothing, so it is held only to the skew.
+     */
+    private const int MAX_LEAD = 5;
+
+    /**
      * Constructs an instance of {@link self}.
      *
      * @param File|null $key Where the public key lives. The parameter is a test seam, the way
@@ -185,11 +195,14 @@ final readonly class ApiGate
      * neither changes anything, so leaving the serial where it is lets the same credential be sent
      * again for real, and a captured dry run replayed on its own still does nothing.
      *
-     * **Three steps, under one lock the caller holds until the write has finished**:
+     * **Four steps, under one lock the caller holds until the write has finished**:
      *
      * - The lock, beside the serial and non-blocking. Two writes in flight at once would each write
      *   and mirror over the other — deleting the files the other just wrote — so the second is
      *   refused rather than queued; see {@link FileLock}.
+     * - The clock. A serial more than {@link self::MAX_LEAD} seconds ahead of this server's is
+     *   refused rather than recorded: in the record it would refuse every correctly timed call until
+     *   the clock caught up, and the signer is the one who can fix it.
      * - Freshness, asked again. {@link self::accepts()} asked it before the body was read, and
      *   another write may have recorded a newer serial since. Unasked, two overlapping writes both
      *   pass, the older one's record lands last, and the serial moves *backwards* — which hands the
@@ -204,10 +217,16 @@ final readonly class ApiGate
     public function spend(int $serial): FileLock|SerialRefusal
     {
         $record = $this->serial ?? App::current()->updateSerial();
-        $lock   = FileLock::exclusive(new File($record->path . '.lock'));
+        $lock   = FileLock::exclusive(FileLock::beside($record));
 
         if ($lock === null) {
             return SerialRefusal::Busy;
+        }
+
+        if ($serial > time() + self::MAX_LEAD) {
+            $lock->release();
+
+            return SerialRefusal::Ahead;
         }
 
         if (!$this->isFresh($serial)) {

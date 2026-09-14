@@ -682,6 +682,20 @@ final class ApiTest extends TestCase
     }
 
     /**
+     * A write whose serial is further ahead of this clock than rounding explains is refused rather than
+     * recorded: in the record, it would refuse every correctly timed call until time caught up.
+     *
+     * @return void
+     */
+    public function testASerialAheadOfTheClockIsNotRecorded(): void
+    {
+        self::assertSame(SerialRefusal::Ahead, $this->gate()->spend(time() + 60));
+        self::assertNull($this->serialFile->read(), 'a serial from the future was recorded');
+        self::assertSame(HttpStatusCode::Conflict, SerialRefusal::Ahead->status());
+        self::assertStringContainsString('clock is ahead', SerialRefusal::Ahead->message());
+    }
+
+    /**
      * A lock file that cannot be opened is no lock, answered the way a held one is.
      *
      * @return void

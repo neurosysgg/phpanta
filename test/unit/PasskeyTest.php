@@ -6,6 +6,7 @@ namespace Phpanta\Test\Unit;
 
 use OpenSSLAsymmetricKey;
 use Phpanta\Http\Origin;
+use Phpanta\Http\SealContext;
 use Phpanta\Http\SessionSeal;
 use Phpanta\Model\Passkey\AuthenticatorData;
 use Phpanta\Model\Passkey\CeremonyType;
@@ -298,12 +299,27 @@ final class PasskeyTest extends TestCase
      */
     public function testAPasskeyIsKeptAsDataAndReadBack(): void
     {
-        $passkey = new Passkey('id', 'phone', $this->key, 4, '2026-09-14T12:00:00+00:00');
+        $passkey = new Passkey('id', 'phone', $this->key, 4, '2026-09-14T12:00:00+00:00', 70, 80);
         $read    = Passkey::fromData(json_decode((string) json_encode($passkey), false));
+        $before  = Passkey::fromData(json_decode(
+            '{"id":"id","name":"phone","key":"' . Base64Url::encode($this->key) . '","count":0,"added":""}',
+            false,
+        ));
 
         self::assertEquals($passkey, $read);
+        self::assertSame([0, 0], [$before?->unlocked, $before?->locked], 'a store from before unlocks were kept');
         self::assertSame(9, $passkey->counted(9)->count);
         self::assertSame([$passkey->id, $passkey->key], [$passkey->counted(9)->id, $passkey->counted(9)->key]);
+        self::assertSame([70, 80], [$passkey->counted(9)->unlocked, $passkey->counted(9)->locked]);
+        self::assertSame([90, 80], [$passkey->unlockedAt(90)->unlocked, $passkey->unlockedAt(90)->locked]);
+        self::assertSame(80, $passkey->lockedAt(50)->locked, 'a lock moved backwards');
+        self::assertSame(95, $passkey->lockedAt(95)->locked);
+        self::assertFalse($passkey->opens(80), 'a session unlocked by the time of the lock');
+        self::assertTrue($passkey->opens(81));
+        self::assertTrue($passkey->mayReport(5));
+        self::assertFalse($passkey->mayReport(4), 'a count that did not rise');
+        self::assertFalse($passkey->mayReport(0), 'a counting key reporting zero');
+        self::assertTrue(new Passkey('id', 'phone', $this->key)->mayReport(0));
         self::assertMatchesRegularExpression('/\A[0-9a-f]{4}( [0-9a-f]{4}){3}\z/', $passkey->fingerprint());
         self::assertInstanceOf(PublicKey::class, $passkey->publicKey());
         self::assertNull(new Passkey('id', 'phone', 'not a key')->publicKey());
@@ -313,6 +329,7 @@ final class PasskeyTest extends TestCase
             '{}',
             '{"id":"i","name":"n","key":"a+b","count":0,"added":""}',
             '{"id":"i","name":"n","key":"","count":"0","added":""}',
+            '{"id":"i","name":"n","key":"","count":0,"added":"","locked":"1"}',
         ];
 
         foreach ($notPasskeys as $json) {
@@ -352,11 +369,44 @@ final class PasskeyTest extends TestCase
         self::assertFalse($unwritable->keep(new Passkey('one', 'phone', $this->key)));
     }
 
+    /**
+     * A change is decided against the store as it stands under its lock: it keeps the device's place,
+     * leaves the store as it was where it refuses, and never brings back a device revoked meanwhile. A
+     * lock that cannot be taken writes nothing.
+     *
+     * @return void
+     */
+    public function testAChangeIsMadeUnderTheStoresLockAndNeverBringsADeviceBack(): void
+    {
+        $registry = new PasskeyRegistry(new File($this->sandbox . '/admin-passkeys.json'));
+
+        self::assertTrue($registry->keep(new Passkey('one', 'phone', $this->key)));
+        self::assertTrue($registry->keep(new Passkey('two', 'laptop', $this->key)));
+
+        self::assertSame(3, $registry->change('one', static fn(Passkey $p): Passkey => $p->counted(3))?->count);
+        self::assertSame(['one', 'two'], $registry->all()->map(static fn(Passkey $p): string => $p->id)->toValues());
+        self::assertNull($registry->change('one', static fn(): ?Passkey => null), 'a refused change');
+        self::assertSame(3, $registry->find('one')?->count);
+
+        self::assertTrue($registry->forget('one'));
+        self::assertNull(
+            $registry->change('one', static fn(Passkey $p): Passkey => $p->counted(4)),
+            'a device revoked meanwhile was brought back',
+        );
+        self::assertNull($registry->find('one'));
+
+        $blocked = new PasskeyRegistry(new File($this->sandbox . '/blocked.json'));
+        new Directory($this->sandbox . '/blocked.json.lock')->create();
+
+        self::assertFalse($blocked->keep(new Passkey('one', 'phone', $this->key)));
+        self::assertNull($blocked->find('one'));
+    }
+
     // ───────────────────────────── an enrolment code ─────────────────────────────
 
     /**
      * A code opens under the key that sealed it for ten minutes, and nothing else sealed under that key
-     * — a session above all — reads as one.
+     * — a session above all, however much it looks like a code — reads as one.
      *
      * @return void
      */
@@ -371,12 +421,17 @@ final class PasskeyTest extends TestCase
         self::assertNull(EnrolmentCode::open($seal, $kept, 1001 + EnrolmentCode::LIFETIME), 'too old');
         self::assertNull(EnrolmentCode::open($seal, $kept, 999), 'from the future');
         $elsewhere = SessionSeal::fromKey(random_bytes(32));
-        $badKey    = $seal->seal('{"enrolment":true,"id":"c","key":"a+b","added":1000}');
+        $badKey    = $seal->seal('{"id":"c","key":"a+b","added":1000}', SealContext::Enrolment);
+        $asSession = $seal->seal(
+            (string) json_encode(['id' => 'credential', 'key' => Base64Url::encode($this->key), 'added' => 1000]),
+            SealContext::Session,
+        );
 
         self::assertNull(EnrolmentCode::open($elsewhere, $kept, 1000), 'another deployment');
         self::assertNull(EnrolmentCode::open($seal, 'not a code', 1000));
-        self::assertNull(EnrolmentCode::open($seal, $seal->seal('not json'), 1000));
-        self::assertNull(EnrolmentCode::open($seal, $seal->seal('{"e":2000,"v":{},"m":[]}'), 1000), 'a session');
+        self::assertNull(EnrolmentCode::open($seal, $seal->seal('not json', SealContext::Enrolment), 1000));
+        self::assertNull(EnrolmentCode::open($seal, $seal->seal('[]', SealContext::Enrolment), 1000), 'not an object');
+        self::assertNull(EnrolmentCode::open($seal, $asSession, 1000), 'sealed as a session');
         self::assertNull(EnrolmentCode::open($seal, $badKey, 1000), 'a key that is not base64url');
     }
 

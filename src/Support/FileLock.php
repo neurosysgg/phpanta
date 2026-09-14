@@ -30,6 +30,9 @@ use NoDiscard;
 )]
 final class FileLock
 {
+    /** What a lock file is called: the name of the file it guards, and this after it. */
+    private const string SUFFIX = '.lock';
+
     /**
      * Constructs an instance of {@link self}.
      *
@@ -38,6 +41,21 @@ final class FileLock
      *                      that cannot be written as a type — the note {@link File::append()} carries.
      */
     private function __construct(private mixed $handle) {}
+
+    /**
+     * The file a lock on $guarded is taken on: beside it, named after it.
+     *
+     * Not $guarded itself: {@link File::write()} renames a new file into place, so every write leaves a
+     * new inode under the name, and a lock on the old one excludes nothing.
+     *
+     * @param File $guarded
+     * @return File
+     */
+    #[NoDiscard('beside() only names a file; a call whose result goes nowhere named nothing')]
+    public static function beside(File $guarded): File
+    {
+        return new File($guarded->path . self::SUFFIX);
+    }
 
     /**
      * Takes the lock on $file, or answers null where another process holds it or the file cannot be

@@ -24,4 +24,10 @@ enum PasskeyField: string
 
     /** When it was enrolled — or, for a code, when the browser registered it. */
     case Added = 'added';
+
+    /** When the challenge its last unlock answered was minted. */
+    case Unlocked = 'unlocked';
+
+    /** When the admin was last locked with it. */
+    case Locked = 'locked';
 }

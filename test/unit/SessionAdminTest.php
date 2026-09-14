@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\Test\Unit;
 
 use Phpanta\Http\RequestHeader;
+use Phpanta\Http\SealContext;
 use Phpanta\Http\Session;
 use Phpanta\Http\SessionSeal;
 use Phpanta\Model\Passkey\Challenge;
@@ -38,11 +39,14 @@ final class SessionAdminTest extends TestCase
         $unlocked  = $asked->withAdmin('credential', 1000);
 
         self::assertEquals($challenge, $asked->challenge());
+        self::assertSame(1000, $challenge->minted());
         self::assertNull($asked->withoutChallenge()->challenge());
         self::assertNull($asked->admin(1000), 'a challenge is not an unlock');
+        self::assertNull($asked->adminSince());
 
         self::assertSame('credential', $unlocked->admin(1000 + Session::ADMIN_LIFETIME));
         self::assertNull($unlocked->admin(1001 + Session::ADMIN_LIFETIME), 'an unlock outlived eight hours');
+        self::assertSame(1000, $unlocked->adminSince(), 'when it unlocked is not how long it lasts');
         self::assertNull($unlocked->challenge(), 'the challenge outlived the unlock that answered it');
         self::assertNotSame($session->token(), $unlocked->token(), 'the form token survived the unlock');
         self::assertNotNull($unlocked->token());
@@ -62,11 +66,15 @@ final class SessionAdminTest extends TestCase
     public function testWhatIsNotAnUnlockOrAChallengeReadsAsNeither(): void
     {
         $seal    = SessionSeal::fromKey(random_bytes(32));
-        $sealed  = $seal->seal('{"e":9999999999,"v":{"_admin":"soon credential","_challenge":"nope"},"m":[]}');
+        $sealed  = $seal->seal(
+            '{"e":9999999999,"v":{"_admin":"soon credential","_challenge":"nope"},"m":[]}',
+            SealContext::Session,
+        );
         $request = TestRequest::get('/')->with(RequestHeader::Cookie, '__Host-session=' . $sealed)->request();
         $session = Session::of($request, $seal);
 
         self::assertNull($session->admin(1000));
+        self::assertNull($session->adminSince());
         self::assertNull($session->challenge());
     }
 }

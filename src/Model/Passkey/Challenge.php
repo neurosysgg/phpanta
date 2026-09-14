@@ -89,6 +89,17 @@ final readonly class Challenge
     }
 
     /**
+     * When this challenge was minted — the serial a browser's write carries, and what an unlock must be
+     * newer than.
+     *
+     * @return int
+     */
+    public function minted(): int
+    {
+        return $this->expires - self::LIFETIME;
+    }
+
+    /**
      * Whether this challenge may be answered now, for $purpose, at $bound.
      *
      * @param ChallengePurpose $purpose

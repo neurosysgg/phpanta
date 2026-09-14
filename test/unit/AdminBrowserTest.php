@@ -327,17 +327,63 @@ final class AdminBrowserTest extends TestCase
     }
 
     /**
-     * Locking the admin ends the session; the browser is a stranger again.
+     * The same answer sent twice — the session that carried its challenge copied, and the post sent
+     * again — opens the admin once: the store has recorded that challenge as answered.
      *
      * @return void
      */
-    public function testLockingTheAdminEndsTheSession(): void
+    public function testAnUnlockSentTwiceOpensTheAdminOnce(): void
+    {
+        $session = $this->atTheEntrance();
+        $post    = $this->posted('/admin', $session, [
+            [PasskeyFormField::Ceremony, 'unlock'],
+            ...$this->assertion((string) $session->challenge()?->value),
+        ]);
+
+        self::assertSame(self::DEVICE, $this->sessionOf($this->answer($post))->admin());
+        self::assertSame($session->challenge()?->minted(), $this->registry->find(self::DEVICE)?->unlocked);
+        self::assertNull($this->sessionOf($this->answer($post))->admin(), 'the same answer opened the admin twice');
+    }
+
+    /**
+     * Locking the admin ends the session — this one, and a copy of it: the browser is a stranger again,
+     * and so is anybody holding the cookie it had.
+     *
+     * @return void
+     */
+    public function testLockingTheAdminEndsTheSessionAndEveryCopyOfIt(): void
     {
         $admitted = $this->admitted();
         $answer   = $this->answer($this->posted('/admin', $admitted, [[PasskeyFormField::Ceremony, 'logout']]));
 
         self::assertSame(HttpStatusCode::SeeOther, $answer->status());
         self::assertNull($this->sessionOf($answer)->admin());
+        self::assertSame(
+            HttpStatusCode::SeeOther,
+            $this->answer($this->carrying(TestRequest::get('/admin/access'), $admitted))->status(),
+            'a copy of the session outlived the lock',
+        );
+    }
+
+    /**
+     * A lock the store cannot record still ends this browser's session, and says that a copy of it may
+     * not have ended.
+     *
+     * @return void
+     */
+    public function testALockTheStoreCannotRecordSaysSo(): void
+    {
+        // Enrolling the device took the store's lock, which left its file behind; a directory in its
+        // place is a lock nobody can take.
+        self::assertTrue(new File($this->sandbox . '/admin-passkeys.json.lock')->delete());
+        new Directory($this->sandbox . '/admin-passkeys.json.lock')->create();
+
+        $answer  = $this->answer($this->posted('/admin', $this->admitted(), [[PasskeyFormField::Ceremony, 'logout']]));
+        $session = $this->sessionOf($answer);
+        $again   = $this->answer($this->carrying(TestRequest::get('/admin'), $session));
+
+        self::assertNull($session->admin());
+        self::assertStringContainsString(AdminText::LockUnrecorded->in(Language::English), $again->body());
     }
 
     /**
@@ -519,6 +565,32 @@ final class AdminBrowserTest extends TestCase
         ]), null, $serial);
 
         self::assertMatchesRegularExpression('/\A\d+\n\z/', (string) $serial->read());
+    }
+
+    /**
+     * A write's tap sent twice — the session that carried its challenge copied, and the post sent again
+     * — writes once: its serial is the moment the challenge was minted, and the first one spent it.
+     *
+     * @return void
+     */
+    public function testAWriteSentTwiceWritesOnce(): void
+    {
+        $serial  = new File($this->sandbox . '/.update-serial');
+        $session = $this->revokeForm($this->admitted());
+        $post    = $this->posted('/admin/access/v1/revoke', $session, [
+            [ActionField::Passkey, self::DEVICE],
+            [ActionField::Apply, 'true'],
+            ...$this->assertion((string) $session->challenge()?->value),
+        ]);
+
+        (void) $this->answer($post, null, $serial);
+        $spent = $serial->read();
+        $again = $this->answer($post, null, $serial);
+
+        self::assertSame($session->challenge()?->minted() . "\n", $spent);
+        self::assertSame(HttpStatusCode::Conflict, $again->status());
+        self::assertStringContainsString('a newer write was accepted', $again->body());
+        self::assertSame($spent, $serial->read());
     }
 
     /**

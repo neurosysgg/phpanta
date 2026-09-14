@@ -38,10 +38,9 @@ final readonly class PasskeyVerifier
     /**
      * The signature count $passkey reported, if this is its assertion over $challenge — or null.
      *
-     * **A count that has been counting must rise.** An authenticator that counts signs with a number
-     * one higher each time, so the same number twice is two authenticators answering for one key — a
-     * cloned key — and is refused. One that does not count reports zero, and that is accepted, since
-     * most passkeys synced between devices do not count at all.
+     * **A count that has been counting must rise** — see {@link Passkey::mayReport()}. The count is
+     * checked against $passkey as it was read; whoever keeps the new one checks it again against the
+     * store under its lock.
      *
      * @param Passkey $passkey
      * @param string  $authenticatorData Raw.

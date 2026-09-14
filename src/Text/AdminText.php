@@ -160,6 +160,14 @@ enum AdminText: string implements Translatable
     case RegistrationRefused = 'registration-refused';
 
     #[Translation(
+        en: 'This browser is locked out, but the lock could not be recorded: a copy of its session may'
+            . ' still open the admin until it runs out.',
+        de: 'Dieser Browser ist ausgesperrt, aber die Sperre ließ sich nicht festhalten: eine Kopie seiner'
+            . ' Sitzung öffnet die Verwaltung womöglich noch, bis sie abläuft.',
+    )]
+    case LockUnrecorded = 'lock-unrecorded';
+
+    #[Translation(
         en: 'The entrance cannot count attempts, so it takes none: data/throttle/ is missing or not writable.',
         de: 'Der Eingang kann Versuche nicht zählen und nimmt daher keine an: data/throttle/ fehlt oder ist'
             . ' nicht beschreibbar.',

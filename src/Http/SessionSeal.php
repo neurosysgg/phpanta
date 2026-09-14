@@ -17,24 +17,21 @@ use SensitiveParameter;
  * **Sealed, not signed.** AES-256-GCM encrypts and authenticates in one step: a visitor can neither
  * read what their session holds nor change a byte of it without the whole of it failing to open.
  * `ext/openssl` is already required for the API's signatures, so this costs the host nothing new.
- * Every seal carries a fresh random nonce, and a fixed context string is bound in as associated data,
- * so a sealed session cannot be passed off as anything else sealed under the same key.
+ * Every seal carries a fresh random nonce, and what is sealed — a {@link SealContext} — is bound in as
+ * associated data, so bytes sealed as one thing cannot be opened as another under the same key.
  *
  * **The key is per deployment, and never ships.** It lives in `data/session.key` — thirty-two random
  * bytes, base64 — minted on the host it serves, gitignored, and excluded from a deploy the way the
  * other credentials are. A deployment without one cannot seal a session, and says so loudly the
  * first time something asks it to.
  *
- * What does not open is null, never an exception: tampering, another key, a truncated cookie — each
- * is simply no session.
+ * What does not open is null, never an exception: tampering, another key, another context, a
+ * truncated cookie — each is simply no session.
  */
 final readonly class SessionSeal
 {
     /** The cipher. Authenticated, so opening is also checking. */
     private const string CIPHER = 'aes-256-gcm';
-
-    /** Bound into every seal as associated data: what the sealed bytes are, so they cannot be read as anything else. */
-    private const string CONTEXT = 'phpanta session v1';
 
     /** The key's length, in bytes. */
     private const int KEY_BYTES = 32;
@@ -94,12 +91,14 @@ final readonly class SessionSeal
     }
 
     /**
-     * $plaintext, sealed: the nonce, the tag and the ciphertext, base64url — safe in a cookie as it is.
+     * $plaintext, sealed as $context: the nonce, the tag and the ciphertext, base64url — safe in a
+     * cookie as it is.
      *
-     * @param string $plaintext
+     * @param string      $plaintext
+     * @param SealContext $context
      * @return string
      */
-    public function seal(string $plaintext): string
+    public function seal(string $plaintext, SealContext $context): string
     {
         $nonce = random_bytes(self::NONCE_BYTES);
         $tag   = '';
@@ -113,7 +112,7 @@ final readonly class SessionSeal
             OPENSSL_RAW_DATA,
             $nonce,
             $tag,
-            self::CONTEXT,
+            $context->value,
             self::TAG_BYTES,
         );
 
@@ -121,13 +120,14 @@ final readonly class SessionSeal
     }
 
     /**
-     * What $sealed holds, or null if it does not open under this key — tampered with, sealed under
-     * another, cut short, or not a seal at all.
+     * What $sealed holds, or null if it does not open as $context under this key — tampered with,
+     * sealed under another key or as something else, cut short, or not a seal at all.
      *
-     * @param string $sealed
+     * @param string      $sealed
+     * @param SealContext $context
      * @return string|null
      */
-    public function open(string $sealed): ?string
+    public function open(string $sealed, SealContext $context): ?string
     {
         $raw = Base64Url::decode($sealed);
 
@@ -142,7 +142,7 @@ final readonly class SessionSeal
             OPENSSL_RAW_DATA,
             substr($raw, 0, self::NONCE_BYTES),
             substr($raw, self::NONCE_BYTES, self::TAG_BYTES),
-            self::CONTEXT,
+            $context->value,
         ));
 
         return is_string($plaintext) ? $plaintext : null;

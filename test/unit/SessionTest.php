@@ -18,6 +18,7 @@ use Phpanta\Http\Request;
 use Phpanta\Http\RequestCookies;
 use Phpanta\Http\RequestHeader;
 use Phpanta\Http\ResponseHeader;
+use Phpanta\Http\SealContext;
 use Phpanta\Http\ServerVariable;
 use Phpanta\Http\Session;
 use Phpanta\Http\SessionSeal;
@@ -311,7 +312,11 @@ final class SessionTest extends TestCase
         $file->write(base64_encode(random_bytes(32)) . "\n");
 
         $seal = SessionSeal::fromFile($file);
-        self::assertSame('hello', $seal->open($seal->seal('hello')));
+        self::assertSame('hello', $seal->open($seal->seal('hello', SealContext::Session), SealContext::Session));
+        self::assertNull(
+            $seal->open($seal->seal('hello', SealContext::Enrolment), SealContext::Session),
+            'bytes sealed as one thing opened as another',
+        );
 
         foreach (
             [
@@ -508,7 +513,7 @@ final class SessionTest extends TestCase
     private function sealing(string $payload): Request
     {
         return TestRequest::get('/')
-            ->with(RequestHeader::Cookie, '__Host-session=' . $this->seal->seal($payload))
+            ->with(RequestHeader::Cookie, '__Host-session=' . $this->seal->seal($payload, SealContext::Session))
             ->request();
     }
 }

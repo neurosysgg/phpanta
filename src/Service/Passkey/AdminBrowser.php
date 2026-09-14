@@ -95,7 +95,8 @@ final readonly class AdminBrowser
 
     /**
      * The browser $request comes from, if the admin has let it in: a session unlocked less than
-     * {@link Session::ADMIN_LIFETIME} ago, by a passkey that is still enrolled.
+     * {@link Session::ADMIN_LIFETIME} ago, by a passkey that is still enrolled, since the admin was
+     * last locked with it.
      *
      * @param Request  $request
      * @param int|null $now
@@ -113,7 +114,9 @@ final readonly class AdminBrowser
         $credential = $session->admin($now);
         $passkey    = $credential === null ? null : $this->registry()->find($credential);
 
-        return $passkey === null ? null : new AdminCaller($passkey, $session);
+        return $passkey === null || !$passkey->opens((int) $session->adminSince())
+            ? null
+            : new AdminCaller($passkey, $session);
     }
 
     /**
@@ -183,10 +186,15 @@ final readonly class AdminBrowser
     /**
      * A browser's write, as a handler takes it — if the form carries the session's token and the
      * unlocking passkey's answer to the challenge minted for this address. The challenge is spent
-     * either way.
+     * from the session either way.
      *
-     * Its serial is the time, as a signing command's is, and spent the same way: a browser's write and
-     * a push take the same lock, and neither can follow the other within the same second.
+     * **Its serial is the moment the challenge was minted**, which is what makes the tap single-use on
+     * the server as well as in the cookie. The session that carried the challenge is the visitor's, so a
+     * copy of it and the same post sent again would answer the same challenge again; but the serial
+     * the first one spent is then no newer than the record, and the second is refused as stale with
+     * nothing written. It is the signing command's arrangement, with the page's minting in the place of
+     * the signing: a browser's write and a push take the same lock, and one minted before a write
+     * the server has since accepted is refused the same way.
      *
      * @param Request     $request
      * @param AdminCaller $caller
@@ -196,23 +204,28 @@ final readonly class AdminBrowser
      */
     public function write(Request $request, AdminCaller $caller, ApiAction $action, ?int $now = null): BrowserRequest
     {
-        $now ??= time();
-        $path  = $request->path();
-        $spent = $caller->session->withoutChallenge();
+        $now     ??= time();
+        $path      = $request->path();
+        $spent     = $caller->session->withoutChallenge();
+        $challenge = $caller->session->challenge();
 
         try {
             $form     = $request->form();
-            $answered = $this->tokened($form, $caller->session)
+            $answered = $challenge !== null
+                && $this->tokened($form, $caller->session)
                 && $form->text(PasskeyFormField::Credential) === $caller->passkey->id
-                && $this->answered($request, $form, $caller->passkey, $caller->session, self::bound($path), $now);
+                && $this->counted(
+                    $caller->passkey,
+                    $this->answered($request, $form, $caller->passkey, $caller->session, self::bound($path), $now),
+                );
             $fields   = $answered ? self::fields($form, $action) : null;
         } catch (InputException) {
             return new BrowserRequest(null, $spent);
         }
 
         return new BrowserRequest(
-            $fields === null ? null : new VerifiedRequest(
-                ApiEnvelope::of($now, HttpMethod::Post, $path),
+            $fields === null || $challenge === null ? null : new VerifiedRequest(
+                ApiEnvelope::of($challenge->minted(), HttpMethod::Post, $path),
                 (string) json_encode($fields, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 '',
             ),
@@ -277,7 +290,7 @@ final readonly class AdminBrowser
             return match ($form->choice(PasskeyFormField::Ceremony, EntranceCeremony::class)) {
                 EntranceCeremony::Unlock   => $this->unlock($request, $form, $session, $now),
                 EntranceCeremony::Register => $this->register($request, $form, $session, $seal, $now),
-                EntranceCeremony::Logout   => Session::endOn(self::toEntrance()),
+                EntranceCeremony::Logout   => $this->lock($session, $now),
                 default                    => self::toEntrance(),
             };
         } catch (InputException) {
@@ -286,7 +299,12 @@ final readonly class AdminBrowser
     }
 
     /**
-     * An unlock: the session let in, where an enrolled passkey answered the entrance's challenge.
+     * An unlock: the session let in, where an enrolled passkey answered the entrance's challenge — one
+     * minted after the passkey's last unlock, so an answer sent twice opens the admin once.
+     *
+     * The challenge rides in the session, which is the visitor's to copy; the store is what says it was
+     * answered. The unlock and the count the passkey reported are recorded together, under the store's
+     * lock, and a store that cannot record them opens nothing.
      *
      * @param Request $request
      * @param Input   $form
@@ -296,13 +314,49 @@ final readonly class AdminBrowser
      */
     private function unlock(Request $request, Input $form, Session $session, int $now): Response
     {
-        $passkey = $this->registry()->find((string) $form->text(PasskeyFormField::Credential));
+        $passkey   = $this->registry()->find((string) $form->text(PasskeyFormField::Credential));
+        $challenge = $session->challenge();
+        $count     = $passkey === null ? null : $this->answered($request, $form, $passkey, $session, '', $now);
 
-        if ($passkey !== null && $this->answered($request, $form, $passkey, $session, '', $now)) {
-            return $session->withAdmin($passkey->id, $now)->attachTo(self::toEntrance(), $now);
+        if ($passkey !== null && $challenge !== null && $count !== null) {
+            $minted   = $challenge->minted();
+            $unlocked = $this->registry()->change(
+                $passkey->id,
+                static fn(Passkey $current): ?Passkey => $minted > $current->unlocked && $current->mayReport($count)
+                    ? $current->counted($count)->unlockedAt($minted)
+                    : null,
+            );
+
+            if ($unlocked !== null) {
+                return $session->withAdmin($unlocked->id, $now)->attachTo(self::toEntrance(), $now);
+            }
         }
 
         return $session->withoutChallenge()->withMessage(AdminText::UnlockRefused)->attachTo(self::toEntrance(), $now);
+    }
+
+    /**
+     * The admin locked: this browser's session ended, and with it every other session the same passkey
+     * unlocked until now — a copied cookie included, which only the store can refuse.
+     *
+     * Where the store cannot record the lock, this browser's session still ends, and the entrance says
+     * that a copy of it may not have.
+     *
+     * @param Session $session
+     * @param int     $now
+     * @return Response
+     */
+    private function lock(Session $session, int $now): Response
+    {
+        $credential = $session->admin($now);
+        $recorded   = $credential === null
+            || $this->registry()->find($credential) === null
+            || $this->registry()->change($credential, static fn(Passkey $current): Passkey => $current->lockedAt($now))
+                !== null;
+
+        return $recorded
+            ? Session::endOn(self::toEntrance())
+            : $session->withoutAdmin()->withMessage(AdminText::LockUnrecorded)->attachTo(self::toEntrance(), $now);
     }
 
     /**
@@ -357,9 +411,11 @@ final readonly class AdminBrowser
     }
 
     /**
-     * Whether $passkey answered the challenge $session holds — the entrance's where $bound is empty,
-     * a write's at $bound otherwise — and, where the passkey counts, its new count was kept, so the
-     * same count again is refused.
+     * The count $passkey reported, if it answered the challenge $session holds — the entrance's where
+     * $bound is empty, a write's at $bound otherwise — or null.
+     *
+     * Nothing is kept here: an unlock keeps the count with the unlock, and a write keeps it with
+     * {@link self::counted()}, each against the store as it stands under its lock.
      *
      * @param Request $request
      * @param Input   $form
@@ -367,7 +423,7 @@ final readonly class AdminBrowser
      * @param Session $session
      * @param string  $bound
      * @param int     $now
-     * @return bool
+     * @return int|null
      */
     private function answered(
         Request $request,
@@ -376,7 +432,7 @@ final readonly class AdminBrowser
         Session $session,
         string $bound,
         int $now,
-    ): bool {
+    ): ?int {
         $purpose   = $bound === '' ? ChallengePurpose::Entrance : ChallengePurpose::Write;
         $challenge = $session->challenge();
         $origin    = $this->originOf($request);
@@ -385,14 +441,29 @@ final readonly class AdminBrowser
         $signature = self::bytes($form, PasskeyFormField::Signature);
 
         if ($challenge === null || $origin === null || $data === null || $client === null || $signature === null) {
-            return false;
+            return null;
         }
 
-        $count = $challenge->expects($purpose, $now, $bound)
+        return $challenge->expects($purpose, $now, $bound)
             ? new PasskeyVerifier($origin)->asserts($passkey, $data, $client, $signature, $challenge->value)
             : null;
+    }
 
-        return $count !== null && ($count === $passkey->count || $this->registry()->keep($passkey->counted($count)));
+    /**
+     * Whether $count is an answer, and where the passkey counts, one the store took — checked again
+     * under the store's lock, so the same count twice is refused. A passkey that does not count writes
+     * nothing.
+     *
+     * @param Passkey  $passkey
+     * @param int|null $count
+     * @return bool
+     */
+    private function counted(Passkey $passkey, ?int $count): bool
+    {
+        return $count !== null && (($count === 0 && $passkey->count === 0) || $this->registry()->change(
+            $passkey->id,
+            static fn(Passkey $current): ?Passkey => $current->mayReport($count) ? $current->counted($count) : null,
+        ) !== null);
     }
 
     /**

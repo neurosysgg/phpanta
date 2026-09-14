@@ -133,9 +133,12 @@ These fail silently — no error, no log, a page that looks fine.
   deployment has `data/session.key`.** In development from loopback only, the request's `Origin`
   comes first — before the app's — so a local copy runs a real ceremony where it is served. Otherwise the entrance says browsers cannot sign in, and nothing fails.
   `data/throttle/` missing makes the entrance a `503`.
-- An unlocked session is re-checked against the passkey store on every request, so a revocation
-  takes effect on the next one. A browser write's tap binds `POST <path>`, not the field values —
-  those are held by the form token and the session.
+- An unlocked session is re-checked against the passkey store on every request, so a revocation or
+  a lock takes effect on the next one — a lock ends every session that passkey unlocked, copies of
+  the cookie included. **A sealed session can be copied, so what must happen once is recorded on the
+  server**: an unlock in the store, under the store's own lock; a browser write's tap as its serial,
+  the moment its challenge was minted. A browser write's tap binds `POST <path>`, not the field
+  values — those are held by the form token and the session.
 - **The admin negotiates, then verifies, then resolves.** A caller it cannot verify gets one answer
   at every depth below `/admin`, whether the address exists or not — a `303` for a page, a `401`
   challenging for `NS1` for data, never an `Allow`. An answer that differs for a real address tells

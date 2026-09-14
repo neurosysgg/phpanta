@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Phpanta\Service\Passkey;
 
+use Closure;
 use JsonException;
+use NoDiscard;
 use Phpanta\App;
 use Phpanta\CredentialFile;
 use Phpanta\Model\Passkey\Passkey;
 use Phpanta\Support\Collection;
 use Phpanta\Support\File;
+use Phpanta\Support\FileLock;
 
 /**
  * The PasskeyRegistry class. The devices that may open the admin, kept in `data/admin-passkeys.json`.
@@ -19,8 +22,12 @@ use Phpanta\Support\File;
  * device on are in. A file that does not parse is read the same way, rather than as a fault: what it
  * guards is a door, and a door that cannot read its list stays shut.
  *
- * It is only written by a write the gate has let through — `access v1 enrol` and `revoke`, and an
- * unlock recording a signature count — so every write runs under the one lock a write holds.
+ * **Every write is a read, a change and a write under the store's own lock** — a waiting one, on a file
+ * beside the store ({@link FileLock::beside()}). Writes come from two directions: `access v1 enrol` and
+ * `revoke`, under the lock a signed write holds, and every unlock and lock at the entrance, under no
+ * other. A change made to the copy a request read at its start would drop whatever landed meanwhile —
+ * a revocation undone by an unlock racing it, a device lost to one enrolled beside it — so each is made
+ * to the store as it is once the lock is held.
  */
 final readonly class PasskeyRegistry
 {
@@ -87,9 +94,9 @@ final readonly class PasskeyRegistry
      */
     public function keep(Passkey $passkey): bool
     {
-        $others = $this->all()->where(static fn(Passkey $each): bool => $each->id !== $passkey->id);
-
-        return $this->write($others->with($passkey));
+        return $this->rewrite(static fn(Collection $all): Collection => $all
+            ->where(static fn(Passkey $each): bool => $each->id !== $passkey->id)
+            ->with($passkey));
     }
 
     /**
@@ -100,7 +107,61 @@ final readonly class PasskeyRegistry
      */
     public function forget(string $id): bool
     {
-        return $this->write($this->all()->where(static fn(Passkey $each): bool => $each->id !== $id));
+        return $this->rewrite(
+            static fn(Collection $all): Collection => $all->where(static fn(Passkey $each): bool => $each->id !== $id),
+        );
+    }
+
+    /**
+     * The device whose credential id is $id, as $change leaves it — decided and written under the store's
+     * lock, against the store as it stands by then.
+     *
+     * Null where no such device is enrolled any more, where $change refuses by answering null, or where
+     * the store could not be written — so a change never brings back a device revoked while it was
+     * being decided.
+     *
+     * @param string                     $id
+     * @param Closure(Passkey): ?Passkey $change
+     * @return Passkey|null What the store now holds for $id.
+     */
+    #[NoDiscard('change() answers whether the change was made; a call whose result goes nowhere made it blind')]
+    public function change(string $id, Closure $change): ?Passkey
+    {
+        $changed = null;
+        $written = $this->rewrite(static function (Collection $all) use ($id, $change, &$changed): ?Collection {
+            $current = $all->first(static fn(Passkey $each): bool => hash_equals($each->id, $id));
+            $changed = $current instanceof Passkey ? $change($current) : null;
+
+            return $changed === null
+                ? null
+                : $all->map(static fn(Passkey $each): Passkey => $each === $current ? $changed : $each);
+        });
+
+        return $written ? $changed : null;
+    }
+
+    /**
+     * Rewrites the store as $change makes it, under the store's lock — or leaves it be, where $change
+     * answers null. False where the lock could not be taken or the store not written.
+     *
+     * @param Closure(Collection<Passkey>): ?Collection<Passkey> $change
+     * @return bool
+     */
+    private function rewrite(Closure $change): bool
+    {
+        $lock = FileLock::waitFor(FileLock::beside($this->file()));
+
+        if ($lock === null) {
+            return false;
+        }
+
+        try {
+            $changed = $change($this->all());
+
+            return $changed !== null && $this->write($changed);
+        } finally {
+            $lock->release();
+        }
     }
 
     /**

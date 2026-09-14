@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\Model\Passkey;
 
 use JsonException;
+use Phpanta\Http\SealContext;
 use Phpanta\Http\SessionSeal;
 use Phpanta\Support\Base64Url;
 use stdClass;
@@ -18,16 +19,13 @@ use stdClass;
  * device it is. So the entrance stores nothing: it seals the device's credential id and public key
  * into a code, shows it with the key's fingerprint, and `access v1 enrol` — a signed write — is what
  * adds it. The seal is the deployment's own session key, so a code is one this deployment made, and it
- * carries a marker no session carries, so a session cookie is never a code. It is good for
+ * is sealed as {@link SealContext::Enrolment}, so a session cookie is never a code. It is good for
  * {@link self::LIFETIME} seconds.
  */
 final readonly class EnrolmentCode
 {
     /** How long a code may be enrolled, in seconds. */
     public const int LIFETIME = 600;
-
-    /** The member only a code carries, so nothing else sealed under the same key reads as one. */
-    private const string MARKER = 'enrolment';
 
     /** A code is flat. */
     private const int MAX_DEPTH = 2;
@@ -54,11 +52,10 @@ final readonly class EnrolmentCode
     public function seal(SessionSeal $seal): string
     {
         return $seal->seal((string) json_encode([
-            self::MARKER               => true,
             PasskeyField::Id->value    => $this->credential,
             PasskeyField::Key->value   => Base64Url::encode($this->key),
             PasskeyField::Added->value => $this->at,
-        ], JSON_UNESCAPED_SLASHES));
+        ], JSON_UNESCAPED_SLASHES), SealContext::Enrolment);
     }
 
     /**
@@ -71,7 +68,7 @@ final readonly class EnrolmentCode
      */
     public static function open(SessionSeal $seal, string $sealed, int $now): ?self
     {
-        $opened = $seal->open(trim($sealed));
+        $opened = $seal->open(trim($sealed), SealContext::Enrolment);
 
         try {
             $data = $opened === null ? null : json_decode($opened, false, self::MAX_DEPTH, JSON_THROW_ON_ERROR);
@@ -79,7 +76,7 @@ final readonly class EnrolmentCode
             return null;
         }
 
-        if (!$data instanceof stdClass || ($data->{self::MARKER} ?? null) !== true) {
+        if (!$data instanceof stdClass) {
             return null;
         }
 

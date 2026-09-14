@@ -488,16 +488,38 @@ the entrance mints **one challenge for both ceremonies**, held in the session fo
 spent by whichever answers it. An enrolled passkey that answers puts the unlock in the session — the
 credential id and the time — and hands out a new form token. The unlock lasts
 `Session::ADMIN_LIFETIME`, eight hours, however long the cookie is kept, and **every request asks the
-store again whether that passkey is still enrolled**, so a revocation takes effect on the next
-request. *Lock the admin*, on a browser's listings, is a `POST` to the entrance that ends the session.
+store again whether that passkey is still enrolled, and when the admin was last locked with it**, so
+a revocation or a lock takes effect on the next request.
+
+**A sealed session can be copied, so what has to happen once is recorded on the server.** The
+session is the visitor's cookie, challenge and all, and the server can neither take one back nor
+tell a copy from the original. So the store keeps two times per passkey (`Passkey::$unlocked`,
+`$locked`):
+
+- **An unlock records the moment its challenge was minted**, with the count the passkey reported,
+  and the next unlock's challenge must be newer. The same answer sent twice — the session that
+  carried its challenge copied, and the post sent again — opens the admin once.
+- ***Lock the admin***, on a browser's listings, is a `POST` to the entrance that ends the session
+  and records the lock. Every session that passkey unlocked until then opens nothing more, on any
+  browser and in any copy of the cookie. Where the store cannot record it, the session still ends
+  and the entrance says that a copy of it may not have.
+
+Every write to the store — an enrolment, a revocation, an unlock, a lock — is made under a lock of
+its own, a file beside the store, against the store as it stands by then: an unlock racing a
+revocation cannot bring the device back, and a device enrolled beside an unlock is not lost. So
+`data/` must be writable by PHP wherever a browser signs in, as it already is for `access v1 enrol`.
 
 **Every write needs a fresh tap.** A browser's `GET` of a write action is its form —
 [`ApiActionFormView`](../src/View/ApiActionFormView.php): the action's fields, *Dry run* and
 *Apply* — holding a single-use challenge minted for `POST <path>`. The post must carry the session's
 form token and that challenge answered by the passkey that unlocked the session. The challenge binds
-the method and the address, not the field values, which the form token and the session hold. It is
-spent whether the write is let through or not, so a replayed tap is a `403`, as is a write with no
-answer. A signed `GET` of a write is still the `405` it always was. A browser's write becomes the same
+the method and the address, not the field values, which the form token and the session hold. The
+session drops it whether the write is let through or not, so a tap sent again with the session the
+answer left is a `403`, as is a write with no answer. A copy of the session from before the tap
+would answer the same challenge again, so that is not what the server rests on: **a browser's write
+takes the moment its challenge was minted as its serial**, and the serial the first post spent
+refuses the second as stale — a `409`, with nothing written. A signed `GET` of a write is still the
+`405` it always was. A browser's write becomes the same
 `VerifiedRequest` a signed one does (`ApiEnvelope::of()`), and takes the same lock and spends a
 serial in the same record — [below](#what-a-signature-covers-and-why-replay-is-closed).
 
@@ -643,8 +665,17 @@ was verified, is a **`409`** that spends nothing and touches nothing; one whose 
 recorded is a `500`, with nothing written. The caller is already verified by then, so the sentence
 is allowed. Reads never lock. A lock file is never deleted, since deleting it would let two
 processes hold locks on two inodes under one name. A browser's write takes the same lock and spends
-a serial in the same record — the time, as a signing command's is — so a browser's write and a push
-never overlap, and neither follows the other within the same second.
+a serial in the same record — the moment its challenge was minted, the page's equivalent of the
+signing — so a browser's write and a push never overlap, and one minted before a write the server
+has since accepted is refused the same way.
+
+**A write's serial may not be ahead of the server's clock by more than five seconds.** The skew
+window is symmetric, which is right for accepting a call and wrong for recording one: a serial from a
+machine whose clock runs fast would sit in the record in the future, and every correctly timed call
+would be refused as stale until the clock caught up — a signed one with the stranger's answer, since
+freshness is asked before the signature's sender may be told anything. So `ApiGate::spend()` refuses
+such a write with a `409` saying the signing machine's clock is ahead, and records nothing. A read
+records nothing, and is held to the skew alone.
 
 **Why a header is acceptable here.** `Authorization` is a `ServerVariable`, not a `RequestHeader`,
 so it has no TypeScript mirror and puts nothing in the browser's bundle. The live risk is that a
