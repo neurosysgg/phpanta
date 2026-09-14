@@ -18,7 +18,7 @@
   --code-string: #2a6b1a;
   --code-branch: #aaa598;
 
-  --measure: 44rem;
+  --measure: 48rem;
   --gutter: clamp(1rem, 4vw, 2rem);
 
   --font-text: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -40,6 +40,13 @@
     --code-string: #a8d98a;
     --code-branch: #4c4f59;
   }
+}
+
+/* The type grows with a wide window — from the reader's own size at 1200px to a fifth larger at
+   1800px — and every rem with it, the measure included: a widescreen reads the same page larger,
+   rather than a narrow column in an empty field, and a line never gets longer than it reads. */
+html {
+  font-size: clamp(100%, 62.5% + 0.5vw, 118.75%);
 }
 
 *,
