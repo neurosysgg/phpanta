@@ -6,6 +6,7 @@ namespace Phpanta\Test\Unit;
 
 use Phpanta\Controller\Controller;
 use Phpanta\Exception\InputException;
+use Phpanta\Exception\TooLargeException;
 use Phpanta\Http\FormEncoding;
 use Phpanta\Http\HttpMethod;
 use Phpanta\Http\HttpStatusCode;
@@ -357,13 +358,14 @@ final class InputTest extends TestCase
     }
 
     /**
-     * A form larger than the bound is refused rather than cut.
+     * A form larger than the bound is refused rather than cut — as too large, a 413, the answer a
+     * multipart form over `post_max_size` gets, rather than as unreadable.
      *
      * @return void
      */
     public function testAFormLargerThanTheBoundIsRefused(): void
     {
-        $this->expectException(InputException::class);
+        $this->expectException(TooLargeException::class);
 
         (void) self::posted('application/x-www-form-urlencoded', 'q=' . str_repeat('a', Request::MAX_FORM))->form();
     }

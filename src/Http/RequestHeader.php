@@ -7,10 +7,12 @@ namespace Phpanta\Http;
 /**
  * The RequestHeader enum. The request headers the framework reads.
  *
- * {@link ResponseHeader} is the other direction; both are {@link HeaderName}s, so {@link Header}
- * formats either.
+ * {@link ResponseHeader} is the other direction, and only that direction is a {@link HeaderName}:
+ * a {@link Header} is something sent, and one built from a case here would put `Cookie:` or
+ * `Origin:` on a response. What names these cases is {@link Vary}, which lists headers a response
+ * depends on rather than sends.
  */
-enum RequestHeader: string implements HeaderName
+enum RequestHeader: string
 {
     /**
      * Set by `Navigation` on its fetches, and the whole signal for a fragment response.

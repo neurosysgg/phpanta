@@ -537,8 +537,9 @@ readonly class Request
      * An API action never calls this either, for the reason {@link self::query()} gives.
      *
      * @return Input
-     * @throws TooLargeException if PHP emptied a multipart form for being over `post_max_size`.
-     * @throws InputException    for a body of another kind, a form too large, or one that does not decode.
+     * @throws TooLargeException if the form is over {@link self::MAX_FORM}, or PHP emptied a multipart
+     *                           one for being over `post_max_size`.
+     * @throws InputException    for a body of another kind, or one that does not decode.
      */
     public function form(): Input
     {
@@ -575,6 +576,7 @@ readonly class Request
      * The url-encoded form in the body, read no further than {@link self::MAX_FORM} and a byte.
      *
      * @return Input
+     * @throws TooLargeException if it is longer than that — a 413, as for a multipart form too large.
      * @throws InputException
      */
     private function urlEncoded(): Input
@@ -582,7 +584,7 @@ readonly class Request
         $body = $this->body(self::MAX_FORM + 1);
 
         if (strlen($body) > self::MAX_FORM) {
-            throw new InputException(sprintf('A form of more than %d bytes is not read.', self::MAX_FORM));
+            throw new TooLargeException(sprintf('A form of more than %d bytes is not read.', self::MAX_FORM));
         }
 
         return Input::fromUrlEncoded($body);

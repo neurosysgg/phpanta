@@ -13,8 +13,8 @@ use Phpanta\Http\HeaderName;
  * enum's worth of new idea: {@link \Phpanta\Http\SecurityHeader} and
  * {@link \Phpanta\Http\ResponseHeader} are headers the site *sends* on a response,
  * {@link \Phpanta\Http\RequestHeader} is the ones it *reads* off a request, and these are the ones
- * a command *sends* on a request of its own. All four are {@link HeaderName}s, so nothing has to
- * learn a second way to spell a header name.
+ * a command *sends* on a request of its own. The three that are sent are {@link HeaderName}s, so
+ * nothing has to learn a second way to spell a header name; the one that is only read is not.
  *
  * It is not a case on `RequestHeader` because a header the site reads and a header a tool sends
  * are different facts that happen to share a spelling — and a site that mirrors `RequestHeader` into

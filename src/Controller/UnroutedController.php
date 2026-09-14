@@ -12,7 +12,6 @@ use Phpanta\Http\PlainTextResponse;
 use Phpanta\Http\Request;
 use Phpanta\Http\Response;
 use Phpanta\Http\ResponseHeader;
-use Phpanta\Support\Collection;
 use Phpanta\Text\FrameworkText;
 use Phpanta\Text\Language;
 
@@ -59,10 +58,10 @@ final readonly class UnroutedController implements Controller
             return App::current()->notFound($request);
         }
 
-        return new PlainTextResponse(
+        return PlainTextResponse::refusing(
             HttpStatusCode::MethodNotAllowed,
             self::refusal($request->language()),
-            new Collection(Header::class)->with(new Header(ResponseHeader::Allow, Allow::readOnly())),
+            new Header(ResponseHeader::Allow, Allow::readOnly()),
         );
     }
 }

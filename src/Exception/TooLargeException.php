@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Phpanta\Exception;
 
 /**
- * The TooLargeException class. Thrown when what a request sent is larger than it may be — a form over
+ * The TooLargeException class. Thrown when what a request sent is larger than it may be — a
+ * url-encoded form over {@link \Phpanta\Http\Request::MAX_FORM}, a multipart one over
  * `post_max_size`, which PHP empties in silence, or a file over `upload_max_filesize`.
  *
  * **An {@link InputException}, answered with a 413 rather than a 400**: the request was readable,

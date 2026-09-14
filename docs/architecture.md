@@ -119,7 +119,7 @@ path `/admin/update/v1/version` — and three of its decisions are deliberate:
 | `method()` | `HttpMethod::tryFrom()` — **nullable**. An unrecognised verb is `null`, and null is not read-only. Never guessed as GET. |
 | `path()` | Parsed with `Uri\Rfc3986\Uri::parse()`, which returns `null` on failure — so `??` is a real guard, where `parse_url()`'s `false` would not be. A target opening with `//` is never handed to the parser at all, which would read it as an authority. A target that will not parse comes back as **its own path**, everything up to the first `?` or `#`. That still matches a placeholder route, because `{param}` compiles to `([^/]+)`; see [security.md](security.md). |
 | `authUser()` / `authPassword()` | Read from `PHP_AUTH_*`, falling back to decoding `Authorization` — some hosts do not hand PHP the former. |
-| `query()` / `form()` | An [`Input`](../src/Http/Input.php), asked for by [`Parameter`](../src/Http/Parameter.php) case and by type: absent is null, a value that does not read is an `InputException` the router answers with a 400. Read by this code, never `parse_str()`; `form()` reads a url-encoded body, bounded, or a multipart one from what PHP parsed — see below. The API reads neither, and `InputTest` holds it. |
+| `query()` / `form()` | An [`Input`](../src/Http/Input.php), asked for by [`Parameter`](../src/Http/Parameter.php) case and by type: absent is null, a value that does not read is an `InputException` the router answers with a 400. Read by this code, never `parse_str()`; `form()` reads a url-encoded body, bounded — a longer one is a 413 — or a multipart one from what PHP parsed — see below. The API reads neither, and `InputTest` holds it. |
 | `upload()` | The [`Upload`](../src/Http/Upload.php) a multipart form sent under a `Parameter`, or null: its name as the browser gave it, its size, and `keepAs()`. Too large for the host is a `TooLargeException` the router answers with a 413; the host failing to keep it is an `UploadException`, a 500. |
 
 The path is **raw, not decoded**, and trailing slashes are trimmed: a route matches the target as it
@@ -455,7 +455,7 @@ Twenty-two classes — one of them abstract — and one interface, read from `sr
 | `FormException` | `LogicException` | a form is declared with what it cannot be, or asked for another form's field | `Form`, `Submission`, `MaxLength`, `MaxBytes`, `OneOf` |
 | `GuidelineException` | `InvalidArgumentException` | an excuse for a guideline has no reason, or no subject | `BareArray`, `BareString`, `BareCall` |
 | `InputException` | `UnexpectedValueException` | what a query string or a form sent cannot be read as asked — answered with a 400 | `Input`, `Request`, `MultipartParameters` |
-| ` └ TooLargeException` | `InputException` | what was sent is readable but larger than the host takes — a 413, or a file field's error | `Request`, `MultipartParameters` |
+| ` └ TooLargeException` | `InputException` | what was sent is readable but larger than the host, or `Request::MAX_FORM`, takes — a 413, or a file field's error | `Request`, `MultipartParameters` |
 | `InvalidValueException` | `LogicException` | a value object is handed something that is not its kind of value | `PasswordHash`, `Throttle`, and a site's own value objects |
 | `JsonEncodingException` | `RuntimeException` | a value cannot be written as JSON — a NAN, a string that is not UTF-8 | `JsonResponse` |
 | `MarkupException` | `LogicException`, abstract | — | — |

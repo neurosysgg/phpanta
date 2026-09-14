@@ -97,10 +97,10 @@ readonly class Router implements Controller
      */
     private static function refuse(Request $request, Route $route): PlainTextResponse
     {
-        return new PlainTextResponse(
+        return PlainTextResponse::refusing(
             HttpStatusCode::MethodNotAllowed,
             UnroutedController::refusal($request->language()),
-            new Collection(Header::class)->with(new Header(ResponseHeader::Allow, $route->allowed())),
+            new Header(ResponseHeader::Allow, $route->allowed()),
         );
     }
 
@@ -116,7 +116,7 @@ readonly class Router implements Controller
      */
     private static function unreadable(Request $request): PlainTextResponse
     {
-        return new PlainTextResponse(
+        return PlainTextResponse::refusing(
             HttpStatusCode::BadRequest,
             FrameworkText::BadRequest->in($request->language()) . "\n",
         );
@@ -132,7 +132,7 @@ readonly class Router implements Controller
      */
     private static function tooLarge(Request $request): PlainTextResponse
     {
-        return new PlainTextResponse(
+        return PlainTextResponse::refusing(
             HttpStatusCode::ContentTooLarge,
             FrameworkText::ContentTooLarge->in($request->language()) . "\n",
         );

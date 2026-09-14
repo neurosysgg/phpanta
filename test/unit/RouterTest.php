@@ -120,7 +120,9 @@ final class RouterTest extends TestCase
     }
 
     /**
-     * A 405 without an `Allow` header is a malformed 405; the one it names is the read-only set.
+     * A 405 without an `Allow` header is a malformed 405; the one it names is the read-only set. Its
+     * body is in the caller's language and a 405 is cacheable by default, so it says no cache may
+     * keep it.
      *
      * @return void
      */
@@ -129,7 +131,7 @@ final class RouterTest extends TestCase
         $answer = self::answer('POST', '/');
 
         self::assertSame(
-            ['Content-Type: text/plain; charset=utf-8', 'Allow: GET, HEAD'],
+            ['Content-Type: text/plain; charset=utf-8', 'Cache-Control: no-store, private', 'Allow: GET, HEAD'],
             self::lines($answer),
         );
     }

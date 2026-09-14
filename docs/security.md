@@ -132,6 +132,10 @@ does not honour — a hand-written `Allow: GET, HEAD` could drift; this cannot. 
 (`REQUEST_METHOD` is whatever the client sent) parses to `null` rather than a guessed `GET`, and
 `null` is not read-only — so a `PROPFIND` or a typo is refused, not silently treated as a read.
 
+**The router's refusals are never stored.** Its `405`, `400` and `413` are a sentence in the caller's
+language, and a `405` is cacheable by default, so each says `Cache-Control: no-store, private`
+(`PlainTextResponse::refusing()`) rather than leaving a cache to hand one caller another's language.
+
 **`TRACE` is the web server's before it is the framework's.** Apache answers it itself while
 `TraceEnable` is on (its default) and refuses it while it is off, and in neither case does PHP see
 the request; `TraceEnable` is a server-level directive and invalid in `.htaccess`, so a site on
