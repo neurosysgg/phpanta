@@ -91,6 +91,12 @@ enum HtmlAttribute: string implements AttributeName
     case Selected     = 'selected';
     case Readonly     = 'readonly';
 
+    /** A control that takes no input — a passkey form's buttons, while its authenticator is asked. */
+    case Disabled = 'disabled';
+
+    /** Not shown until something shows it — what a passkey form says when nobody answered. */
+    case Hidden = 'hidden';
+
     /**
      * @return string
      */

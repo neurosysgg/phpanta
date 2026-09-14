@@ -990,10 +990,15 @@ final readonly class UpdateApplier
                 continue;
             }
 
+            $removed = [];
+
             foreach ($this->surplusIn($root, $files, $deployment) as $name) {
-                $report = $deployment->destination($root, $name)->delete()
-                    ? $report->removed($name)
-                    : $report->failed($name, 'could not be removed');
+                if ($deployment->destination($root, $name)->delete()) {
+                    $report    = $report->removed($name);
+                    $removed[] = $name;
+                } else {
+                    $report = $report->failed($name, 'could not be removed');
+                }
             }
 
             foreach ($this->straysIn($root, $deployment) as $stray) {
@@ -1006,9 +1011,9 @@ final readonly class UpdateApplier
                         $name,
                     ));
             }
-        }
 
-        $this->sweep($files, $deployment);
+            $this->sweepAbove($root, $removed, $deployment);
+        }
 
         return $report;
     }
@@ -1135,7 +1140,7 @@ final readonly class UpdateApplier
      */
     #[BareArray(
         'a recursive listing accumulated in a loop, where with() would copy the whole list once '
-        . 'per file. Read by surplus() and sweep(), both one method away.',
+        . 'per file. Read by surplus() and straysIn(), both one method away.',
     )]
     private function walk(Directory $directory): array
     {
@@ -1159,69 +1164,40 @@ final readonly class UpdateApplier
     }
 
     /**
-     * Removes directories the mirror emptied, under the roots the payload carries.
+     * Removes the directories that removing $names under $root emptied: each name's own directories,
+     * up to and never including the root's.
      *
-     * **Deliberately `rmdir()` rather than {@link Directory::remove()}, and the difference is the
-     * whole point.** That method takes away the files a directory holds *and then* the directory —
-     * which is correct for tearing down a fixture and catastrophic here, where a directory the
-     * payload simply did not mention would have its contents deleted on the way past. `rmdir()`
-     * refuses a directory that is not empty, and that refusal is exactly the condition being asked
-     * about, so the check and the action are the same call and cannot disagree.
+     * **Only those.** An archive carries no directories, so an empty one on the server is either one
+     * this push just emptied or one something else made — a cache, a directory uploads go into — and
+     * only the first is known to be surplus. A rollback asks the same way, where a directory that was
+     * empty before the push is part of the release being put back.
      *
-     * Deepest first, so a directory whose only contents were themselves emptied directories goes
-     * too.
+     * **`rmdir()` rather than {@link Directory::remove()}, and the difference is the whole point.**
+     * That method takes away the files a directory holds *and then* the directory; `rmdir()` refuses
+     * a directory that is not empty, and that refusal is exactly the condition being asked about, so
+     * the check and the action are the same call and cannot disagree. Deepest first, so a directory
+     * whose only contents were directories this emptied goes too.
      *
-     * @param Collection<UpdateFile> $files
-     * @param Deployment $deployment
+     * @param UpdateRoot       $root
+     * @param iterable<string> $names
+     * @param Deployment       $deployment
      * @return void
      */
-    private function sweep(Collection $files, Deployment $deployment): void
+    private function sweepAbove(UpdateRoot $root, iterable $names, Deployment $deployment): void
     {
-        foreach (UpdateRoot::cases() as $root) {
-            $directory = $deployment->directory($root);
-            if ($directory === null || !$directory->exists() || !self::carries($files, $root)) {
-                continue;
-            }
+        $top = $deployment->directory($root);
 
-            $directories = $this->directories($directory);
-            usort(
-                $directories,
-                static fn(string $a, string $b): int => substr_count($b, '/') <=> substr_count($a, '/'),
-            );
-
-            foreach ($directories as $path) {
-                Diagnostics::muted(static fn(): bool => rmdir($path));
-            }
+        // The single-file root has no directories of its own.
+        if ($top === null) {
+            return;
         }
-    }
 
-    /**
-     * Removes the directories a rollback emptied by removing what the push added — and only those:
-     * each removed file's own directories, up to and never including its root's.
-     *
-     * Narrower than {@link self::sweep()}, deliberately. That one sweeps every empty directory under
-     * a root, which is right after a mirror and wrong here, where a directory that was empty before
-     * the push is part of the release being put back. Deepest first, and `rmdir()` for sweep()'s
-     * reason: it refuses a directory that is not empty.
-     *
-     * @param Collection<RecordEntry> $removed
-     * @param Deployment $deployment
-     * @return void
-     */
-    private function sweepAfter(Collection $removed, Deployment $deployment): void
-    {
         $directories = [];
 
-        foreach ($removed as $entry) {
-            $root = $deployment->directory($entry->root);
+        foreach ($names as $name) {
+            $directory = dirname($deployment->destination($root, $name)->path);
 
-            if ($root === null) {
-                continue;
-            }
-
-            $directory = dirname($deployment->destination($entry->root, $entry->name)->path);
-
-            while (strlen($directory) > strlen($root->path)) {
+            while (strlen($directory) > strlen($top->path)) {
                 $directories[$directory] = substr_count($directory, '/');
                 $directory               = dirname($directory);
             }
@@ -1235,19 +1211,40 @@ final readonly class UpdateApplier
     }
 
     /**
+     * Removes the directories a rollback emptied by removing what the push added — see
+     * {@link self::sweepAbove()}, root by root.
+     *
+     * @param Collection<RecordEntry> $removed
+     * @param Deployment $deployment
+     * @return void
+     */
+    private function sweepAfter(Collection $removed, Deployment $deployment): void
+    {
+        foreach (UpdateRoot::cases() as $root) {
+            $this->sweepAbove(
+                $root,
+                $removed
+                    ->where(static fn(RecordEntry $entry): bool => $entry->root === $root)
+                    ->map(static fn(RecordEntry $entry): string => $entry->name),
+                $deployment,
+            );
+        }
+    }
+
+    /**
      * Every directory under $directory, recursively, as absolute paths.
      *
      * @param Directory $directory
      * @return list<string>
      */
-    #[BareArray('an accumulator, read once by sweep() and never crossing a boundary.')]
+    #[BareArray('an accumulator, read once by cleared() and never crossing a boundary.')]
     private function directories(Directory $directory): array
     {
         $paths = [];
 
         foreach ($this->entries($directory) as $path) {
-            // Not through a symlink, for the reason walk() gives: sweep() would otherwise rmdir its
-            // way into a directory outside the roots.
+            // Not through a symlink, for the reason walk() gives: cleared() would otherwise rmdir its
+            // way into a directory outside the stage.
             if (is_dir($path) && !is_link($path)) {
                 $paths[] = $path;
                 $paths   = array_merge($paths, $this->directories(new Directory($path)));

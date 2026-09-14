@@ -54,7 +54,7 @@
  *
  * Usage:
  *   node tools/build-prod.mjs                # build/dist/, from the committed public/
- *   node tools/build-prod.mjs --out <dir>    # elsewhere — never the project, above it, or in public/
+ *   node tools/build-prod.mjs --out <dir>    # elsewhere — never above the project, and in it only under build/
  *
  * Assumes `public/` is current — `npm run build:prod` runs `npm run build` first rather than
  * trusting that. Exits non-zero with the reason on stderr; it clears the tree before it starts, so
@@ -102,6 +102,12 @@ if (within(ROOT, DIST)) {
 
 if (within(DIST, PUBLIC)) {
   fail(`--out ${label(DIST)} is inside public/, which the build copies from.`);
+}
+
+// And anywhere else in the project but build/: `--out src` passed both checks above, and deleted the
+// site's source before building into its place.
+if (within(DIST, ROOT) && !within(DIST, join(ROOT, 'build'))) {
+  fail(`--out ${label(DIST)} is inside the project and outside build/, and the build deletes --out first.`);
 }
 
 /**

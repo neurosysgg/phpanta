@@ -213,9 +213,9 @@ final readonly class TarWriter
      * @param string $prefix The name the root takes in the archive — `public`, `src`.
      * @return Collection<PackedFile>
      *
-     * @throws UsageException if a file under it cannot be read — a dangling symlink, a file this
-     *                        user may not open. Packed as the empty string it would be written over
-     *                        the server's copy as nothing at all.
+     * @throws UsageException if a file under it cannot be read — one this user may not open, which
+     *                        packed as the empty string would be written over the server's copy as
+     *                        nothing at all — or anything under it is a symbolic link.
      */
     public static function tree(Directory $directory, string $prefix): Collection
     {
@@ -246,6 +246,7 @@ final readonly class TarWriter
      *
      * @param string $path
      * @return list<string>
+     * @throws UsageException if it holds a symbolic link.
      */
     private static function walk(string $path): array
     {
@@ -257,6 +258,14 @@ final readonly class TarWriter
             }
 
             $entry = $path . '/' . $name;
+
+            // Neither followed nor packed. Followed, a link to a directory above it is a walk that
+            // never ends and a link out of the tree ships what it points at; packed, it is a member
+            // the server's reader refuses. Nothing a push packs holds one, so one is a mistake to
+            // hear about now rather than a file to guess at.
+            if (is_link($entry)) {
+                throw new UsageException(sprintf('%s is a symbolic link, and a push packs none', $entry));
+            }
 
             if (is_dir($entry)) {
                 $paths = array_merge($paths, self::walk($entry));

@@ -69,7 +69,7 @@ function findRoot(from) {
  * @returns {{ namespace: string, manifest: string }}
  */
 export function app() {
-  const composer = JSON.parse(read(join(ROOT, 'composer.json')) ?? '{}');
+  const composer = composerJson();
   /** @type {[string, unknown][]} */
   const entries = Object.entries(composer?.autoload?.['psr-4'] ?? {}).filter(
     ([namespace, directory]) => namespace !== 'Phpanta\\'
@@ -84,6 +84,21 @@ export function app() {
   }
 
   return { namespace: entry[0].replace(/\\+$/, ''), manifest: join(ROOT, entry[1], 'AssetManifest.php') };
+}
+
+/**
+ * The project's `composer.json`, parsed — or a sentence naming what is wrong with it, rather than
+ * JSON.parse's stack trace. Absent reads as `{}`, which app() then refuses for mapping nothing.
+ *
+ * @returns {any}
+ */
+function composerJson() {
+  try {
+    return JSON.parse(read(join(ROOT, 'composer.json')) ?? '{}');
+  } catch (error) {
+    console.error(`composer.json does not parse, so there is no app to build: ${/** @type {Error} */ (error).message}`);
+    process.exit(1);
+  }
 }
 
 /**

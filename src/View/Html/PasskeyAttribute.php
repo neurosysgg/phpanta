@@ -20,6 +20,12 @@ enum PasskeyAttribute: string implements AttributeName
     case Challenge = 'data-challenge';
 
     /**
+     * What the form says when its authenticator did not answer — written by the server in the page's
+     * language, hidden, and shown by the client module, which has no words of its own.
+     */
+    case Status = 'data-passkey-status';
+
+    /**
      * @return string
      */
     public function attribute(): string

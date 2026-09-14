@@ -746,17 +746,19 @@ path passes before `File::delete()` is called on it, one named file at a time. `
 is never used for it — that method deletes the files a directory holds, which is right for tearing
 down a fixture and catastrophic here.
 
-**The mirror sweeps only a root the payload carries a file under**, and **nothing after a write that
-failed.** A root the push did not carry is left exactly as it is, never read as "delete all of it";
+**The mirror sweeps only a root the payload carries a file under, and there only the directories its
+deletes emptied**, and **nothing after a write that failed.** An archive carries no directories, so
+an empty one the push did not empty is somebody else's — a cache, a directory uploads go into. A root the push did not carry is left exactly as it is, never read as "delete all of it";
 a failed write leaves the old tree's leftovers where they are rather than deleting around a version
 that did not land. The report says which in a `note:` line, so a dry run shows it first. The walk is
 `scandir()` rather than a glob, so a deployment path holding `[` or `*` lists its files.
 
-**The walk never follows a symlink.** `UpdateApplier`'s walk and sweep ask `!is_link()` before
+**The walk never follows a symlink.** `UpdateApplier`'s walk asks `!is_link()` before
 descending, so a stray link under a root is a leaf, and unlinking it removes the link and not what
 it points at. No payload can carry one — `TarArchive` refuses a symlink member — so a link there is
 the mark of a compromise that already holds the filesystem, and the one code path here that deletes
 must not be a second way outside the roots. `UpdateTest` plants one and asserts the target survives.
+On the sending side `TarWriter` refuses a link outright, rather than following it out of the tree.
 
 **Before its first write, a push records the release it replaces** — the one thing a verified
 payload causes to be written outside the four roots. `ReleaseRecord` keeps it in `.update-previous/`

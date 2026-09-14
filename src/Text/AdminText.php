@@ -28,6 +28,13 @@ enum AdminText: string implements Translatable
     )]
     case Entrance = 'entrance';
 
+    /** What a passkey form says when its authenticator did not answer — cancelled, timed out, refused. */
+    #[Translation(
+        en: 'The passkey did not answer, so nothing was sent. Try again.',
+        de: 'Der Passkey hat nicht geantwortet, deshalb wurde nichts gesendet. Versuch es noch einmal.',
+    )]
+    case PasskeyUnanswered = 'passkey-unanswered';
+
     /** An action that only reads. */
     #[Translation(en: 'reads', de: 'liest')]
     case Reads = 'reads';

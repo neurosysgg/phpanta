@@ -99,10 +99,34 @@ final class TarWriterTest extends TestCase
     {
         $root = new Directory($this->sandbox . '/public');
         self::assertTrue($root->create());
-        self::assertTrue(symlink($this->sandbox . '/nowhere', $root->path . '/dangling.css'));
+        self::assertTrue($root->file('locked.css')->write('a {}'));
+        self::assertTrue(chmod($root->path . '/locked.css', 0o000));
+
+        if (is_readable($root->path . '/locked.css')) {
+            self::markTestSkipped('this user reads a file whatever its mode');
+        }
 
         $this->expectException(UsageException::class);
         $this->expectExceptionMessage('cannot be packed');
+
+        (void) TarWriter::tree($root, 'public');
+    }
+
+    /**
+     * A symbolic link is refused rather than followed: one to a directory above it would be a walk
+     * that never ends, and one out of the tree would ship what it points at.
+     *
+     * @return void
+     */
+    public function testASymbolicLinkIsRefused(): void
+    {
+        $root = new Directory($this->sandbox . '/public');
+        self::assertTrue($root->create());
+        self::assertTrue(new Directory($this->sandbox)->file('outside.css')->write('a {}'));
+        self::assertTrue(symlink($this->sandbox . '/outside.css', $root->path . '/inside.css'));
+
+        $this->expectException(UsageException::class);
+        $this->expectExceptionMessage('is a symbolic link');
 
         (void) TarWriter::tree($root, 'public');
     }

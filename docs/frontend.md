@@ -399,10 +399,12 @@ vocabulary. The server checks everything; see [security.md](security.md#a-browse
 ```
 submit of a form[data-passkey], anywhere in the document
   → no navigator.credentials → the form goes as it is, and the server refuses it
-  → preventDefault, before anything is awaited
+  → preventDefault, before anything is awaited; a form already asking asks nothing more
+  → its buttons disabled while the authenticator is asked
   → get(): an enrolled key signs the challenge, userVerification required
     create(): a new key over it — ES256 (-7) only, residentKey and userVerification required
-  → cancelled, timed out or refused → nothing is sent, and the button can be pressed again
+  → cancelled, timed out or refused, or a challenge that does not decode → nothing is sent, the
+    form's data-passkey-status paragraph is shown, and the button can be pressed again
   → the answer written as base64url hidden fields, named by PasskeyFormField:
     credential, client-data, authenticator-data, and signature or key
   → requestSubmit() with the same button, so "Dry run" and "Apply" stay two different posts

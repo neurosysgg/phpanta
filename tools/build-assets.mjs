@@ -62,7 +62,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 
 import { ROOT, app, cli, read } from './build-cli.mjs';
@@ -73,8 +73,37 @@ const { fail, label, path } = cli('build-assets', ['js-dir', 'graph-dir', 'css',
 const JS_BASE  = '/assets/js';
 const CSS_BASE = '/assets/css';
 
-/** A line comment, and a block comment, non-greedy — stripped before scanning for imports. */
-const COMMENT = /\/\/[^\n]*|\/\*[\s\S]*?\*\//g;
+/**
+ * A comment, or a string literal — matched together, left to right, so a `/*` or a `//` inside a
+ * string is read as part of the string it is in. Stripping comments alone once took everything from
+ * a `'/assets/*'` to the next comment's end, imports and all, and the modules behind them went
+ * missing from the preload list and the stamp while the build reported success.
+ */
+const COMMENT_OR_STRING = /'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\[\s\S])*`|\/\/[^\n]*|\/\*[\s\S]*?\*\//g;
+
+/**
+ * `source` with its comments taken out and its strings left as they are — what SPECIFIER reads.
+ *
+ * @param {string} source
+ * @returns {string}
+ */
+function uncommented(source) {
+  return source.replace(COMMENT_OR_STRING, (token) => (token.startsWith('/') ? '' : token));
+}
+
+/**
+ * `source` with its comments taken out and every string emptied: the code alone, where a keyword is
+ * a keyword and not a word some string holds.
+ *
+ * @param {string} source
+ * @returns {string}
+ */
+function code(source) {
+  return source.replace(COMMENT_OR_STRING, (token) => (token.startsWith('/') ? '' : '""'));
+}
+
+/** A static import or re-export in any spelling — minified onto a line of code with the rest. */
+const ANY_IMPORT = /\bimport\b\s*[\w{*"]|\bexport\b[^;\n]*\bfrom\b/;
 
 /**
  * `import x from 'y'`, `import 'y'` and `export … from 'y'` — the three forms that name a
@@ -85,8 +114,12 @@ const COMMENT = /\/\/[^\n]*|\/\*[\s\S]*?\*\//g;
  * of `export class Config {` and into the string on the line below it, then reported the site's name as
  * an unresolvable import. tsc emits one statement per line and terminates each with a semicolon, so
  * requiring both costs nothing and makes that false match impossible.
+ *
+ * **Only those three forms**: an `import` its string directly follows, or an `import` or `export`
+ * whose string follows `from`. Any string on an `export` line once matched, so
+ * `export const glob = '/assets/*';` was read as a re-export of `/assets/*` and refused.
  */
-const SPECIFIER = /^\s*(?:import|export)\b[^'"\n]*?['"]([^'"\n]+)['"]\s*;\s*$/gm;
+const SPECIFIER = /^\s*(?:import\s*['"]|(?:import|export)\b[^'"\n]*?\bfrom\s*['"])([^'"\n]+)['"]\s*;\s*$/gm;
 
 /**
  * The path segment carrying the build stamp. `public/.htaccess` and `tools/dev-router.php` both
@@ -212,7 +245,7 @@ function walk(file, importedBy) {
 
   const deps = [];
 
-  for (const match of source.replace(COMMENT, '').matchAll(SPECIFIER)) {
+  for (const match of uncommented(source).matchAll(SPECIFIER)) {
     // SPECIFIER has one group and it is not optional, so a match always carries it.
     const bare = /** @type {string} */ (match[1]);
 
@@ -237,6 +270,13 @@ function walk(file, importedBy) {
 }
 
 walk(ENTRY, 'the build');
+
+// ── the stylesheet ──────────────────────────────────────────────────────────────────────────────
+
+// Read here, before the stamp that hashes it, so a stylesheet that is not there is a sentence rather
+// than a stack trace. The manifest needs nothing else from it but the path.
+const css = read(CSS_FILE) ?? fail(`${label(CSS_FILE)} does not exist. Build the stylesheet first `
+                                 + '(tools/build-css.mjs) — the manifest names it.');
 
 // ── the build stamp ────────────────────────────────────────────────────────────────────────────
 
@@ -263,7 +303,7 @@ const stamp = digest(
   (BUNDLE === ''
     ? [...graph.keys()].sort().map((file) => `${jsUrl(file)}\u0000${shipped(file)}`)
     : [`${JS_BASE}/main.js\u0000${bundled()}`])
-    .concat(`${CSS_BASE}\u0000${readFileSync(CSS_FILE, 'utf8')}`)
+    .concat(`${CSS_BASE}\u0000${css}`)
     .join('\u0000'),
 );
 
@@ -281,23 +321,13 @@ const modules = BUNDLE === ''
       .sort()
   : [];
 
-// Only meaningful when the modules ship as modules. An entry that reaches nothing is a broken
-// build — this graph is forty-odd files deep — so the guard stays exactly as strict as it was for
-// the tree it was written about. Under --bundle the empty list is the expected answer, and the
-// flag is how that is asked for deliberately rather than arrived at by accident.
-if (BUNDLE === '' && modules.length === 0) {
-  fail('main.js reaches no other module. That is a broken build: the graph is forty-odd files\n'
-     + '              deep. If the tree really is one file now, say so with --bundle.');
-}
-
-// ── the stylesheet ──────────────────────────────────────────────────────────────────────────────
-
-// Read to prove it is there and to fail with a useful sentence if it is not. Its content is already
-// inside the build stamp above, so the manifest needs nothing from it but the path.
-try {
-  readFileSync(CSS_FILE, 'utf8');
-} catch {
-  fail(`${label(CSS_FILE)} does not exist. Run \`npm run build:css\` first — the manifest names it.`);
+// An entry that reaches nothing is an app of one file — or a tree this cannot read, which is the
+// build this guard was written about: minified, every import on a line of code, so SPECIFIER finds
+// none and the manifest would name one file of many. The entry is asked whether it imports anything
+// at all, to tell the two apart. Under --bundle the empty list is the expected answer.
+if (BUNDLE === '' && modules.length === 0 && ANY_IMPORT.test(code(read(ENTRY) ?? ''))) {
+  fail('main.js imports other modules, and none of its imports could be read — is the tree\n'
+     + '              minified? Walk a readable one with --graph-dir, or say it is one file with --bundle.');
 }
 
 const stylesheet = versioned(`${CSS_BASE}/${relative(dirname(CSS_FILE), CSS_FILE)}`);

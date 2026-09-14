@@ -287,6 +287,23 @@ export class Navigation {
         return;
       }
 
+      // fetch follows a redirect on its own and says so only here, so the address would stay on the
+      // URL clicked. One that ended on another origin is the browser's to follow; one that ended here
+      // moves the address to where it landed, with the fragment the click asked for, which a
+      // response URL never carries.
+      if (response.redirected) {
+        const landed = new URL(response.url);
+
+        if (landed.origin !== location.origin) {
+          location.replace(url);
+          return;
+        }
+
+        landed.hash = new URL(url).hash;
+        history.replaceState(history.state, '', landed.href);
+        this.shown = Navigation.documentOf(landed.href);
+      }
+
       const html = await response.text();
 
       // Checked again after the second await: the body can arrive after a newer click has already

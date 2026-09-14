@@ -10,6 +10,7 @@ use Phpanta\Http\PasskeyFormField;
 use Phpanta\Model\Passkey\CeremonyType;
 use Phpanta\Model\Passkey\EntranceCeremony;
 use Phpanta\Support\AdminPath;
+use Phpanta\Text\AdminText;
 use Phpanta\Text\Translatable;
 use Phpanta\View\Html\ButtonType;
 use Phpanta\View\Html\Element;
@@ -54,7 +55,8 @@ final class AdminForm
     }
 
     /**
-     * A form posting to $action with the session's $token — answered by a passkey where $type says so.
+     * A form posting to $action with the session's $token — answered by a passkey where $type says so,
+     * and then holding what it says when the passkey did not answer.
      *
      * @param string            $action
      * @param string            $token
@@ -64,12 +66,21 @@ final class AdminForm
      */
     public static function posting(string $action, string $token, ?CeremonyType $type, ?string $challenge): Element
     {
-        return new Element(HtmlTag::Form)
+        $form = new Element(HtmlTag::Form)
             ->attr(HtmlAttribute::Method, FormMethod::Post)
             ->attr(HtmlAttribute::Action, $action)
             ->attr(PasskeyAttribute::Ceremony, $type)
             ->attr(PasskeyAttribute::Challenge, $challenge)
             ->containing(self::hidden(CsrfField::Token, $token));
+
+        // Hidden until the client module shows it — written here, in the page's language, because
+        // the module has no words of its own.
+        return $type === null ? $form : $form->containing(
+            new Element(HtmlTag::P)
+                ->attr(PasskeyAttribute::Status, true)
+                ->attr(HtmlAttribute::Hidden, true)
+                ->containing(AdminText::PasskeyUnanswered),
+        );
     }
 
     /**

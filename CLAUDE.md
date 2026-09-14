@@ -151,11 +151,14 @@ These fail silently — no error, no log, a page that looks fine.
 - `App::webroot()` takes only `DOCUMENT_ROOT`'s basename and refuses a blank, relative,
   outside-the-deployment or nonexistent root.
 - The mirror is an enumerated delete: it never follows a symlink and never calls `Directory::remove()`.
-  It sweeps only a root the payload carries, and nothing after a failed write.
+  It sweeps only the directories it emptied, under a root the payload carries, and nothing after a
+  failed write.
 - A signing key belongs to one deployment: `ApiTarget` refuses the default key for any other origin.
 - **The server stages every changed file beside the roots, then renames them in the order they are
   packed**: the framework, the site's source, the autoloader, the webroot, the stamped manifest last.
-  A destination that cannot take a file refuses the push while staging, with nothing live written.
+  A destination that cannot take a file refuses the push while staging, with nothing live written —
+  which is what a file turned into a directory, or a directory into a file, meets: that change is a
+  full deploy's.
 - A push packs `phpanta/` out of the working tree, so `push-update` refuses a framework that is not
   checked out, has changes that are not committed, or is not the commit the site's `HEAD` records.
   `--any-framework` is the deliberate way past; a copied-in `phpanta/` has nothing to compare and passes.

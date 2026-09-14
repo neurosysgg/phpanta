@@ -20,8 +20,11 @@ import { PasskeyFormField } from './model/PasskeyFormField.js';
  * it starts. A browser with no credentials to ask sends the form as it is, and the server refuses it.
  *
  * **Nothing is sent that the authenticator did not answer.** A ceremony the visitor cancels, that
- * times out, or that the authenticator refuses leaves the form as it was, and the button can be
- * pressed again; the server would refuse a post without the answer anyway, and this spares the trip.
+ * times out, or that the authenticator refuses — or a challenge that does not decode — leaves the
+ * form as it was, and the button can be pressed again; the server would refuse a post without the
+ * answer anyway, and this spares the trip. The form says so, in the words the server wrote into it
+ * for that, since this module has none of its own. While the authenticator is asked the form's
+ * buttons are disabled, and a second submit meanwhile starts no second ceremony.
  *
  * **ES256 only, a key kept on the device, and the person verified** — what the server accepts, and
  * nothing it would then have to refuse. The relying party is left to the browser, which takes the
@@ -43,6 +46,9 @@ export class Passkey {
 
   /** Forms whose ceremony has been answered, so the one submit that sends them goes through. */
   private readonly answered = new WeakSet<Element>();
+
+  /** Forms whose authenticator is being asked, so a second submit meanwhile asks nothing. */
+  private readonly asking = new WeakSet<Element>();
 
   private constructor() {}
 
@@ -71,12 +77,33 @@ export class Passkey {
 
     e.preventDefault();
 
+    if (this.asking.has(form)) return;
+
+    this.asking.add(form);
+    Passkey.waiting(form, true);
+
     const answer = await Passkey.ceremony(form, credentials);
+
+    this.asking.delete(form);
+    Passkey.waiting(form, false);
+    Passkey.unanswered(form, answer === null);
 
     if (answer === null) return;
 
     answer.forEach((value, field) => { Passkey.fill(form, field, value); });
     this.send(form, e.submitter);
+  }
+
+  /** Disables the form's buttons while its authenticator is asked, and enables them again after. */
+  private static waiting(form: Element, waiting: boolean): void {
+    form.querySelectorAll(HtmlTag.Button).forEach((button) => {
+      button.toggleAttribute(HtmlAttribute.Disabled, waiting);
+    });
+  }
+
+  /** Shows, or hides again, what the server wrote into the form to say nobody answered. */
+  private static unanswered(form: Element, show: boolean): void {
+    form.querySelector(`[${PasskeyAttribute.Status}]`)?.toggleAttribute(HtmlAttribute.Hidden, !show);
   }
 
   /**
@@ -96,14 +123,15 @@ export class Passkey {
     form: Element,
     credentials: CredentialsContainer,
   ): Promise<ReadonlyMap<PasskeyFormField, string> | null> {
-    const challenge = Passkey.bytes(form.getAttribute(PasskeyAttribute.Challenge) ?? '');
-
     try {
+      const challenge = Passkey.bytes(form.getAttribute(PasskeyAttribute.Challenge) ?? '');
+
       return form.getAttribute(PasskeyAttribute.Ceremony) === CeremonyType.Create
         ? await Passkey.create(credentials, challenge)
         : await Passkey.get(credentials, challenge);
     } catch {
-      // Cancelled, timed out, or refused: the form stays as it was, to be tried again.
+      // Cancelled, timed out or refused — or a challenge that is not base64url, which atob() throws
+      // on: the form stays as it was, to be tried again.
       return null;
     }
   }

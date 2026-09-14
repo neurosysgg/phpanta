@@ -41,4 +41,6 @@ export enum HtmlAttribute {
   Checked         = 'checked',
   Selected        = 'selected',
   Readonly        = 'readonly',
+  Disabled        = 'disabled',
+  Hidden          = 'hidden',
 }

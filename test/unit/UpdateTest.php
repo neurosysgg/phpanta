@@ -359,6 +359,30 @@ final class UpdateTest extends TestCase
     }
 
     /**
+     * A directory the mirror emptied goes with its last file, however deep; one it did not empty
+     * stays, however empty. An archive carries no directories, so an empty one the push never
+     * mentioned is somebody else's — a cache, a directory uploads go into.
+     *
+     * @return void
+     */
+    public function testTheMirrorRemovesOnlyTheDirectoriesItEmptied(): void
+    {
+        $webroot = new Directory($this->sandbox . '/public');
+        self::assertTrue($webroot->directory('old/deeper')->create());
+        self::assertTrue($webroot->file('old/deeper/stale.js')->write('stale'));
+        self::assertTrue($webroot->directory('cache')->create());
+
+        $report = $this->applier()->apply(
+            UpdateFixture::archive(['public/keep.txt' => 'new']),
+            self::manifest(mirror: true),
+        );
+
+        self::assertTrue($report->isComplete(), $report->render());
+        self::assertFalse($webroot->directory('old')->exists(), 'a directory the mirror emptied was left');
+        self::assertTrue($webroot->directory('cache')->exists(), 'the mirror took a directory it never emptied');
+    }
+
+    /**
      * **A root the push does not carry is left exactly as it is**, dry run and real run alike.
      *
      * The push from a clone whose submodule was never checked out carries no `phpanta/`, and a

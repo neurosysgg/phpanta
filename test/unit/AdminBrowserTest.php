@@ -158,6 +158,11 @@ final class AdminBrowserTest extends TestCase
         self::assertStringContainsString('data-passkey="webauthn.get"', $answer->body());
         self::assertStringContainsString('data-passkey="webauthn.create"', $answer->body());
         self::assertSame(2, substr_count($answer->body(), 'data-challenge="' . $challenge->value . '"'));
+        self::assertSame(
+            2,
+            substr_count($answer->body(), '<p data-passkey-status hidden>The passkey did not answer'),
+            'a passkey form holds no words for the client module to show when nobody answers',
+        );
         self::assertStringContainsString('value="' . $session->token() . '"', $answer->body());
         self::assertSame('no-store, private', $answer->header(ResponseHeader::CacheControl)?->value->render());
     }
