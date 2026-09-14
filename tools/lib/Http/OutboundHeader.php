@@ -52,6 +52,19 @@ enum OutboundHeader: string implements HeaderName
     case ContentType = 'Content-Type';
 
     /**
+     * The cookies a server set, sent back — {@link CookieJar} is the value. Only the software
+     * authenticator keeps any: it is the one command that plays a browser.
+     */
+    case Cookie = 'Cookie';
+
+    /**
+     * Where a browser says a request came from — a {@link \Phpanta\Http\Origin}. The software
+     * authenticator sends the one a browser on that page would, since a local admin in development
+     * takes its passkey origin from it.
+     */
+    case Origin = 'Origin';
+
+    /**
      * @return string
      */
     public function headerName(): string

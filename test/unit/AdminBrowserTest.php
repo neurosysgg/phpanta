@@ -372,6 +372,32 @@ final class AdminBrowserTest extends TestCase
     }
 
     /**
+     * A lock taken the way a browser takes one — from a listing, after a write, with the token that
+     * page carries — ends a copy of the session from before it, unlocked seconds earlier.
+     *
+     * @return void
+     */
+    public function testALockFromAListingAfterAWriteEndsACopyFromBeforeIt(): void
+    {
+        $form    = $this->revokeForm(Session::fresh($this->seal)->withAdmin(self::DEVICE, time() - 10));
+        $written = $this->answer($this->posted('/admin/access/v1/revoke', $form, [
+            [ActionField::Passkey, 'bm9ib2R5'],
+            [ActionField::Apply, 'true'],
+            ...$this->assertion((string) $form->challenge()?->value, count: 1),
+        ]));
+        $copy    = $this->sessionOf($written);
+        $listing = $this->answer($this->carrying(TestRequest::get('/admin/access'), $copy));
+        $locked  = $this->answer($this->posted('/admin', $copy, [[PasskeyFormField::Ceremony, 'logout']]));
+        $after   = $this->answer($this->carrying(TestRequest::get('/admin/access/v1/passkeys'), $copy));
+
+        self::assertSame(HttpStatusCode::UnprocessableContent, $written->status());
+        self::assertStringContainsString('value="' . $copy->token() . '"', $listing->body());
+        self::assertSame(HttpStatusCode::SeeOther, $locked->status());
+        self::assertNull($this->sessionOf($locked)->admin());
+        self::assertSame(HttpStatusCode::SeeOther, $after->status(), 'a copy of the session outlived the lock');
+    }
+
+    /**
      * A lock the store cannot record still ends this browser's session, and says that a copy of it may
      * not have ended.
      *

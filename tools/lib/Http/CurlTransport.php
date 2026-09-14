@@ -6,6 +6,7 @@ namespace Phpanta\Tool\Http;
 
 use CURLFile;
 use Phpanta\Http\Header;
+use Phpanta\Support\Collection;
 
 /**
  * The CurlTransport class. Every network request this repo makes, in one place.
@@ -66,6 +67,20 @@ final readonly class CurlTransport implements Transport
 
         curl_setopt_array($handle, $this->options($request));
 
+        // Every header line of the answer, kept as it came. A status line starts the set again, so
+        // an interim `100 Continue`'s lines are never mistaken for the answer's.
+        $lines = [];
+
+        curl_setopt($handle, CURLOPT_HEADERFUNCTION, static function (mixed $handle, string $line) use (&$lines): int {
+            if (str_starts_with($line, 'HTTP/')) {
+                $lines = [];
+            } elseif (trim($line) !== '') {
+                $lines[] = rtrim($line, "\r\n");
+            }
+
+            return strlen($line);
+        });
+
         $body   = curl_exec($handle);
         $status = curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
         $error  = curl_error($handle);
@@ -79,7 +94,7 @@ final readonly class CurlTransport implements Transport
             ));
         }
 
-        return new Response((int) $status, (string) $body);
+        return new Response((int) $status, (string) $body, new Collection('string')->with(...$lines));
     }
 
     /**

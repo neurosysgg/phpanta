@@ -14,11 +14,13 @@ tools/
 ├── build-cli.mjs  build-css.mjs  build-assets.mjs  build-prod.mjs   ← the build; see frontend.md
 └── lib/
     ├── Cli/              ← Command, Option, Arity, Input, Output, ExitCode, UsageException, Runner
-    ├── Command/          ← ApiCall, PushUpdate, MergeCoverage, Export, each with its option enum
+    ├── Command/          ← ApiCall, PushUpdate, MergeCoverage, Export, Authenticator (+ its
+    │                       AuthenticatorWalk), each with its option enum
     ├── Api/              ← the signing side: ApiTarget, PrivateKey, SignedCredential, SignedRequest,
     │                       and ResultReader and ListingReader, which read an answer back
-    ├── Http/             ← outbound requests: Transport + CurlTransport, Request/Response, Url,
-    │                       JsonBody, FormField, FilePart, OutboundHeader
+    ├── Passkey/          ← the software authenticator's device and page reader: SoftwareDevice, AdminPage
+    ├── Http/             ← outbound requests: Transport + CurlTransport, Request/Response (its
+    │                       headers kept), Url, JsonBody, FormField, FilePart, OutboundHeader, CookieJar
     ├── Update/           ← the push side: TarWriter, PackedFile, FrameworkCheckout. The reader
     │                       lives under src/ because the server needs it; the writer lives here
     │                       because the server must not have it
@@ -26,12 +28,14 @@ tools/
     └── Php/              ← an expression tree for emitting PHP source, so none is built from a string
 ```
 
-**Three of the four commands need something only a site knows**, so the framework ships them as
+**Four of the five commands need something only a site knows**, so the framework ships them as
 classes, and a site gives each one an entry script of its own:
 
 - `ApiCall` takes the deployment's origin and the path of its key, relative to `$HOME`;
 - `PushUpdate` takes the project root as well;
-- `MergeCoverage` takes the root whose `src/` it measures.
+- `MergeCoverage` takes the root whose `src/` it measures;
+- `Authenticator` takes the origin and key `ApiCall` does, to enrol the device it plays — see
+  [The software authenticator](#the-software-authenticator).
 
 Each entry script is a few lines long:
 
@@ -71,6 +75,34 @@ a key that does not match `data/update.pub` and a clock more than five minutes o
 adds a third, another call signed in the same second. An answer that is neither a result nor a
 listing — a site's own 404 page — is not the admin's at all, and the command says the server is
 older than `/admin`, which a full deploy updates.
+
+### The software authenticator
+
+A browser on a machine with no platform authenticator cannot make a passkey, which leaves the
+admin's browser side untried by hand. `Authenticator` is that browser and its authenticator at
+once, over real HTTP: it keeps the session cookie (`CookieJar`), reads each page's form token and
+challenge (`AdminPage`, with PHP's HTML5 parser and the server's own field names), sends the
+`Origin` a browser on the page would, and answers with a `SoftwareDevice` — a P-256 key and a
+credential id kept in a file, `0600`, under `~/.config/phpanta/` unless `--device` names one.
+
+The first run registers the device at the entrance and enrols the code it is handed with the
+signing key, then waits a second: a browser's write takes the second its challenge was minted as its
+serial, and the enrolment has just spent that one. Every run then checks, one `ok` or `FAIL` line
+each, that an unlock opens the admin and the same unlock sent again opens nothing; that a write with
+its tap reaches the action and the same post sent again is a stale `409` (the write revokes a
+credential id nobody holds, so it spends a serial and changes nothing); and that a lock ends this
+browser's session and a copy of it from before.
+
+**It plays against a `*.localhost` origin and nothing else.** An enrolled device opens the admin it
+is enrolled at, and a key in a file is a credential left on a laptop anywhere that can be reached
+from elsewhere; a local copy in development takes a ceremony's origin from the request, from
+loopback only, which is what lets the ceremony run where the copy is served. Each post to the
+entrance counts against its throttle, ten in fifteen minutes per address, and a run makes three —
+four the first time.
+
+```bash
+php -d curl.cainfo=<the vhost's certificate> tools/authenticator.php --url https://example.localhost
+```
 
 `dev-router.php` and `coverage-prepend.php` are not commands, and cannot be. PHP loads each of them
 itself: one is handed to `php -S` per request, and the other is an `auto_prepend_file`. Neither has

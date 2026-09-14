@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Phpanta\Tool\Http;
 
 use JsonException;
+use NoDiscard;
+use Phpanta\Http\HeaderName;
 use Phpanta\Http\HttpStatusCode;
+use Phpanta\Support\Collection;
 
 /**
  * The Response class. What came back.
@@ -23,10 +26,34 @@ final readonly class Response
     /**
      * Constructs an instance of {@link self}.
      *
-     * @param int    $status The status line's code, as it arrived.
-     * @param string $body   The body, undecoded.
+     * @param int                $status  The status line's code, as it arrived.
+     * @param string             $body    The body, undecoded.
+     * @param Collection<string> $headers Every header line of the final answer, `Name: value`, in order.
      */
-    public function __construct(public int $status, public string $body) {}
+    public function __construct(
+        public int $status,
+        public string $body,
+        public Collection $headers = new Collection('string'),
+    ) {}
+
+    /**
+     * The value of every $name header the answer carried, in order — a `Set-Cookie` may come twice.
+     *
+     * Header names are compared the way HTTP compares them, without regard to case.
+     *
+     * @param HeaderName $name
+     * @return Collection<string>
+     */
+    #[NoDiscard('values() reads the headers and changes nothing; a call whose result goes nowhere asked for nothing')]
+    public function values(HeaderName $name): Collection
+    {
+        $prefix = strtolower($name->headerName()) . ':';
+
+        return $this->headers
+            ->where(static fn(string $line): bool => str_starts_with(strtolower($line), $prefix))
+            ->map(static fn(string $line): string => trim(substr($line, strlen($prefix))))
+            ->settled();
+    }
 
     /**
      * Whether the request succeeded.
