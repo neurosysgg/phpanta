@@ -143,17 +143,16 @@ final class AppTest extends TestCase
     }
 
     /**
-     * Whether a credential is in a repository is part of what it is: the admin file ships as a
-     * placeholder, and the other two exist only per deployment, where a public repository cannot
-     * publish them.
+     * Whether a credential is in a repository is part of what it is: each exists only per
+     * deployment, where a public repository cannot publish it.
      *
      * @return void
      */
-    public function testOnlyTheAdminPlaceholderIsTracked(): void
+    public function testNoCredentialFileIsTracked(): void
     {
-        self::assertTrue(CredentialFile::Admin->isTracked());
-        self::assertFalse(CredentialFile::SiteAuth->isTracked());
-        self::assertFalse(CredentialFile::UpdateKey->isTracked());
+        foreach (CredentialFile::cases() as $file) {
+            self::assertFalse($file->isTracked(), $file->value);
+        }
     }
 
     // ───────────────────────────── what an app may add ─────────────────────────────

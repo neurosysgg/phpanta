@@ -42,8 +42,8 @@ final readonly class PasswordHash
     /**
      * The hash a credentials file holds, or `null` where it holds none.
      *
-     * The empty string is the one non-hash this accepts, because it is not a mistake: `data/admin.php`
-     * ships with `'pass_hash' => ''` and that is how an unconfigured gate is spelled. A caller gets
+     * The empty string is the one non-hash this accepts, because it is not a mistake: `'pass_hash' => ''`
+     * is how an unconfigured gate's credentials file is spelled. A caller gets
      * null and refuses, which is what {@link \Phpanta\Service\Auth::accepts()} already did in its
      * own words — there is no right answer to compare against, so there is no timing to protect and
      * nothing to verify. Anything else non-empty goes through the constructor and throws.

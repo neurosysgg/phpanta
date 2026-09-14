@@ -24,7 +24,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * The comparison every gate ends in, the digest it compares against, and the admin gate around it.
  *
- * **Nothing else reaches the comparison.** A repository's `data/admin.php` ships with an empty
+ * **Nothing else reaches the comparison.** An unconfigured `data/admin.php` holds an empty
  * `pass_hash`, so {@link Auth::accepts()} short-circuits on its first operand and neither
  * `hash_equals()` nor `password_verify()` runs — an end-to-end check that an admin route answers
  * 401 proves the route is gated without ever comparing a credential. These tests write a real
@@ -185,9 +185,8 @@ final class AuthTest extends TestCase
     }
 
     /**
-     * An unconfigured gate is closed, not open. This is the state a repository ships: its
-     * `data/admin.php` is a placeholder whose `pass_hash` is empty, because the live credentials are
-     * uploaded by hand.
+     * An unconfigured gate is closed, not open: a `data/admin.php` whose `pass_hash` is empty is
+     * how a gate with no credential yet is spelled.
      *
      * @return void
      */

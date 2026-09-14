@@ -28,8 +28,8 @@ use Phpanta\Support\PasswordHash;
  * get this wrong is a call whose result goes nowhere, and that is a door left open. The decision
  * itself is {@link self::accepts()}, and the gates are only the challenge around it.
  *
- * That split is what lets a test reach the comparison at all. A repository's `data/admin.php`
- * ships with an empty `pass_hash`, so the guard short-circuits and neither `hash_equals()` nor
+ * That split is what lets a test reach the comparison at all. An unconfigured `data/admin.php`
+ * holds an empty `pass_hash`, so the guard short-circuits and neither `hash_equals()` nor
  * `password_verify()` is reached — which means an end-to-end check that an admin route answers 401
  * proves the route is gated, not that the comparison works.
  *

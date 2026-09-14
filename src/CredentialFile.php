@@ -20,7 +20,7 @@ namespace Phpanta;
  */
 enum CredentialFile: string implements DataFileName
 {
-    /** bcrypt credentials for the admin gate. The repo copy is a placeholder; the deploy skips it. */
+    /** bcrypt credentials for the admin gate — per deployment, for a site with a route behind it. */
     case Admin = 'admin.php';
 
     /**
@@ -75,16 +75,13 @@ enum CredentialFile: string implements DataFileName
     case AdminPasskeys = 'admin-passkeys.json';
 
     /**
-     * Only the admin placeholder is tracked: the site gate's file exists per deployment and is
-     * gitignored, and the keys and the devices are untracked because each deployment holds its own.
+     * None is tracked: each holds what one deployment holds — a credential, a key, a list of
+     * devices — so a public repository cannot publish it, and `health v1 deployment` requires none.
      *
      * @return bool
      */
     public function isTracked(): bool
     {
-        return match ($this) {
-            self::Admin => true,
-            self::SiteAuth, self::UpdateKey, self::SessionKey, self::AdminPasskeys => false,
-        };
+        return false;
     }
 }
