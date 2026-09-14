@@ -22,6 +22,7 @@ use Phpanta\Text\Translatable;
 use Phpanta\View\Html\ButtonType;
 use Phpanta\View\Html\Element;
 use Phpanta\View\Html\FormMethod;
+use Phpanta\View\Html\Fragment;
 use Phpanta\View\Html\HtmlAttribute;
 use Phpanta\View\Html\HtmlTag;
 use Phpanta\View\Html\InputType;
@@ -33,8 +34,8 @@ use Phpanta\View\Html\Node;
  *
  * ```php
  * $form       = new Form(ContactField::class, AppPath::Contact);
- * $submission = $request->method() === HttpMethod::Post ? $form->read($request) : $form->blank();
  * $session    = Session::of($request, $seal)->withToken();
+ * $submission = $request->method() === HttpMethod::Post ? $form->read($request, $session->token()) : $form->blank();
  *
  * $page = $form->render($submission, $session->token(), ContactText::Send);
  * ```
@@ -46,6 +47,10 @@ use Phpanta\View\Html\Node;
  * to keep in step with the guard's. Written here, a form that renders is a form the guard accepts.
  * The token is the page's to hand in, because keeping it is the session's: the page asks
  * `Session::withToken()` and attaches the session to its answer.
+ *
+ * **And it reads the token back itself.** {@link self::read()} is handed the session's token and
+ * refuses a send that did not carry it — the question the guard asks on the route, asked again
+ * where the form is read, so a route that forgot its guard still refuses a forged send.
  *
  * **It always posts.** A form that writes is the only kind worth a token, and a `get` puts every
  * field — a password among them — into the address bar, the history and the server's log. Where it
@@ -144,16 +149,33 @@ final readonly class Form
      * file came; an {@link UploadRule} then asks its question of the file itself. A file larger than
      * the host takes is that field's error, where the visitor can choose a smaller one.
      *
-     * @param Request $request
+     * **A send without $token is refused**, whole: not sent with one, sent with another, or sent to a
+     * visitor whose session has none. Its submission is not valid, keeps nothing that was sent — a
+     * page another site made may not write into this one's form — and says why at the top of the
+     * form, which renders again with a token that will work.
+     *
+     * @param Request     $request
+     * @param string|null $token The visitor's form token, from their session: what {@link self::render()}
+     *                           wrote into the form.
      * @return Submission
      * @throws InputException if the body cannot be read as a form, or a field was sent twice. The
      *                        router answers it with a 400 — or a 413, for a whole form larger than
      *                        the host takes; a form never has to.
      */
     #[NoDiscard('read() reads the submission; a call whose result goes nowhere checked nothing')]
-    public function read(Request $request): Submission
+    public function read(Request $request, ?string $token): Submission
     {
         $input = $request->form();
+        $sent  = $input->text(CsrfField::Token);
+
+        if ($token === null || $sent === null || !hash_equals($token, $sent)) {
+            return new Submission(
+                $this->fields,
+                $this->entries(static fn(Field $field): FieldEntry => new FieldEntry('')),
+                true,
+                FrameworkText::FormExpired,
+            );
+        }
 
         return new Submission(
             $this->fields,
@@ -188,7 +210,7 @@ final readonly class Form
     #[NoDiscard('render() builds the form; a call whose result goes nowhere drew nothing')]
     public function render(Submission $submission, string $token, Translatable $submit): Element
     {
-        return new Element(HtmlTag::Form)
+        $form = new Element(HtmlTag::Form)
             ->attr(HtmlAttribute::Method, FormMethod::Post)
             ->attr(HtmlAttribute::Action, $this->action)
             ->attr(HtmlAttribute::Enctype, $this->sendsFiles() ? FormEncoding::Multipart : null)
@@ -197,7 +219,15 @@ final readonly class Form
                     ->attr(HtmlAttribute::Type, InputType::Hidden)
                     ->attr(HtmlAttribute::Name, CsrfField::Token->value)
                     ->attr(HtmlAttribute::Value, $token),
-            )
+            );
+
+        $refusal = $submission->refusal();
+
+        if ($refusal !== null) {
+            $form = $form->containing(new Element(HtmlTag::P)->containing($refusal));
+        }
+
+        return $form
             ->containing(
                 ...$this->fields()
                     ->map(static fn(Field $field): Node => self::field($field, $submission))
@@ -290,8 +320,9 @@ final readonly class Form
     }
 
     /**
-     * One field: its label, its control and its error — or, for a hidden one, the control alone,
-     * since there is nothing to label and nobody to show an error to.
+     * One field: its label, its control and its error — or, for a hidden one, the control and its
+     * error alone. Nothing labels a hidden field, but a form refused for a field its visitor cannot
+     * see, with nothing said, is a form sent again and again.
      *
      * A checkbox's label follows it, as a box and its words conventionally read; every other
      * control's precedes it.
@@ -304,15 +335,20 @@ final readonly class Form
     private static function field(Field $field, Submission $submission): Node
     {
         $value = $submission->value($field);
+        $error = $submission->error($field);
 
         if ($field->type() === InputType::Hidden) {
-            return new Element(HtmlTag::Input)
+            $hidden = new Element(HtmlTag::Input)
                 ->attr(HtmlAttribute::Type, InputType::Hidden)
                 ->attr(HtmlAttribute::Name, (string) $field->value)
                 ->attr(HtmlAttribute::Value, $value);
+
+            return $error === null ? $hidden : new Fragment(
+                $hidden,
+                new Element(HtmlTag::P)->attr(HtmlAttribute::Id, FieldId::error($field))->containing($error),
+            );
         }
 
-        $error   = $submission->error($field);
         $control = self::control($field, $value, $error !== null);
         $label   = new Element(HtmlTag::Label)
             ->attr(HtmlAttribute::For, FieldId::control($field))

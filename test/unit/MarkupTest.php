@@ -7,6 +7,7 @@ namespace Phpanta\Test\Unit;
 use BackedEnum;
 use Phpanta\Exception\ElementException;
 use Phpanta\Exception\MarkupException;
+use Phpanta\Exception\ParserException;
 use Phpanta\Exception\TranslationException;
 use Phpanta\Http\FormEncoding;
 use Phpanta\Support\Collection;
@@ -712,6 +713,125 @@ final class MarkupTest extends TestCase
                 new Element(HtmlTag::P)->containing('b'),
             )->render(),
         );
+    }
+
+    /**
+     * Two phrasing elements side by side share a line: a newline between them would be a space
+     * inside the word they make. Beside a block a newline is at the edge of a line, which the browser
+     * drops, so the block keeps a line of its own.
+     *
+     * @return void
+     */
+    public function testPhrasingElementsSideBySideShareALine(): void
+    {
+        self::assertSame(
+            "<p>\n  <strong>a</strong><em>b</em>\n</p>",
+            new Element(HtmlTag::P)->containing(
+                new Element(HtmlTag::Strong)->containing('a'),
+                new Element(HtmlTag::Em)->containing('b'),
+            )->render(),
+        );
+        self::assertSame(
+            "<div>\n  <span>a</span>\n  <p>b</p>\n  <span>c</span>\n</div>",
+            new Element(HtmlTag::Div)->containing(
+                new Element(HtmlTag::Span)->containing('a'),
+                new Element(HtmlTag::P)->containing('b'),
+                new Element(HtmlTag::Span)->containing('c'),
+            )->render(),
+        );
+    }
+
+    /**
+     * An element whose content is a line of text keeps its children on it, with no text among them
+     * too: a newline just inside a link is a space inside the link.
+     *
+     * @return void
+     */
+    public function testAnInlineContainerKeepsItsChildrenOnItsLine(): void
+    {
+        self::assertSame(
+            '<a href="/"><img src="/a.png"><span>b</span></a>',
+            new Element(HtmlTag::A)->attr(HtmlAttribute::Href, '/')->containing(
+                new Element(HtmlTag::Img)->attr(HtmlAttribute::Src, '/a.png'),
+                new Element(HtmlTag::Span)->containing('b'),
+            )->render(),
+        );
+    }
+
+    /**
+     * A fragment is opened into its parent, so phrasing elements in it share a line with each other
+     * and with their neighbours outside it.
+     *
+     * @return void
+     */
+    public function testAFragmentOfPhrasingElementsSharesTheirLine(): void
+    {
+        self::assertSame(
+            "<nav>\n  <a href=\"/a\">a</a><a href=\"/b\">b</a><a href=\"/c\">c</a>\n  <p>d</p>\n</nav>",
+            new Element(HtmlTag::Nav)->containing(
+                new Fragment(
+                    new Element(HtmlTag::A)->attr(HtmlAttribute::Href, '/a')->containing('a'),
+                    new Fragment(new Element(HtmlTag::A)->attr(HtmlAttribute::Href, '/b')->containing('b')),
+                ),
+                new Element(HtmlTag::A)->attr(HtmlAttribute::Href, '/c')->containing('c'),
+                new Element(HtmlTag::P)->containing('d'),
+            )->render(),
+        );
+    }
+
+    /**
+     * A browser reads a `<script>`'s content as it is, so escaping it would change it.
+     *
+     * @return void
+     */
+    public function testAnElementHoldingRawTextRefusesChildren(): void
+    {
+        $this->expectException(ElementException::class);
+        $this->expectExceptionMessage('<script> holds raw text');
+
+        (void) new Element(HtmlTag::Script)->containing('a < b');
+    }
+
+    /**
+     * The parser implies a `<tbody>` around a table's rows whether the source wrote one or not, so a
+     * hand-authored table parses only because the case exists.
+     *
+     * @return void
+     */
+    public function testAHandAuthoredTableParsesWithTheBodyTheParserImplies(): void
+    {
+        self::assertSame(
+            "<div>\n  <table>\n    <tbody>\n      <tr>\n        <td>a</td>\n      </tr>\n    </tbody>"
+            . "\n  </table>\n</div>",
+            new Element(HtmlTag::Div)->containingHtml('<table><tr><td>a</td></tr></table>')->render(),
+        );
+    }
+
+    /**
+     * An `<iframe>`'s content is raw text to the parser, so `&amp;` would come back out as
+     * `&amp;amp;` — and a browser shows none of it anyway.
+     *
+     * @return void
+     */
+    public function testAParsedFrameWithContentIsRefused(): void
+    {
+        $this->expectException(ParserException::class);
+        $this->expectExceptionMessage('<iframe> holds raw text');
+
+        (void) new Element(HtmlTag::Div)->containingHtml('<iframe src="https://example.org/">a &amp; b</iframe>');
+    }
+
+    /**
+     * The constructor takes children outright, so rendering asks again.
+     *
+     * @return void
+     */
+    public function testAnElementHoldingRawTextBuiltWithChildrenRefusesToRender(): void
+    {
+        $this->expectException(ElementException::class);
+        $this->expectExceptionMessage('<iframe> holds raw text');
+
+        (void) new Element(HtmlTag::Iframe, null, new Collection(Node::class)->with(new Text('x')))->render();
     }
 
     /**

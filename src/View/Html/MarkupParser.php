@@ -285,6 +285,15 @@ final readonly class MarkupParser
             );
         }
 
+        // An <iframe>'s content is raw text to the parser, so `&amp;` inside one arrives undecoded and
+        // would go out as `&amp;amp;`. A browser shows none of it anyway.
+        if ($tag instanceof HtmlTag && $tag->isRawText() && $element->hasChildNodes()) {
+            throw new ParserException(sprintf(
+                '<%s> holds raw text, which cannot be rendered back as it was written; leave it empty.',
+                $tag->tagName(),
+            ));
+        }
+
         return $built->containing(...self::childrenOf($element, $vocabulary)->toValues());
     }
 }

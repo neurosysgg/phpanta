@@ -182,6 +182,75 @@ final class TextTest extends TestCase
     }
 
     /**
+     * ICU writes an argument nobody bound as its own placeholder, and says nothing.
+     *
+     * @return void
+     */
+    public function testAnArgumentNobodyBoundIsLoud(): void
+    {
+        $this->expectException(TranslationException::class);
+        $this->expectExceptionMessage('{max}, and nothing was bound to it');
+
+        new Phrase(new Translation('Up to {max, number} characters.'), ['count' => 1])->in(Language::English);
+    }
+
+    /**
+     * A brace the message quotes comes out as a placeholder does, and is no argument.
+     *
+     * @return void
+     */
+    public function testABraceTheMessageQuotesIsNoArgument(): void
+    {
+        self::assertSame(
+            "It's {literal} 1",
+            new Phrase(new Translation("It''s '{literal}' {a}"), ['a' => 1])->in(Language::English),
+        );
+    }
+
+    /**
+     * ICU would read an argument with no name as argument 0, which no message here names.
+     *
+     * @return void
+     */
+    public function testAnArgumentWithNoNameIsRefused(): void
+    {
+        $this->expectException(TranslationException::class);
+        $this->expectExceptionMessage('not with(3)');
+
+        (void) TextFixture::Counted->with(3);
+    }
+
+    /**
+     * A string that is a number is one; a string that is not, where the message formats a number,
+     * would be 0 — and says so instead.
+     *
+     * @return void
+     */
+    public function testAStringWhereANumberIsFormattedIsLoudUnlessItIsOne(): void
+    {
+        self::assertSame('3 downloads', TextFixture::Counted->with(count: '3')->in(Language::English));
+
+        $this->expectException(TranslationException::class);
+        $this->expectExceptionMessage("formats {count} as a number, and 'abc' is not one");
+
+        TextFixture::Counted->with(count: 'abc')->in(Language::English);
+    }
+
+    /**
+     * A string a message chooses a branch by, or does not use at all, is no number and needs none.
+     *
+     * @return void
+     */
+    public function testAStringAMessageChoosesByOrDoesNotUseIsNoNumber(): void
+    {
+        $choice = new Translation('{who, select, me {mine} other {theirs}}');
+
+        self::assertSame('theirs', new Phrase($choice, ['who' => 'you'])->in(Language::English));
+        self::assertSame('mine', new Phrase($choice, ['who' => 'me'])->in(Language::English));
+        self::assertSame('1 download', TextFixture::Counted->with(count: 1, unused: 'abc')->in(Language::English));
+    }
+
+    /**
      * A name is the same in every language, and says so rather than posing as a translation — which
      * is also why it takes the empty string a translation refuses.
      *

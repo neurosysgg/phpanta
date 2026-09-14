@@ -241,6 +241,10 @@ final readonly class Element implements Node
             throw $this->voidRefusal();
         }
 
+        if ($this->holdsRawText() && $children !== []) {
+            throw $this->rawTextRefusal();
+        }
+
         return new self($this->tag, $this->attributes, $this->children->with(
             ...array_map(
                 static fn(Node|string|Translatable $child): Node => match (true) {
@@ -325,7 +329,47 @@ final readonly class Element implements Node
             return $open . $close;
         }
 
+        // containing() refuses this too; the constructor takes children outright.
+        if ($this->holdsRawText()) {
+            throw $this->rawTextRefusal();
+        }
+
         return $open . $this->renderChildren($depth, $language) . $close;
+    }
+
+    /**
+     * True if this element is phrasing content — see {@link HtmlTag::isPhrasing()}. A site's own
+     * element is laid out however its stylesheet says, so it answers no and keeps a line of its own.
+     *
+     * @return bool
+     */
+    public function isPhrasing(): bool
+    {
+        return $this->tag instanceof HtmlTag && $this->tag->isPhrasing();
+    }
+
+    /**
+     * True if a browser reads this element's content as raw text — see {@link HtmlTag::isRawText()}.
+     *
+     * @return bool
+     */
+    private function holdsRawText(): bool
+    {
+        return $this->tag instanceof HtmlTag && $this->tag->isRawText();
+    }
+
+    /**
+     * The refusal an element holding raw text earns when it is given children.
+     *
+     * @return ElementException
+     */
+    private function rawTextRefusal(): ElementException
+    {
+        return new ElementException(sprintf(
+            '<%s> holds raw text, which a browser reads without decoding; the only escaping this tree '
+            . 'has would change what it says. Give it a src instead.',
+            $this->tag->tagName(),
+        ));
     }
 
     /**
@@ -515,7 +559,12 @@ final readonly class Element implements Node
      * {@link Sentence}, and a {@link Fragment} holding any of them — see
      * {@link Fragment::writesText()}. And a fragment among
      * children on one line is rendered on it, rather than breaking its own nodes onto lines of their
-     * own.
+     * own. So does an element whose content is itself a line of text — `<a>` around an `<img>` — see
+     * {@link HtmlTag::isInlineContainer()}.
+     *
+     * Otherwise each child goes on a line of its own, where the newline is whitespace at the edge of
+     * a line, which the browser drops — except between two phrasing elements, `<strong>` beside
+     * `<em>`, where it would be a space inside a word. Those share a line: see {@link Fragment::lines()}.
      *
      * @param int           $depth
      * @param Language|null $language
@@ -525,7 +574,7 @@ final readonly class Element implements Node
     {
         $inline = $this->children->first(Fragment::writesText(...));
 
-        if ($inline !== null) {
+        if ($inline !== null || ($this->tag instanceof HtmlTag && $this->tag->isInlineContainer())) {
             return $this->children
                 ->map(static fn(Node $child): string => $child instanceof Fragment
                     ? $child->renderInline($depth, $language)
@@ -533,13 +582,8 @@ final readonly class Element implements Node
                 ->join('');
         }
 
-        $pad      = str_repeat('  ', $depth);
-        $rendered = '';
+        $pad = str_repeat('  ', $depth);
 
-        foreach ($this->children as $child) {
-            $rendered .= "\n" . $pad . '  ' . $child->render($depth + 1, $language);
-        }
-
-        return $rendered . "\n" . $pad;
+        return "\n" . $pad . '  ' . Fragment::lines($this->children, $depth + 1, $language) . "\n" . $pad;
     }
 }

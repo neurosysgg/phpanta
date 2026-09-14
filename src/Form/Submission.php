@@ -15,7 +15,7 @@ use Phpanta\Text\Translatable;
  * render, nothing at all. Immutable; {@link Form::read()} and {@link Form::blank()} build one.
  *
  * ```php
- * $submission = $form->read($request);
+ * $submission = $form->read($request, $session->token());
  *
  * if ($submission->isValid()) {
  *     $email = $submission->value(ContactField::Email);   // …and redirect, so a reload sends nothing
@@ -32,15 +32,18 @@ final readonly class Submission
      * @param class-string<Field>              $fields    The form's field enum.
      * @param SearchableCollection<FieldEntry> $entries   One per field, keyed by its name.
      * @param bool                             $submitted Whether anything was sent, which a blank has not.
+     * @param Translatable|null                $refusal   What refused the whole form rather than one
+     *                                                    field — a form token that did not match.
      */
     public function __construct(
         private string               $fields,
         private SearchableCollection $entries,
         private bool                 $submitted,
+        private ?Translatable        $refusal = null,
     ) {}
 
     /**
-     * Whether it was sent and every field passed every rule.
+     * Whether it was sent, the form was not refused, and every field passed every rule.
      *
      * **A blank is not valid**, though it holds no error: nothing was sent, so there is nothing to
      * act on, and a controller that asks this before it writes cannot write on a first render.
@@ -51,7 +54,20 @@ final readonly class Submission
     public function isValid(): bool
     {
         return $this->submitted
+            && $this->refusal === null
             && $this->entries->first(static fn(FieldEntry $entry): bool => $entry->error !== null) === null;
+    }
+
+    /**
+     * What refused the whole form, or null — see {@link Form::read()}. {@link Form::render()} shows
+     * it at the top of the form.
+     *
+     * @return Translatable|null
+     */
+    #[NoDiscard('refusal() only reads; a call whose result goes nowhere read nothing')]
+    public function refusal(): ?Translatable
+    {
+        return $this->refusal;
     }
 
     /**
@@ -115,6 +131,7 @@ final readonly class Submission
             $this->fields,
             $this->entries->with((string) $field->value, new FieldEntry($entry->value, $error, $entry->upload)),
             $this->submitted,
+            $this->refusal,
         );
     }
 

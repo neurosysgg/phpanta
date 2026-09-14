@@ -61,7 +61,6 @@ enum HtmlTag: string implements TagName
     case Em     = 'em';
     case Div    = 'div';
 
-    /** Created client-side only: an embedded frame, and the textarea that decodes entities. */
     /**
      * The one media element here, and one that stays native for a reason beyond convention.
      *
@@ -72,6 +71,7 @@ enum HtmlTag: string implements TagName
      */
     case Audio    = 'audio';
 
+    /** Created client-side only: an embedded frame, and the textarea that decodes entities. */
     case Iframe   = 'iframe';
     /**
      * What a custom element draws on. Client-created only, the way {@link self::Textarea} is — a
@@ -84,6 +84,12 @@ enum HtmlTag: string implements TagName
     case Table = 'table';
     case Tr    = 'tr';
     case Td    = 'td';
+
+    /**
+     * Never written by a view, and needed all the same: the parser implies one around a table's rows
+     * whether the source wrote it or not, so a hand-authored `<table>` parses only if it has a case.
+     */
+    case Tbody = 'tbody';
 
     /**
      * What {@link \Phpanta\Form\Form} writes, and only it: a form carries the visitor's form token,
@@ -117,5 +123,55 @@ enum HtmlTag: string implements TagName
             self::Meta, self::Link, self::Img, self::Br, self::Input => true,
             default                                                  => false,
         };
+    }
+
+    /**
+     * True if the element sits in a line of text, so whitespace between it and another such is a
+     * space on the page — HTML's phrasing content, which {@link Element} keeps on one line beside
+     * its kind.
+     *
+     * `<script>` is phrasing content in the specification and not here: it draws nothing, so the
+     * whitespace beside it draws nothing either, and the document keeps it on a line of its own.
+     *
+     * @return bool
+     */
+    public function isPhrasing(): bool
+    {
+        return match ($this) {
+            self::A, self::Img, self::Button, self::Span, self::Small, self::Strong, self::Em, self::Br,
+            self::Audio, self::Iframe, self::Canvas, self::Textarea,
+            self::Input, self::Label, self::Select => true,
+            default                                => false,
+        };
+    }
+
+    /**
+     * True if what the element holds is itself a line of text, so whitespace just inside it is a
+     * space on the page — which is why {@link Element} writes its children on its own line.
+     *
+     * Narrower than {@link self::isPhrasing()}: a `<select>` sits in a line, but its options are not
+     * one, and a `<button>` lays out its content as a box of its own.
+     *
+     * @return bool
+     */
+    public function isInlineContainer(): bool
+    {
+        return match ($this) {
+            self::A, self::Span, self::Small, self::Strong, self::Em, self::Label => true,
+            default                                                               => false,
+        };
+    }
+
+    /**
+     * True if a browser reads the element's content as raw text — neither decoding a `&amp;` nor
+     * seeing a tag — so the one escaping this tree has would change what it says.
+     *
+     * {@link Element} refuses such an element children, and gives its content by `src` instead.
+     *
+     * @return bool
+     */
+    public function isRawText(): bool
+    {
+        return $this === self::Script || $this === self::Iframe;
     }
 }

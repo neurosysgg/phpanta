@@ -122,6 +122,9 @@ final class RoutingFeatureTest extends TestCase
         yield 'letters for an int'   => [RoutePatternFixture::Numbered, ['abc']];
         yield 'a negative int'       => [RoutePatternFixture::Numbered, [-1]];
         yield 'a capital in a slug'  => [RoutePatternFixture::Tagged, ['Nope', 1]];
+        yield 'nothing for a segment' => [RoutePatternFixture::Item, ['']];
+        yield 'a dot for a segment'   => [RoutePatternFixture::Delimited, ['.']];
+        yield 'two dots for a segment' => [RoutePatternFixture::Delimited, ['..']];
     }
 
     /**

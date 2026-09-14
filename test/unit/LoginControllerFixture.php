@@ -51,7 +51,7 @@ final readonly class LoginControllerFixture implements Controller
             return self::page($form, $form->blank(), $session, HttpStatusCode::Ok);
         }
 
-        $sent = $form->read($request);
+        $sent = $form->read($request, $session->token());
 
         if (!$sent->isValid()) {
             return self::page($form, $sent, $session, HttpStatusCode::UnprocessableContent);

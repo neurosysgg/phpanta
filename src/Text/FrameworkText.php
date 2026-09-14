@@ -43,6 +43,18 @@ enum FrameworkText: string implements Translatable
     case CsrfRefused = 'csrf-refused';
 
     /**
+     * The same refusal where a {@link \Phpanta\Form\Form} reads it: shown at the top of the form,
+     * which renders again blank with a token that will work — so it asks for the form again rather
+     * than for a reload.
+     */
+    #[Translation(
+        en: 'This form had expired, so nothing in it was kept. Please fill it in again and send it.',
+        de: 'Dieses Formular war abgelaufen, deshalb wurde nichts davon übernommen. '
+            . 'Bitte fülle es noch einmal aus und sende es.',
+    )]
+    case FormExpired = 'form-expired';
+
+    /**
      * What a login form says of a name and a password that do not open a session — one sentence for
      * a name the site does not know and a password that is wrong, which is Login's guarantee.
      */

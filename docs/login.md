@@ -97,7 +97,7 @@ final readonly class LoginController implements Controller
             return self::page($form, $form->blank(), $session, HttpStatusCode::Ok);
         }
 
-        $sent = $form->read($request);
+        $sent = $form->read($request, $session->token());
 
         if (!$sent->isValid()) {                         // not filled in: costs no attempt
             return self::page($form, $sent, $session, HttpStatusCode::UnprocessableContent);
@@ -135,7 +135,9 @@ Six things in it are the recipe rather than the style:
 - **The token is handed out on the read.** `withToken()` keeps the session's token or makes one, and
   the page attaches the session, so the form it renders posts a token `CsrfGuard` will find. A page
   that rendered the form without attaching its session would render a form whose every send is
-  refused.
+  refused. The form reads the token back too: `read()` is handed the session's, and a send without
+  it is a blank submission that says the form had expired — so a route that forgot its guard still
+  refuses a forged send.
 - **A form not filled in is checked before `Login` is asked**, so an empty password costs the
   visitor no attempt.
 - **A wrong password and an unknown name are one answer**: the form again, the name kept, the

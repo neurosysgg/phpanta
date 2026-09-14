@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Phpanta\View\Html;
 
+use Generator;
 use Phpanta\Support\Collection;
 use Phpanta\Text\Language;
 
@@ -91,9 +92,69 @@ final readonly class Fragment implements Node
             return $this->renderInline($depth, $language);
         }
 
-        return $this->nodes
-            ->map(static fn(Node $node): string => $node->render($depth, $language))
-            ->join("\n" . str_repeat('  ', $depth));
+        return self::lines($this->nodes, $depth, $language);
+    }
+
+    /**
+     * $nodes one per line at $depth, a fragment among them opened into its own nodes — except two
+     * phrasing elements side by side, which share a line.
+     *
+     * A newline beside a block is whitespace at the edge of a line, which the browser drops; between
+     * `<strong>a</strong>` and `<em>b</em>` it is a space inside a word. {@link Element} lays out its
+     * children through this, so an element and a fragment cannot disagree about which is which, and
+     * a fragment opened into its parent is written exactly as it would have written itself.
+     *
+     * @param Collection<Node> $nodes
+     * @param int              $depth
+     * @param Language|null    $language
+     * @return string
+     */
+    public static function lines(Collection $nodes, int $depth, ?Language $language): string
+    {
+        $rendered = '';
+        $previous = null;
+
+        foreach (self::opened($nodes) as $node) {
+            if ($previous !== null) {
+                $rendered .= self::shareALine($previous, $node) ? '' : "\n" . str_repeat('  ', $depth);
+            }
+
+            $rendered .= $node->render($depth, $language);
+            $previous  = $node;
+        }
+
+        return $rendered;
+    }
+
+    /**
+     * $nodes with every fragment among them replaced by its own nodes, all the way down.
+     *
+     * @param Collection<Node> $nodes
+     * @return Generator<Node>
+     */
+    private static function opened(Collection $nodes): Generator
+    {
+        foreach ($nodes as $node) {
+            if ($node instanceof self) {
+                yield from self::opened($node->nodes);
+            } else {
+                yield $node;
+            }
+        }
+    }
+
+    /**
+     * True if $before and $after are both phrasing elements, so a newline between them would be a
+     * space on the page.
+     *
+     * @param Node $before
+     * @param Node $after
+     * @return bool
+     */
+    private static function shareALine(Node $before, Node $after): bool
+    {
+        return $before instanceof Element && $before->isPhrasing()
+            && $after instanceof Element && $after->isPhrasing();
     }
 
     /**

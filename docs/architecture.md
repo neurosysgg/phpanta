@@ -729,7 +729,7 @@ value is the name on the wire — with a `label()`, a `type()` (an `InputType`) 
 
 ```php
 $form       = new Form(ContactField::class, AppPath::Contact);
-$submission = $request->method() === HttpMethod::Post ? $form->read($request) : $form->blank();
+$submission = $request->method() === HttpMethod::Post ? $form->read($request, $session->token()) : $form->blank();
 
 $form->render($submission, $session->token(), ContactText::Send);   // an Element
 ```
@@ -739,6 +739,9 @@ $form->render($submission, $session->token(), ContactText::Send);   // an Elemen
   `''`, which is how an unticked checkbox arrives. A body that cannot be read, or a field sent twice,
   is the `InputException` the router answers with a 400, and the form lets it through. A `Submission`
   is immutable; a blank one holds no error and is not `isValid()`, since nothing was sent to act on.
+  A send without the session's form token, which `read()` is handed, is refused whole: a blank
+  submission, not valid, whose `refusal()` `render()` shows at the top of the form. A hidden field's
+  error is shown after it, since a form refused in silence is sent again and again.
 - **An empty value passes every rule but `Required`.** `MaxLength` counts characters, not bytes;
   `Email` is `FILTER_VALIDATE_EMAIL`, which says nothing of whether an address exists and refuses a
   few real ones — a dotless domain, a quoted or non-ASCII local part; `WholeNumber` is
@@ -751,7 +754,8 @@ $form->render($submission, $session->token(), ContactText::Send);   // an Elemen
   control, which names it in `aria-describedby`. `FieldId` builds each `for`/`id` pair, so a label
   cannot name a control that is not there. What a visitor typed comes back escaped like any value.
 - **Three things it never leaves to a page.** It writes the form token itself, under the name
-  `CsrfGuard` reads — see [security.md](security.md#sessions-the-form-token-and-the-login). It
+  `CsrfGuard` reads, and reads it back itself, so a route that forgot its guard still refuses a
+  forged send — see [security.md](security.md#sessions-the-form-token-and-the-login). It
   always posts, since a `get` puts every field into the address bar. And it never gives a password
   field its value back, because the value would be written into a page that caches and saved copies
   keep. A field named `_csrf` is refused when the form is built, and `MarkupParser` refuses a

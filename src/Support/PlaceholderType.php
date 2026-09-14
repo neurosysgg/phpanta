@@ -80,13 +80,19 @@ enum PlaceholderType: string
     /**
      * Whether $value may fill a placeholder of this type — asked by {@link FillsPlaceholders::to()}.
      *
-     * A {@link self::Segment} takes anything, since it is encoded on the way in.
+     * A {@link self::Segment} takes anything it can be a segment of, since it is encoded on the way
+     * in — but not nothing, which writes an address its own route cannot match, and not `.` or `..`,
+     * which encoding leaves as they are and a browser resolves as a dot-segment, to another page.
      *
      * @param string $value
      * @return bool
      */
     public function accepts(string $value): bool
     {
-        return $this === self::Segment || preg_match('#\A' . $this->pattern() . '\z#', $value) === 1;
+        if ($this === self::Segment) {
+            return !in_array($value, ['', '.', '..'], true);
+        }
+
+        return preg_match('#\A' . $this->pattern() . '\z#', $value) === 1;
     }
 }

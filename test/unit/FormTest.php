@@ -118,6 +118,7 @@ final class FormTest extends TestCase
     {
         $sent = self::uploads()->read(
             $this->sending('12345', 'a.txt')->withField(UploadFieldFixture::Caption, 'hi')->request(),
+            self::TOKEN,
         );
 
         self::assertTrue($sent->isValid());
@@ -142,7 +143,7 @@ final class FormTest extends TestCase
         int $error,
         FrameworkText $expected,
     ): void {
-        $sent = self::uploads()->read($this->sending($contents, 'a.txt', $error)->request());
+        $sent = self::uploads()->read($this->sending($contents, 'a.txt', $error)->request(), self::TOKEN);
 
         self::assertFalse($sent->isValid());
         self::assertSame($expected, $sent->error(UploadFieldFixture::File));
@@ -167,7 +168,7 @@ final class FormTest extends TestCase
      */
     public function testAFileFieldOfAFormSentWithoutFilesHasNone(): void
     {
-        $sent = self::uploads()->read(self::post('file=a.txt&caption=hi'));
+        $sent = self::uploads()->read(self::post('file=a.txt&caption=hi'), self::TOKEN);
 
         self::assertSame(FrameworkText::FieldRequired, $sent->error(UploadFieldFixture::File));
         self::assertNull($sent->upload(UploadFieldFixture::File));
@@ -182,7 +183,8 @@ final class FormTest extends TestCase
     public function testAFormThatSendsFilesSaysSo(): void
     {
         $form = self::uploads();
-        $html = $form->render($form->read($this->sending('x', 'a.txt')->request()), self::TOKEN, new Verbatim('Send'))
+        $sent = $form->read($this->sending('x', 'a.txt')->request(), self::TOKEN);
+        $html = $form->render($sent, self::TOKEN, new Verbatim('Send'))
             ->render(0, Language::English);
 
         self::assertStringContainsString('enctype="multipart/form-data"', $html);
@@ -250,7 +252,7 @@ final class FormTest extends TestCase
      */
     public function testASubmissionHoldsWhatWasSent(): void
     {
-        $submission = $this->form->read(self::post(self::VALID));
+        $submission = $this->form->read(self::post(self::VALID), self::TOKEN);
 
         self::assertTrue($submission->isValid());
         self::assertSame('ada@example.org', $submission->value(FieldFixture::Email));
@@ -271,8 +273,8 @@ final class FormTest extends TestCase
      */
     public function testAFieldNotSentIsEmptyAndItsRulesAreAskedOfThat(): void
     {
-        $sent       = str_replace('&agree=on', '', self::VALID) . '&_csrf=x&extra=y';
-        $submission = $this->form->read(self::post($sent));
+        $sent       = str_replace('&agree=on', '', self::VALID) . '&extra=y';
+        $submission = $this->form->read(self::post($sent), self::TOKEN);
 
         self::assertSame('', $submission->value(FieldFixture::Agree));
         self::assertSame(FrameworkText::FieldRequired, $submission->error(FieldFixture::Agree));
@@ -280,18 +282,18 @@ final class FormTest extends TestCase
     }
 
     /**
-     * A POST that says nothing about its body sent no form: every field empty, every required one
+     * A form that sent nothing but its token has every field empty, and every required one
      * refused — rather than an error of its own.
      *
      * @return void
      */
-    public function testARequestWithNoFormHasEveryFieldEmpty(): void
+    public function testAFormThatSentOnlyItsTokenHasEveryFieldEmpty(): void
     {
-        $submission = $this->form->read(TestRequest::to(HttpMethod::Post, '/form')->request());
+        $submission = $this->form->read(self::post(''), self::TOKEN);
 
         self::assertSame(FrameworkText::FieldRequired, $submission->error(FieldFixture::Name));
         self::assertNull($submission->error(FieldFixture::Age));
-        self::assertTrue($this->form->read(self::post(self::VALID))->isValid());
+        self::assertTrue($this->form->read(self::post(self::VALID), self::TOKEN)->isValid());
     }
 
     /**
@@ -302,12 +304,12 @@ final class FormTest extends TestCase
      */
     public function testTheFirstErrorPerFieldWins(): void
     {
-        $submission = $this->form->read(self::post(str_replace('name=Ada', 'name=++++++', self::VALID)));
+        $submission = $this->form->read(self::post(str_replace('name=Ada', 'name=++++++', self::VALID)), self::TOKEN);
 
         self::assertSame(FrameworkText::FieldRequired, $submission->error(FieldFixture::Name));
         self::assertSame(
             'Please use at most 5 characters.',
-            $this->form->read(self::post(str_replace('name=Ada', 'name=Adalbert', self::VALID)))
+            $this->form->read(self::post(str_replace('name=Ada', 'name=Adalbert', self::VALID)), self::TOKEN)
                 ->error(FieldFixture::Name)
                 ?->in(Language::English),
         );
@@ -325,7 +327,7 @@ final class FormTest extends TestCase
     {
         $this->expectException(InputException::class);
 
-        (void) $this->form->read($request);
+        (void) $this->form->read($request, self::TOKEN);
     }
 
     /**
@@ -566,40 +568,36 @@ final class FormTest extends TestCase
                 '<form method="post" action="/form">',
                 '  <input type="hidden" name="_csrf" value="a-token">',
                 '  <div>',
-                '    <label for="field-name">Your name</label>',
-                '    <input type="text" id="field-name" name="name" required maxlength="5">',
+                '    <label for="field-name">Your name</label>'
+                . '<input type="text" id="field-name" name="name" required maxlength="5">',
                 '  </div>',
                 '  <div>',
-                '    <label for="field-email">Email</label>',
-                '    <input type="email" id="field-email" name="email" required autocomplete="email">',
+                '    <label for="field-email">Email</label>'
+                . '<input type="email" id="field-email" name="email" required autocomplete="email">',
                 '  </div>',
                 '  <div>',
-                '    <label for="field-password">Password</label>',
-                '    <input type="password" id="field-password" name="password" required maxlength="64"'
+                '    <label for="field-password">Password</label>'
+                . '<input type="password" id="field-password" name="password" required maxlength="64"'
                 . ' autocomplete="current-password">',
                 '  </div>',
                 '  <div>',
-                '    <label for="field-age">Age</label>',
-                '    <input type="number" id="field-age" name="age">',
+                '    <label for="field-age">Age</label><input type="number" id="field-age" name="age">',
                 '  </div>',
                 '  <div>',
-                '    <label for="field-colour">Colour</label>',
-                '    <select id="field-colour" name="colour">',
+                '    <label for="field-colour">Colour</label><select id="field-colour" name="colour">',
                 '      <option value="">— choose —</option>',
                 '      <option value="red">red</option>',
                 '      <option value="blue">blue</option>',
                 '    </select>',
                 '  </div>',
                 '  <div>',
-                '    <input type="checkbox" id="field-agree" name="agree" required>',
-                '    <label for="field-agree">I agree</label>',
+                '    <input type="checkbox" id="field-agree" name="agree" required>'
+                . '<label for="field-agree">I agree</label>',
                 '  </div>',
                 '  <div>',
-                '    <label for="field-a%20note">Note</label>',
-                '    <input type="text" id="field-a%20note" name="a note">',
+                '    <label for="field-a%20note">Note</label><input type="text" id="field-a%20note" name="a note">',
                 '  </div>',
-                '  <input type="hidden" name="ref" value="">',
-                '  <button type="submit">Send</button>',
+                '  <input type="hidden" name="ref" value=""><button type="submit">Send</button>',
                 '</form>',
             ]),
             $this->render($this->form->blank(), Language::English),
@@ -621,6 +619,78 @@ final class FormTest extends TestCase
     }
 
     /**
+     * A form reads its token back itself, so a route that forgot its guard still refuses a forged
+     * send — without one, with another, or to a visitor with none. Nothing sent is kept: a page
+     * another site made may not write into this one's form.
+     *
+     * @param string      $body
+     * @param string|null $token
+     * @return void
+     */
+    #[DataProvider('forgedProvider')]
+    public function testASendWithoutTheVisitorsTokenIsRefusedAndKeepsNothing(string $body, ?string $token): void
+    {
+        $submission = $this->form->read(
+            TestRequest::to(HttpMethod::Post, '/form')
+                ->withServer(ServerVariable::ContentType, 'application/x-www-form-urlencoded')
+                ->withBody($body)
+                ->request(),
+            $token,
+        );
+
+        self::assertFalse($submission->isValid());
+        self::assertSame(FrameworkText::FormExpired, $submission->refusal());
+        self::assertSame('', $submission->value(FieldFixture::Name));
+        self::assertNull($submission->error(FieldFixture::Name));
+    }
+
+    /**
+     * @return iterable<string, array{string, string|null}>
+     */
+    public static function forgedProvider(): iterable
+    {
+        yield 'no token sent'      => [self::VALID, self::TOKEN];
+        yield 'another token sent' => ['_csrf=another&' . self::VALID, self::TOKEN];
+        yield 'no token to match'  => ['_csrf=' . self::TOKEN . '&' . self::VALID, null];
+    }
+
+    /**
+     * The refusal is shown at the top of the form, where the visitor reads first, and none of what
+     * was sent comes back with it.
+     *
+     * @return void
+     */
+    public function testARefusedSendSaysSoAtTheTopOfTheForm(): void
+    {
+        $html = $this->render($this->form->read(self::post(self::VALID), 'another-token'), Language::English);
+
+        self::assertStringContainsString(
+            '<input type="hidden" name="_csrf" value="a-token">' . "\n"
+            . '  <p>' . FrameworkText::FormExpired->in(Language::English) . '</p>',
+            $html,
+        );
+        self::assertStringNotContainsString('Ada', $html);
+    }
+
+    /**
+     * A hidden field's error is shown too. Nothing labels the field, but a form refused for a field
+     * its visitor cannot see, with nothing said, is a form sent again and again.
+     *
+     * @return void
+     */
+    public function testAHiddenFieldsErrorIsShown(): void
+    {
+        $submission = $this->form->read(self::post(self::VALID), self::TOKEN)
+            ->withError(FieldFixture::Ref, new Verbatim('gone'));
+
+        self::assertFalse($submission->isValid());
+        self::assertStringContainsString(
+            "\n" . '  <p id="error-ref">gone</p>',
+            $this->render($submission, Language::English),
+        );
+    }
+
+    /**
      * Every label names a control that exists, once — the one fact a label is for, and one that
      * fails in silence.
      *
@@ -628,7 +698,7 @@ final class FormTest extends TestCase
      */
     public function testEveryLabelNamesExactlyOneControl(): void
     {
-        $html = $this->render($this->form->read(self::post('')), Language::English);
+        $html = $this->render($this->form->read(self::post(''), self::TOKEN), Language::English);
 
         preg_match_all('/ for="([^"]+)"/', $html, $labels);
         preg_match_all('/ id="([^"]+)"/', $html, $ids);
@@ -649,7 +719,7 @@ final class FormTest extends TestCase
     {
         $hostile = rawurlencode('"><script>alert(1)</script>');
         $html    = $this->render(
-            $this->form->read(self::post(str_replace('name=Ada', 'name=' . $hostile, self::VALID))),
+            $this->form->read(self::post(str_replace('name=Ada', 'name=' . $hostile, self::VALID)), self::TOKEN),
             Language::English,
         );
 
@@ -665,7 +735,10 @@ final class FormTest extends TestCase
      */
     public function testAPasswordIsNeverRenderedBack(): void
     {
-        $submission = $this->form->read(self::post(str_replace('email=ada%40example.org', 'email=nope', self::VALID)));
+        $submission = $this->form->read(
+            self::post(str_replace('email=ada%40example.org', 'email=nope', self::VALID)),
+            self::TOKEN,
+        );
 
         self::assertFalse($submission->isValid());
         self::assertSame('hunter2', $submission->value(FieldFixture::Password));
@@ -679,7 +752,7 @@ final class FormTest extends TestCase
      */
     public function testEverythingElseSentIsRenderedBack(): void
     {
-        $html = $this->render($this->form->read(self::post(self::VALID)), Language::English);
+        $html = $this->render($this->form->read(self::post(self::VALID), self::TOKEN), Language::English);
 
         self::assertStringContainsString('name="name" required maxlength="5" value="Ada">', $html);
         self::assertStringContainsString('name="email" required autocomplete="email" value="ada@example.org">', $html);
@@ -697,7 +770,10 @@ final class FormTest extends TestCase
      */
     public function testAnErrorIsShownAndTheControlNamesIt(): void
     {
-        $submission = $this->form->read(self::post(str_replace('email=ada%40example.org', 'email=nope', self::VALID)));
+        $submission = $this->form->read(
+            self::post(str_replace('email=ada%40example.org', 'email=nope', self::VALID)),
+            self::TOKEN,
+        );
         $english    = $this->render($submission, Language::English);
 
         self::assertStringContainsString(
@@ -724,7 +800,7 @@ final class FormTest extends TestCase
      */
     public function testAnOptionShowsItsWordsAndSendsItsKey(): void
     {
-        $german = $this->render($this->form->read(self::post(self::VALID)), Language::German);
+        $german = $this->render($this->form->read(self::post(self::VALID), self::TOKEN), Language::German);
 
         self::assertStringContainsString('<option value="">— auswählen —</option>', $german);
         self::assertStringContainsString('<option value="red">rot</option>', $german);
@@ -776,7 +852,7 @@ final class FormTest extends TestCase
     {
         return TestRequest::to(HttpMethod::Post, '/form')
             ->withServer(ServerVariable::ContentType, 'application/x-www-form-urlencoded')
-            ->withBody($body)
+            ->withBody('_csrf=' . self::TOKEN . '&' . $body)
             ->request();
     }
 
@@ -805,6 +881,7 @@ final class FormTest extends TestCase
         file_put_contents($file->path, $contents);
         $this->sent[] = $file;
 
-        return TestRequest::to(HttpMethod::Post, '/form')->withUpload(UploadFieldFixture::File, $file, $name, $error);
+        return TestRequest::to(HttpMethod::Post, '/form')->withField(CsrfField::Token, self::TOKEN)
+            ->withUpload(UploadFieldFixture::File, $file, $name, $error);
     }
 }
