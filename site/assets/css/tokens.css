@@ -10,6 +10,14 @@
   --accent: #7a3cff;
   --code-paper: #f1eee6;
 
+  /* A sample's highlighting: every colour at 4.5:1 or better on --code-paper, the branches of a tree
+     aside — they are decoration, and the entry beside them is what is read. */
+  --code-keyword: #6528d8;
+  --code-type: #0b6b72;
+  --code-call: #1f5bb8;
+  --code-string: #2a6b1a;
+  --code-branch: #aaa598;
+
   --measure: 44rem;
   --gutter: clamp(1rem, 4vw, 2rem);
 
@@ -25,6 +33,12 @@
     --rule: #2c2e35;
     --accent: #b394ff;
     --code-paper: #202228;
+
+    --code-keyword: #c3a6ff;
+    --code-type: #6fd3c9;
+    --code-call: #8ab8ff;
+    --code-string: #a8d98a;
+    --code-branch: #4c4f59;
   }
 }
 

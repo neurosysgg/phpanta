@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace PhpantaSite;
 
+use Phpanta\View\Html\Fragment;
+
 /**
- * The code samples the pages show. Code, so the same in every language; set as text, so escaped by
- * the tree like any other.
+ * The code samples the pages show. Code, so the same in every language; set as text and spans, so
+ * escaped by the tree like any other.
  */
 enum CodeSample: string
 {
@@ -20,7 +22,31 @@ enum CodeSample: string
     case Layers     = 'layers';
 
     /**
-     * The sample, as it is shown.
+     * What the sample is written in.
+     *
+     * @return SampleLanguage
+     */
+    public function language(): SampleLanguage
+    {
+        return match ($this) {
+            self::TheApp, self::APage                     => SampleLanguage::Php,
+            self::Vendoring, self::Building, self::Export => SampleLanguage::Shell,
+            self::Layout, self::TheRequest, self::Layers  => SampleLanguage::Tree,
+        };
+    }
+
+    /**
+     * The sample as it is shown: its text, highlighted as its language.
+     *
+     * @return Fragment
+     */
+    public function highlighted(): Fragment
+    {
+        return $this->language()->highlight($this->text());
+    }
+
+    /**
+     * The sample's text.
      *
      * @return string
      */

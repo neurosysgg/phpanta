@@ -82,15 +82,18 @@ final class Prose
     }
 
     /**
-     * A code sample, as one text child of `<pre>` — an element child would be put on a line of its
-     * own, which inside a `<pre>` is whitespace the reader would see.
+     * A code sample, highlighted, straight inside `<pre>`.
+     *
+     * Its spans are safe there only because text stands among them: the tree renders children with
+     * any text on one line, and would otherwise put each span on a line of its own — whitespace the
+     * reader would see. {@link SampleLanguage} always leaves the whitespace as text.
      *
      * @param CodeSample $sample
      * @return Element
      */
     public static function sample(CodeSample $sample): Element
     {
-        return new Element(ProseTag::Pre)->containing($sample->text());
+        return new Element(ProseTag::Pre)->containing($sample->highlighted());
     }
 
     /**

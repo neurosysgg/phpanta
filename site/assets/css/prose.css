@@ -61,8 +61,8 @@ code {
   font: 0.9em var(--font-code);
 }
 
-/* Code samples are text straight inside <pre>, with no <code> in between: the tree puts an element
-   child on a line of its own, which inside a <pre> is whitespace the reader would see. */
+/* Code samples are text and spans straight inside <pre>, with no <code> in between — see
+   Prose::sample() for why the spans stay on the sample's own lines. The span classes are Token's. */
 pre {
   overflow-x: auto;
   margin-block: 0 1.25rem;
@@ -70,6 +70,22 @@ pre {
   border-radius: 0.4rem;
   background: var(--code-paper);
   font: 0.88rem/1.5 var(--font-code);
+
+  .kw,
+  .var { color: var(--code-keyword); }
+
+  .ty,
+  .flag { color: var(--code-type); }
+
+  .fn { color: var(--code-call); }
+  .str { color: var(--code-string); }
+  .cmd { font-weight: 600; }
+  .tree { color: var(--code-branch); }
+
+  .com {
+    color: var(--ink-soft);
+    font-style: italic;
+  }
 }
 
 .lede {
