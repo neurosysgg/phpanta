@@ -11,4 +11,5 @@ export enum LinkRel {
   NoReferrer    = 'noreferrer',
   External      = 'external',
   Alternate     = 'alternate',
+  NoFollow      = 'nofollow',
 }

@@ -54,6 +54,9 @@ enum LinkRel: string
     /** The same page in another language, named by the link's `hreflang`. */
     case Alternate = 'alternate';
 
+    /** Asks a crawler not to follow the link — the admin's, which leads nowhere a stranger can go. */
+    case NoFollow = 'nofollow';
+
     /**
      * Several relationships as one attribute value: `noopener noreferrer external`.
      *
