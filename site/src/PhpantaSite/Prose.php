@@ -82,18 +82,14 @@ final class Prose
     }
 
     /**
-     * A code sample, highlighted, straight inside `<pre>`.
-     *
-     * Its spans are safe there only because text stands among them: the tree renders children with
-     * any text on one line, and would otherwise put each span on a line of its own — whitespace the
-     * reader would see. {@link SampleLanguage} always leaves the whitespace as text.
+     * A code sample: a `<code-block>` of `<code-line>`s, highlighted — see {@link SampleLanguage}.
      *
      * @param CodeSample $sample
      * @return Element
      */
     public static function sample(CodeSample $sample): Element
     {
-        return new Element(ProseTag::Pre)->containing($sample->highlighted());
+        return $sample->highlighted();
     }
 
     /**

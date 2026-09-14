@@ -7,14 +7,14 @@ namespace PhpantaSite;
 use Phpanta\View\Html\TagName;
 
 /**
- * The two tags prose needs that the framework's `HtmlTag` does not have: a code sample, and code.
+ * The tag prose needs that the framework's `HtmlTag` does not have: code, inline. A whole sample is
+ * a {@link CodeTag::Block}.
  *
- * Only tags: the site parses nothing, so they are never added to its vocabulary — a view builds
- * them, and `render()` writes them like any other.
+ * Only a tag: the site parses nothing, so it is never added to its vocabulary — a view builds it,
+ * and `render()` writes it like any other.
  */
 enum ProseTag: string implements TagName
 {
-    case Pre  = 'pre';
     case Code = 'code';
 
     /**

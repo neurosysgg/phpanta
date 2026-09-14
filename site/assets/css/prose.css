@@ -61,9 +61,12 @@ code {
   font: 0.9em var(--font-code);
 }
 
-/* Code samples are text and spans straight inside <pre>, with no <code> in between — see
-   Prose::sample() for why the spans stay on the sample's own lines. The span classes are Token's. */
-pre {
+/* A code sample: <code-line>s inside a <code-block>, and the tokens inside them, each named for what
+   it is (CodeTag). The block keeps its whitespace the way <pre> would; the lines are inline, with
+   the sample's own newlines between them, so copying one copies the sample exactly. */
+code-block {
+  display: block;
+  white-space: pre;
   overflow-x: auto;
   margin-block: 0 1.25rem;
   padding: 1rem 1.1rem;
@@ -71,20 +74,27 @@ pre {
   background: var(--code-paper);
   font: 0.88rem/1.5 var(--font-code);
 
-  .kw,
-  .var { color: var(--code-keyword); }
-
-  .ty,
-  .flag { color: var(--code-type); }
-
-  .fn { color: var(--code-call); }
-  .str { color: var(--code-string); }
-  .cmd { font-weight: 600; }
-  .tree { color: var(--code-branch); }
-
-  .com {
+  code-comment {
     color: var(--ink-soft);
     font-style: italic;
+  }
+
+  &[language="php"] {
+    code-keyword,
+    code-variable { color: var(--code-keyword); }
+
+    code-type { color: var(--code-type); }
+    code-call { color: var(--code-call); }
+    code-string { color: var(--code-string); }
+  }
+
+  &[language="shell"] {
+    code-command { font-weight: 600; }
+    code-flag { color: var(--code-type); }
+  }
+
+  &[language="tree"] {
+    code-branch { color: var(--code-branch); }
   }
 }
 

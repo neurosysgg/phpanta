@@ -254,6 +254,12 @@ export class CardTitle extends NestedElement {
 The check is **"somewhere inside", not "directly under"**. A card's tags can sit inside the anchor
 that has to stay a real link: `<post-card>` wraps `<a>`, which wraps `<card-title>`.
 
+The framework's own site uses it for its code samples, in
+[`site/assets/ts/elements/code/`](../site/assets/ts/elements/code/CodeBlock.ts). A `<code-line>`
+stands inside a `<code-block>`, and each token, `<code-keyword>` and the rest, inside a line. The
+server writes the whole tree, highlighted. The client registers the tags and guards where they
+stand, nothing more.
+
 A throw in `connectedCallback` does not reach whoever inserted the element. The browser reports it as
 an uncaught error, which is loud enough to notice and is how tests capture it.
 

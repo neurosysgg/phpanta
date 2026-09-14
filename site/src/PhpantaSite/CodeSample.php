@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace PhpantaSite;
 
-use Phpanta\View\Html\Fragment;
+use Phpanta\View\Html\Element;
 
 /**
- * The code samples the pages show. Code, so the same in every language; set as text and spans, so
- * escaped by the tree like any other.
+ * The code samples the pages show. Code, so the same in every language; set as text inside the
+ * {@link CodeTag} elements, so escaped by the tree like any other.
  */
 enum CodeSample: string
 {
@@ -36,11 +36,11 @@ enum CodeSample: string
     }
 
     /**
-     * The sample as it is shown: its text, highlighted as its language.
+     * The sample as it is shown: a `<code-block>` of its text, highlighted as its language.
      *
-     * @return Fragment
+     * @return Element
      */
-    public function highlighted(): Fragment
+    public function highlighted(): Element
     {
         return $this->language()->highlight($this->text());
     }
