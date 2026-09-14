@@ -31,7 +31,7 @@ use Phpanta\Support\File;
  * {@link Request} out of them with {@link Request::from()} — the same path a real request takes, so
  * what is tested is the parsing as well as the answer. Nothing touches `$_SERVER`.
  *
- * {@link self::answer()} is {@link App::handle()}: the site gate, the router, the controller and
+ * {@link self::answer()} is {@link App::handle()}: the app's layers, the router, the controller and
  * the security headers, everything but the send. What it cannot show is the server around it — a
  * body PHP drops for a HEAD, a module that compresses, a header `.htaccess` adds — which is what an
  * end-to-end check over real HTTP is still for. An answer to a HEAD for a page therefore still

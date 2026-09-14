@@ -53,11 +53,11 @@ enum ArchitectureText: string implements Translatable
     #[Translation(
         en: 'One per process, booted by the site\'s autoloader and read back with {current}. Constructing one does '
             . 'nothing, booting it twice is booting it once, and a second app is refused. The framework\'s deep code '
-            . '— the site gate, the API\'s replay serial, the health report — asks the booted app, rather than every '
+            . '— the API\'s key and replay serial, the health report — asks the booted app, rather than every '
             . 'constructor on the way down carrying the site\'s facts.',
         de: 'Eine pro Prozess, vom Autoloader der Website gebootet und mit {current} wieder gelesen. Eine zu '
             . 'konstruieren tut nichts, sie zweimal zu booten heißt, sie einmal zu booten, und eine zweite App wird '
-            . 'abgelehnt. Der tiefe Code des Frameworks — das Site-Gate, die Replay-Seriennummer der API, der '
+            . 'abgelehnt. Der tiefe Code des Frameworks — der Schlüssel und die Replay-Seriennummer der API, der '
             . 'Health-Report — fragt die gebootete App, statt dass jeder Konstruktor auf dem Weg nach unten die '
             . 'Fakten der Website mitträgt.',
     )]

@@ -28,7 +28,6 @@ use Phpanta\Http\SecurityHeaders;
 use Phpanta\Http\ServerVariable;
 use Phpanta\Http\SessionSeal;
 use Phpanta\Model\Health\Requirement;
-use Phpanta\Service\Layer\SiteGate;
 use Phpanta\Support\AdminPath;
 use Phpanta\Support\Collection;
 use Phpanta\Support\Directory;
@@ -49,7 +48,7 @@ use Throwable;
  *
  * A site is a subclass — the framework's own suite runs under one, `TestApp` — and there is exactly
  * one per process, booted by the entry point and read back with {@link self::current()}. That is a
- * static in all but name, and deliberately so: the framework's deep code (the site gate, the API's
+ * static in all but name, and deliberately so: the framework's deep code (the API's key and
  * serial, the health report) needs the site's facts at the bottom of a call chain that never had a
  * reason to carry them, and threading an object through every constructor on the way down would
  * change forty signatures to move nine facts.
@@ -320,8 +319,8 @@ abstract class App
     }
 
     /**
-     * What the site stands around every request, outermost first, inside the framework's site gate.
-     * Nothing by default.
+     * What the site stands around every request, outermost first. Nothing by default, and the
+     * framework adds nothing of its own.
      *
      * Listed here and nowhere else — a maintenance switch, a header every answer carries. What
      * stands around one route is that route's to list, with {@link Route::through()}. See
@@ -635,24 +634,26 @@ abstract class App
     }
 
     /**
-     * What stands around every request, outermost first: the framework's site gate, then the
-     * site's own.
+     * What stands around every request, outermost first: the site's own {@link self::layers()},
+     * and nothing of the framework's.
      *
-     * The site gate is the framework's to put first, so no site can forget it or list something
-     * ahead of it that should have been behind it. See {@link Controller\Layer}.
+     * Public and final where {@link self::layers()} is neither, so that {@link self::handle()} and
+     * a static export wrap the router in the same list. The framework puts no gate here: a Basic
+     * one would stand in front of the admin, whose signed calls need the request's one
+     * `Authorization` header. See {@link Controller\Layer}.
      *
      * @return Collection<Layer>
      */
     final public function layerTable(): Collection
     {
-        return new Collection(Layer::class)->with(new SiteGate(), ...$this->layers()->toValues());
+        return $this->layers();
     }
 
     /**
      * What this app answers $request with, sending nothing.
      *
-     * The pre-launch gate's refusal if it has one, and the route's answer otherwise, with the
-     * security headers ahead of everything — the whole of a request but the process around it.
+     * The answer of the app's layers and the route inside them, with the security headers ahead of
+     * everything — the whole of a request but the process around it.
      * {@link self::run()} is this and a `send()`; a test is this and an assertion.
      *
      * @param Request $request

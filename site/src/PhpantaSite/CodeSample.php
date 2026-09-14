@@ -133,7 +133,7 @@ enum CodeSample: string
                        ├─ SecurityHeaders::send()     CSP, HSTS, Permissions-Policy, COOP, CORP — before anything can fail
                        ├─ Request::fromGlobals()      $_SERVER → a typed, readonly Request
                        ├─ App::handle()               the request → an Answer, sending nothing
-                       │    ├─ SiteGate, App::layers()  what stands around every route: a layer answers, or hands on
+                       │    ├─ App::layers()            what stands around every route: a layer answers, or hands on
                        │    ├─ Router::dispatch()       the path → a route → its method gate → its layers → a controller
                        │    └─ Response::answer()       status, headers and body — the security headers first
                        └─ Answer::send()              the one place anything is sent

@@ -28,9 +28,9 @@ use Phpanta\Support\BareArray;
  * {@link self::NS1}'s single opaque token in {@link self::parameters()}, instead of as `explode()`
  * calls in the middle of building a request.
  *
- * The two cannot both be satisfied by one request, since a request carries one `Authorization`.
- * That is the known interaction any Basic gate a site builds has with the pre-launch site gate, and
- * it reaches {@link self::NS1} the same way — see {@link \Phpanta\Service\ApiGate}.
+ * The two cannot both be satisfied by one request, since a request carries one `Authorization` —
+ * which is why a Basic gate goes on a route and never around the app: there it would stand in
+ * front of the admin, and no {@link self::NS1} call could pass it. See {@link \Phpanta\Service\Auth}.
  */
 enum AuthScheme: string
 {

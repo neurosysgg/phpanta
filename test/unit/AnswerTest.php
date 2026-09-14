@@ -28,7 +28,6 @@ use Phpanta\Http\ServerVariable;
 use Phpanta\Http\SetCookie;
 use Phpanta\Http\TextBody;
 use Phpanta\Router;
-use Phpanta\Service\Auth;
 use Phpanta\Support\Collection;
 use Phpanta\Support\File;
 use Phpanta\Test\TestRequest;
@@ -39,7 +38,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * What goes on the wire, asserted in-process: every response returns an {@link Answer}, and
- * {@link App::handle()} answers a whole request — gate, router, controller, security headers —
+ * {@link App::handle()} answers a whole request — layers, router, controller, security headers —
  * without sending anything.
  */
 #[CoversClass(Answer::class)]
@@ -52,7 +51,6 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(ServerVariable::class)]
 #[CoversClass(Request::class)]
 #[CoversClass(RequestHeader::class)]
-#[CoversClass(Auth::class)]
 #[CoversClass(App::class)]
 #[CoversClass(Router::class)]
 #[CoversClass(UnroutedController::class)]
@@ -173,42 +171,6 @@ final class AnswerTest extends TestCase
         yield 'the old API'           => ['POST', '/api/update/v1/patch'];
         yield 'the admin, unsigned'   => ['POST', '/admin/update/v1/patch'];
         yield 'the admin, a read'     => ['GET', '/admin/update/v1/version'];
-    }
-
-    // ───────────────────────── the pre-launch gate ─────────────────────────
-
-    /**
-     * With a credentials file, the gate refuses anything but its own pair with the app's challenge,
-     * and no body; with the right pair, or with no file at all, it stands aside.
-     *
-     * @return void
-     */
-    public function testTheSiteGateRefusesWithTheAppsChallengeAndOtherwiseStandsAside(): void
-    {
-        $file = new File("$this->scratch/site_auth.php");
-        $file->write('<?php return ' . var_export([
-            'user'      => 'preview',
-            'pass_hash' => password_hash('hunter2', PASSWORD_BCRYPT, ['cost' => 4]),
-        ], true) . ';');
-
-        $wrong   = TestRequest::get('/')->withCredentials('preview', 'wrong')->request();
-        $refusal = Auth::siteGate($wrong, $file);
-
-        self::assertNotNull($refusal);
-
-        $answer = $refusal->answer($wrong);
-
-        self::assertSame(HttpStatusCode::Unauthorized, $answer->status());
-        self::assertSame(
-            'Basic realm="phpanta"',
-            $answer->header(ResponseHeader::WwwAuthenticate)?->value->render(),
-        );
-        self::assertSame('', $answer->body());
-
-        $right = TestRequest::get('/')->withCredentials('preview', 'hunter2')->request();
-
-        self::assertNull(Auth::siteGate($right, $file));
-        self::assertNull(Auth::siteGate($wrong, new File("$this->scratch/absent.php")));
     }
 
     // ───────────────────────── the responses ─────────────────────────

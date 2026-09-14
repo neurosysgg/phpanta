@@ -9,7 +9,7 @@ namespace Phpanta\Model\Update;
  *
  * **This enum is the allowlist.** A member name whose first segment is not one of these values —
  * and `data` conspicuously is not — reaches no destination at all, which is what keeps
- * `data/admin.php`, `data/site_auth.php` and whatever else a site keeps in `data/` out of reach
+ * `data/admin.php`, `data/update.pub` and whatever else a site keeps in `data/` out of reach
  * of any push, however well signed. That is a stronger guarantee than a path check, because there
  * is no destination to compute rather than a destination that is computed and then rejected.
  *

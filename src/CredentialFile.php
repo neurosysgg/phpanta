@@ -5,17 +5,19 @@ declare(strict_types=1);
 namespace Phpanta;
 
 /**
- * The CredentialFile enum. The five files in `data/` the framework itself reads: the two gates'
+ * The CredentialFile enum. The four files in `data/` the framework itself reads: the admin gate's
  * credentials, the admin's signing key, the key sessions are sealed with, and the devices that may
  * open the admin in a browser.
  *
  * **Every one of them changes what the site does rather than what it shows**, which is why they
- * are the framework's rather than a site's: the site gate, the admin gate and the signed API are
- * framework code, and each is switched by whether its file is there. Two of the three are switched
- * in opposite directions, and that is the thing to read twice — see {@link self::SiteAuth} and
- * {@link self::UpdateKey}.
+ * are the framework's rather than a site's: the admin gate, the signed API and the admin's browser
+ * sessions are framework code, and each is switched by whether its file is there.
  *
- * All five hold live credentials, so a full deploy excludes all five; each that a deployment needs is
+ * **Every one of them fails closed**, and that is the arrangement to keep. A misspelled case reads
+ * as "no such file", so absence must never be the open state: without its file the admin gate
+ * refuses loudly, no signed call verifies, no session opens and no device is enrolled.
+ *
+ * All four hold live credentials, so a full deploy excludes all four; each that a deployment needs is
  * uploaded, minted or enrolled by hand.
  */
 enum CredentialFile: string implements DataFileName
@@ -24,26 +26,14 @@ enum CredentialFile: string implements DataFileName
     case Admin = 'admin.php';
 
     /**
-     * The pre-launch site gate's credentials, whose **absence is the off switch**.
-     *
-     * The one file here whose presence changes what the site does rather than what it shows, which
-     * makes it the one where a misspelling is not merely quiet but inverted: a typo reads as "no
-     * such file", and no such file means the gate stands down.
-     */
-    case SiteAuth = 'site_auth.php';
-
-    /**
      * The ECDSA public key the admin verifies every signed call against — the public half, and only
      * ever that.
      *
-     * **Its absence is the off switch, which is {@link self::SiteAuth}'s arrangement with the
-     * polarity reversed.** No key file, no signed call verifies: {@link Service\ApiGate} refuses
-     * every request, and {@link Controller\ApiController} gives each the one answer a caller it
-     * cannot verify gets — the entrance, and nothing past it. So a fresh clone, and every machine
-     * that has not deliberately been given
-     * a key, is in the safe state rather than the open one — the opposite of the site gate, where
-     * absence stands the gate *down*. Worth reading twice, because the two files look alike and mean
-     * opposite things.
+     * **Its absence is the off switch, and off is closed.** No key file, no signed call verifies:
+     * {@link Service\ApiGate} refuses every request, and {@link Controller\ApiController} gives each
+     * the one answer a caller it cannot verify gets — the entrance, and nothing past it. So a fresh
+     * clone, and every machine that has not deliberately been given a key, is in the safe state
+     * rather than the open one.
      *
      * Untracked and excluded from a full deploy, like {@link self::Admin}'s live hashes: each
      * deployment holds its own key, which is what binds a payload to a deployment without any field

@@ -10,14 +10,15 @@ gates, cookies, data and hosting are its own, and belong in its own documents.
 A site's webroot redirects `http://` to `https://` before any PHP runs — that is a line of the
 site's server configuration, not of the framework — and `Strict-Transport-Security` (one year,
 `includeSubDomains`, by default) tells the browser never to try plaintext again. Both halves are
-load-bearing and neither is optional: `Auth`'s two gates are HTTP Basic, Basic is base64 rather than
-encryption, and the pre-launch gate runs on **every request that reaches PHP**. A request that
-arrives in plaintext has already put its credentials on the wire — the redirect fixes the *next*
-request, and HSTS removes there being a next plaintext one at all.
+load-bearing and neither is optional: a Basic gate — `AdminGate`, or one a site builds on `Auth` —
+sends its credential with every request behind it, Basic is base64 rather than encryption, and the
+admin's browser session is a cookie that opens the admin. A request that arrives in plaintext has
+already put its credentials on the wire — the redirect fixes the *next* request, and HSTS removes
+there being a next plaintext one at all.
 
-Read "every request that reaches PHP" literally. A webroot that passes real files through before its
-rewrite to `index.php` serves **static assets without either gate**, so while the pre-launch gate is
-up it covers the documents and not `/assets/**`. It is written down because "the gate runs on every
+Read "a request that reaches PHP" literally. A webroot that passes real files through before its
+rewrite to `index.php` serves **static assets without any layer or gate**, so a layer an app lists
+covers the documents and not `/assets/**`. It is written down because "the layer runs on every
 request" is the kind of sentence that gets relied on later. `SecurityHeaders` records the same fact
 for its own half: static assets never reach PHP, so they get no security headers either.
 
@@ -549,7 +550,7 @@ one-shot. P-256 was verified end to end on a live shared host before it was reli
 `PublicKey` accepts that curve and no other: an EC key on P-384 or secp112r1 parses and verifies a
 SHA-256 signature just as happily, which would widen the algorithm without anybody having decided to.
 
-**Its absence is the off switch, with the opposite polarity to `data/site_auth.php`.** No key file,
+**Its absence is the off switch, and off is closed.** No key file,
 no signed call verifies, for anyone, forever: the entrance still answers, and every stranger still
 gets the one answer, but there is nobody the gate lets past, and no device can be enrolled — and a
 deployment holding no key does no verification work at all. A browser whose device was enrolled

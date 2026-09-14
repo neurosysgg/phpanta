@@ -12,8 +12,7 @@ use Phpanta\Exception\SecurityPolicyException;
  * `Basic realm="…"`, and the quotes around the realm are grammar rather than decoration — the same
  * reason {@link ETag} owns its own. What makes it worth a type beyond that is the realm itself:
  * **the browser keys stored credentials by realm**, so two challenges differing by a character are
- * two separate password prompts to the same visitor, and neither the site gate nor the admin gate
- * would look wrong on its own.
+ * two separate password prompts to the same visitor, and neither would look wrong on its own.
  *
  * Only `Basic` is offered because only Basic is used, and because the scheme is not a detail to
  * pass in: a `Digest` or `Bearer` challenge has a different grammar and would be a different named
@@ -76,9 +75,9 @@ final readonly class BasicChallenge implements HeaderValue
     /**
      * Constructs an instance of {@link self}.
      *
-     * @param string $realm What the browser labels and keys the saved credentials by. The site and
-     *                      admin gates pass {@link \Phpanta\App::name()}; a gate a site builds
-     *                      may pass that plus a slug of its own.
+     * @param string $realm What the browser labels and keys the saved credentials by. A gate a site
+     *                      builds may pass the app's name plus a slug of its own, encoded; a name
+     *                      nobody has checked goes through {@link self::encoding()} instead.
      *
      * @throws SecurityPolicyException if it is empty or holds anything but `qdtext`.
      */
@@ -91,6 +90,29 @@ final readonly class BasicChallenge implements HeaderValue
                 $this->realm,
             ));
         }
+    }
+
+    /**
+     * A challenge whose realm is $text with every byte `qdtext` refuses percent-encoded, `%` itself
+     * included — so `Café "Lab"` is the realm `Caf%C3%A9 %22Lab%22`, and a plain name is itself.
+     *
+     * For a realm this code did not choose: the admin gate's is {@link \Phpanta\App::name()}, which a
+     * site writes for its page titles and may well spell with an accent. Refusing that in the
+     * constructor would make every 401 a 500, on the one door that exists to answer 401s. Still
+     * refused when empty, which no encoding can repair.
+     *
+     * @param string $text
+     * @return self
+     *
+     * @throws SecurityPolicyException if $text is empty.
+     */
+    public static function encoding(string $text): self
+    {
+        return new self(preg_replace_callback(
+            '/[^\t\x20\x21\x23\x24\x26-\x5B\x5D-\x7E]/',
+            static fn(array $byte): string => sprintf('%%%02X', ord($byte[0])),
+            $text,
+        ));
     }
 
     /**

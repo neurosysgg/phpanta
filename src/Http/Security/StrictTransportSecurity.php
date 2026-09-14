@@ -16,8 +16,8 @@ use Phpanta\Http\HeaderValue;
  * read. The redirect in `public/.htaccess` is the other half: that one fixes the *current* request,
  * this one stops there being a next one.
  *
- * It matters more here than on a site with nothing to log into. Both gates are HTTP Basic — and the
- * pre-launch one runs on *every* request, not just an admin route — and Basic is base64, which is a
+ * It matters more here than on a site with nothing to log into. A Basic gate — the admin's, or one
+ * a site builds — sends its credential with every request behind it, and Basic is base64, which is a
  * transport encoding and not encryption. Sent in plaintext the credentials are simply legible to
  * anyone on the path, and a redirect cannot help: by the time it is received the `Authorization`
  * header has already crossed the wire.

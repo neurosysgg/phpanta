@@ -16,8 +16,8 @@ use Phpanta\Support\File;
  *
  * It exists because "did my push land" had no cheap answer. The old one was to `curl` the home page
  * and read the build stamp out of a `<script src>` — which works, needs no key, and tells you
- * nothing at all when the app is behind the pre-launch gate or when the thing that broke is why
- * the home page will not render.
+ * nothing at all when the home page is behind a gate or when the thing that broke is why it will
+ * not render.
  *
  * **Three facts, chosen because between them they answer that question and no more.** The serial
  * says which push was last accepted; the entry URL carries the build stamp, which is the one thing

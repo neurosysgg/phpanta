@@ -26,7 +26,6 @@ use Phpanta\Router;
 use Phpanta\Service\Layer\AdminGate;
 use Phpanta\Service\Layer\Cors;
 use Phpanta\Service\Layer\Maintenance;
-use Phpanta\Service\Layer\SiteGate;
 use Phpanta\Service\Layer\TrailingSlash;
 use Phpanta\Support\Collection;
 use Phpanta\Support\File;
@@ -48,7 +47,6 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(App::class)]
 #[CoversClass(WithHeaders::class)]
 #[CoversClass(Answer::class)]
-#[CoversClass(SiteGate::class)]
 #[CoversClass(AdminGate::class)]
 #[CoversClass(Maintenance::class)]
 #[CoversClass(TrailingSlash::class)]
@@ -225,32 +223,26 @@ final class LayerTest extends TestCase
     // ───────────────────────── the app's ─────────────────────────
 
     /**
-     * The framework's site gate stands first around every request, and an app that lists nothing
-     * of its own has nothing else there.
+     * The framework stands nothing of its own around every request: an app that lists no layers
+     * has nothing between the request and the router.
      *
      * @return void
      */
-    public function testTheSiteGateStandsFirstAroundEveryRequest(): void
+    public function testAnAppThatListsNoLayersHasNothingAroundTheRouter(): void
     {
-        $layers = App::current()->layerTable();
-
-        self::assertCount(1, $layers);
-        self::assertInstanceOf(SiteGate::class, $layers->first());
+        self::assertTrue(App::current()->layerTable()->isEmpty());
     }
 
     /**
-     * Both credential gates answer the wrong pair with the app's challenge, and let the right one
+     * The admin gate answers the wrong pair with the app's challenge, and lets the right one
      * through to whatever is next.
      *
-     * @param string $gate
      * @return void
      */
-    #[DataProvider('gateProvider')]
-    public function testAGateLayerRefusesTheWrongPairAndPassesTheRightOne(string $gate): void
+    public function testTheAdminGateRefusesTheWrongPairAndPassesTheRightOne(): void
     {
-        $file  = $this->credentials('preview', 'hunter2');
-        $layer = $gate === 'site' ? new SiteGate($file) : new AdminGate($file);
-        $core  = Layered::around(new Collection(Layer::class)->with($layer), new EchoController('behind'));
+        $file = $this->credentials('preview', 'hunter2');
+        $core = Layered::around(new Collection(Layer::class)->with(new AdminGate($file)), new EchoController('behind'));
 
         $wrong   = TestRequest::get('/')->withCredentials('preview', 'wrong')->request();
         $refusal = $core->handle($wrong)->answer($wrong);
@@ -260,15 +252,6 @@ final class LayerTest extends TestCase
 
         $right = TestRequest::get('/')->withCredentials('preview', 'hunter2')->request();
         self::assertSame('behind GET', $core->handle($right)->answer($right)->body());
-    }
-
-    /**
-     * @return iterable<string, array{string}>
-     */
-    public static function gateProvider(): iterable
-    {
-        yield 'the site gate'  => ['site'];
-        yield 'the admin gate' => ['admin'];
     }
 
     // ───────────────────────── maintenance ─────────────────────────

@@ -29,10 +29,6 @@ use PHPUnit\Framework\TestCase;
  * `hash_equals()` nor `password_verify()` runs — an end-to-end check that an admin route answers
  * 401 proves the route is gated without ever comparing a credential. These tests write a real
  * bcrypt hash into a credentials file of their own, so the comparison itself is what is under test.
- *
- * The site gate's refusal, its right pair and its absent file are {@link AnswerTest}'s, which
- * asserts them through the answer; what is here is the admin gate beside it and the decision both
- * of them ask.
  */
 #[CoversClass(Auth::class)]
 #[CoversClass(PasswordHash::class)]
@@ -69,7 +65,7 @@ final class AuthTest extends TestCase
     // ───────────────────────────── fixtures ─────────────────────────────
 
     /**
-     * A credentials file of the shape both gates read.
+     * A credentials file of the shape the admin gate reads.
      *
      * Cost 4 is bcrypt's minimum and keeps the suite fast; `password_verify()` reads the cost out
      * of the hash, so this exercises exactly the same code path a production hash does.
@@ -108,6 +104,22 @@ final class AuthTest extends TestCase
     private static function hash(string $password): PasswordHash
     {
         return new PasswordHash(password_hash($password, PASSWORD_BCRYPT, ['cost' => 4]));
+    }
+
+    // ───────────────────────────── the realm ─────────────────────────────
+
+    /**
+     * A realm this code did not choose is encoded rather than refused: a plain name is itself, and
+     * an accent, a quote or a `%` becomes a percent-escape — so an app named with any of them still
+     * answers a 401, not a 500.
+     *
+     * @return void
+     */
+    public function testARealmNobodyCheckedIsEncodedRatherThanRefused(): void
+    {
+        self::assertSame('Basic realm="phpanta"', BasicChallenge::encoding('phpanta')->render());
+        self::assertSame('Basic realm="Caf%C3%A9 %22Lab%22"', BasicChallenge::encoding('Café "Lab"')->render());
+        self::assertSame('Basic realm="100%25 a%5C"', BasicChallenge::encoding('100% a\\')->render());
     }
 
     // ───────────────────────────── the decision ─────────────────────────────

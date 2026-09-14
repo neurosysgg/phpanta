@@ -125,3 +125,25 @@ cannot sign, sees the entrance and nothing else.
 and of the entrance, that it was "a `200` that says only that everything there needs a credential".
 `ApiAction::fromBrowser()` was "false only for `update v1 patch`". CLAUDE.md's trap read:
 `data/update.pub` absent means the admin lets nobody past its entrance.
+
+## The pre-launch gate goes
+
+### 2026-09-14 — nothing of the framework's stands around every request
+
+*From architecture.md's "③ The pre-launch gate" and "Layers".*
+
+`App::layerTable()` put the framework's `SiteGate` first, ahead of anything a site listed, so that no
+site could forget it or list something ahead of it. A fresh-eyes review found the cost: standing
+first on every request, it stood in front of `/admin` too, and while `data/site_auth.php` existed no
+signed call could pass — `NS1` and Basic share the one `Authorization` header. It was removed rather
+than taught to stand aside for a verified signature, since a site that wants a password on its
+pages has `LoginGate`, on the routes it guards. With it went the one credential file whose absence
+was the open state.
+
+architecture.md said:
+
+> [`SiteGate`], the first of the app's layers, asks `Auth::siteGate()`, which checks for
+> `data/site_auth.php`. Refusing, it returns the `401` as a response, which is then the answer in the
+> router's place. If the file is absent it returns null immediately — *that absence is how the gate
+> is switched off*, and a site gitignores the file precisely so the repository's copy cannot switch it
+> on. It is also why a misspelled `DataFileName` case there would not fail but stand the gate down.

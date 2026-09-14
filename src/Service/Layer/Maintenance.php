@@ -22,8 +22,8 @@ use Phpanta\Text\FrameworkText;
 /**
  * The Maintenance layer. A 503 for every page while a switch file exists — and never for the admin.
  *
- * **The switch is a file, and absent means off**, the same polarity as the site gate's
- * `data/site_auth.php`: a deployment that has never heard of maintenance is not in it. A site lists
+ * **The switch is a file, and absent means off**: a deployment that has never heard of maintenance
+ * is not in it. A site lists
  * the layer in {@link App::layers()} with the file it chooses, and switching maintenance on is
  * uploading that file.
  *

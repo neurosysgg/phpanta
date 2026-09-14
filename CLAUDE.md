@@ -80,13 +80,12 @@ Each of these replaces a habit that fails silently with one that fails loudly.
 - **A data file is `App::current()->dataFile(X)`, a `File`**, named by a `DataFileName` case. A
   suppressed diagnostic is `Diagnostics::muted()`, never `@`.
 - **What stands around a controller is listed, never discovered.** An app's layers are
-  `App::layers()`, inside the framework's `SiteGate`, which is always first; a route's are
-  `->through(…)`, and run only past its method gate. A gate belongs on the route, not in the
-  controller. [architecture.md](docs/architecture.md#layers)
+  `App::layers()`, and the framework adds none of its own; a route's are `->through(…)`, and run
+  only past its method gate. A gate belongs on the route, not in the controller and not around the
+  app. [architecture.md](docs/architecture.md#layers)
 - **Nothing ends the request but `App::run()`; every decision returns.** A response's `answer()`
   is an `Answer`, `App::handle()` answers a whole request without sending it, and a gate's refusal
-  is a value it returns, `#[\NoDiscard]` — `Auth::siteGate()`, `Auth::adminGate()` — which the
-  caller returns in turn. A test builds the request with `Phpanta\Test\TestRequest`. Never `exit`.
+  is a value it returns, `#[\NoDiscard]` — `Auth::adminGate()` — which the caller returns in turn. A test builds the request with `Phpanta\Test\TestRequest`. Never `exit`.
 
 ## Traps
 
@@ -126,10 +125,10 @@ These fail silently — no error, no log, a page that looks fine.
   turns into a 413 from the sender's `Content-Length`, rather than a form that sent nothing.
 
 **The API and deploying**
-- **`data/update.pub` absent means no signed call verifies and no device can be enrolled;
-  `data/site_auth.php` absent means the site gate is off.** The two files look alike and have
-  opposite polarity. `data/admin-passkeys.json` absent means no device is enrolled — per deployment,
-  written only by `access v1 enrol` and `revoke`, and never shipped.
+- **Every credential file fails closed: `data/update.pub` absent means no signed call verifies and
+  no device can be enrolled; `data/admin-passkeys.json` absent means no device is enrolled** — per
+  deployment, written only by `access v1 enrol` and `revoke`, and never shipped. Keep it that way:
+  a misspelled case reads as absent.
 - **Passkeys are off unless the app names its origin** (`App::origin()`, never `Host`) **and the
   deployment has `data/session.key`.** In development from loopback only, the request's `Origin`
   comes first — before the app's — so a local copy runs a real ceremony where it is served. Otherwise the entrance says browsers cannot sign in, and nothing fails.
@@ -168,7 +167,9 @@ These fail silently — no error, no log, a page that looks fine.
   except at the admin, which then lets no browser in. A session cookie that does not open is no
   session, not an error. `CsrfGuard` and `LoginGate` go on routes, never on the app — as app layers
   they would stand in front of the admin, refusing a signed write for the form token it does not
-  carry and answering a stranger with a login page. The admin checks a browser's token itself.
+  carry and answering a stranger with a login page. `AdminGate` likewise: in front of the admin it
+  would take the one `Authorization` header a signed call needs. The admin checks a browser's token
+  itself.
 - **A trace is shown only in development, and only to loopback.** Development is the server
   variable `PHPANTA_ENVIRONMENT=development`, exactly — `SetEnv` in a vhost, or the dev router for
   `php -S`, which hands its own environment to nothing. Any other value, a capital included, is

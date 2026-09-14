@@ -89,7 +89,7 @@ final readonly class ApiGate
      * Constructs an instance of {@link self}.
      *
      * @param File|null $key Where the public key lives. The parameter is a test seam, the way
-     *                       {@link Auth::siteGate()}'s is; production passes nothing.
+     *                       {@link Auth::adminGate()}'s is; production passes nothing.
      * @param File|null $serial Where the last accepted serial is recorded. Same.
      */
     public function __construct(private ?File $key = null, private ?File $serial = null) {}

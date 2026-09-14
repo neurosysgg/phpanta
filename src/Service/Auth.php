@@ -21,47 +21,36 @@ use Phpanta\Support\PasswordHash;
 /**
  * The Auth class. Provides HTTP Basic Authentication gates for an app.
  *
- * **A gate returns its refusal; it never ends the request.** {@link self::siteGate()} and
- * {@link self::adminGate()} answer the 401 as a {@link Response}, or null to let the request
- * through, and the caller returns it — so a refusal is a value a test can hold, and nothing but
- * {@link \Phpanta\App::run()} sends anything. Both carry `#[\NoDiscard]`, because the one way to
- * get this wrong is a call whose result goes nowhere, and that is a door left open. The decision
- * itself is {@link self::accepts()}, and the gates are only the challenge around it.
+ * **A gate returns its refusal; it never ends the request.** {@link self::adminGate()} answers the
+ * 401 as a {@link Response}, or null to let the request through, and the caller returns it — so a
+ * refusal is a value a test can hold, and nothing but {@link \Phpanta\App::run()} sends anything. It
+ * carries `#[\NoDiscard]`, because the one way to get this wrong is a call whose result goes
+ * nowhere, and that is a door left open. The decision itself is {@link self::accepts()}, and the
+ * gate is only the challenge around it.
  *
  * That split is what lets a test reach the comparison at all. An unconfigured `data/admin.php`
  * holds an empty `pass_hash`, so the guard short-circuits and neither `hash_equals()` nor
  * `password_verify()` is reached — which means an end-to-end check that an admin route answers 401
  * proves the route is gated, not that the comparison works.
  *
- * **Two gates here, and any number built on them, differing in where the credential comes from
- * rather than in what is done with it.** The site gate and the admin gate read a `data/` file
- * returning a user and a hash. A site's own gate brings its own credential — a
- * {@link PasswordHash} per protected item, say — and asks {@link self::matches()} and
- * {@link self::challenge()}, which are public for that reason. So every gate still ends up in
- * {@link self::matches()}, and that is still the only place a credential is compared.
+ * **One gate here, and any number built on it, differing in where the credential comes from rather
+ * than in what is done with it.** The admin gate reads a `data/` file returning a user and a hash.
+ * A site's own gate brings its own credential — a {@link PasswordHash} per protected item, say — and
+ * asks {@link self::matches()} and {@link self::challenge()}, which are public for that reason. So
+ * every gate still ends up in {@link self::matches()}, and that is still the only place a credential
+ * is compared.
+ *
+ * **A Basic gate goes on a route, never around the app.** A request carries one `Authorization`, so
+ * a Basic gate in front of every request would stand in front of the admin as well, and no signed
+ * call could carry both the password and its signature.
  */
 class Auth
 {
     /**
-     * The challenge the two file-backed gates answer a 401 with.
-     *
-     * One value rather than the same one built twice: the browser keys stored credentials by realm,
-     * so two challenges differing by a character are two separate prompts to the same visitor.
-     * {@link BasicChallenge} owns the quoting around the realm, which is grammar rather than
-     * decoration.
-     *
-     * @return BasicChallenge
-     */
-    private static function challengeValue(): BasicChallenge
-    {
-        return new BasicChallenge(App::current()->name());
-    }
-
-    /**
      * True if $request carries the credentials $file holds.
      *
-     * Both file-backed gates ask the same question of the same shape of file, so they ask it in one
-     * place. The comparison itself is {@link self::matches()}.
+     * The admin gate asks it of `data/admin.php`, and a site's own gate may ask it of a file of its
+     * own, so it is asked in one place. The comparison itself is {@link self::matches()}.
      *
      * @param Request $request The request whose Basic Auth credentials to check.
      * @param File    $file    A credentials file returning `['user' => …, 'pass_hash' => …]`.
@@ -116,33 +105,11 @@ class Auth
     }
 
     /**
-     * The site-wide pre-launch gate: the 401 a request is refused with, or null to let it through.
-     *
-     * Null for the right credentials, and null — without reading anything — when the credentials
-     * file is absent: that absence is how pre-launch auth is switched off, and `data/site_auth.php`
-     * is gitignored precisely so the repo copy cannot switch it on.
-     *
-     * @param Request   $request The incoming request.
-     * @param File|null $file    The credentials file; defaults to `data/site_auth.php`.
-     * @return Response|null
-     */
-    #[NoDiscard('the refusal is only sent if it is returned; dropping it is a door left open')]
-    public static function siteGate(Request $request, ?File $file = null): ?Response
-    {
-        $file ??= App::current()->dataFile(CredentialFile::SiteAuth);
-
-        if (!$file->exists()) {
-            return null;
-        }
-
-        return self::accepts($request, $file) ? null : self::challenge(self::challengeValue());
-    }
-
-    /**
      * The admin gate: the 401 a request is refused with, or null to let it through.
      *
-     * Unlike the site gate there is no absent-file case: a missing `data/admin.php` is a broken
-     * deployment, and `require` says so loudly rather than leaving the admin routes open.
+     * There is no absent-file case: a missing `data/admin.php` is a broken deployment, and
+     * `require` says so loudly rather than leaving the admin routes open. The realm is the app's
+     * name, encoded — see {@link BasicChallenge::encoding()}.
      *
      * A controller behind it returns the refusal as its own response —
      * `if (($refusal = Auth::adminGate($request)) !== null) { return $refusal; }` — and nothing
@@ -157,7 +124,7 @@ class Auth
     {
         return self::accepts($request, $file ?? App::current()->dataFile(CredentialFile::Admin))
             ? null
-            : self::challenge(self::challengeValue());
+            : self::challenge(BasicChallenge::encoding(App::current()->name()));
     }
 
     /**

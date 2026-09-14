@@ -8,7 +8,7 @@ Every test named below is in `test/unit/`; [testing.md](testing.md) says what ea
 
 A site is a subclass of `Phpanta\App`, and there is exactly one per process, booted by the site's
 autoloader and read back with `App::current()`. It is how a site's facts reach the framework: the
-site gate, the API's serial, the health report and the CSP all sit at the bottom of call chains that
+API's key and serial, the health report and the CSP all sit at the bottom of call chains that
 never had a reason to carry those facts, and asking the booted app is what lets them stay that way.
 The framework's own tests boot `Phpanta\Test\TestApp` — the smallest thing that is one — from
 `test/bootstrap.php`.
@@ -139,15 +139,14 @@ case earns a place on `ServerVariable` when that derivation cannot reach the nam
 `DOCUMENT_ROOT` are CGI's) or when the reader has no `Request` to ask — an `ApiHandler` takes none by
 construction, since everything it may act on is signed.
 
-### ③ The pre-launch gate
+### ③ The app's layers
 
-[`SiteGate`](../src/Service/Layer/SiteGate.php), the first of the app's [layers](#layers), asks
-[`Auth::siteGate()`](../src/Service/Auth.php), which checks for `data/site_auth.php`. Refusing, it
-returns the `401` as a response, which is then the answer in the router's place. If
-the file is absent it returns null immediately — *that absence is how the gate is switched off*, and a
-site gitignores the file precisely so the repository's copy cannot switch it on. It is also why a
-misspelled `DataFileName` case there would not fail but stand the gate down. `TestApp`'s deployment
-holds no `data/` at all, so the request walks through.
+[`App::layerTable()`](../src/App.php) is the site's own [layers](#layers), outermost first, folded
+around the router by [`Layered::around()`](../src/Controller/Layered.php). A layer may answer in the
+router's place — a maintenance `503`, say — or hand the request on and see the answer on its way
+back. The framework lists none of its own: a gate belongs on the route it guards, and a Basic gate
+in front of every request would stand in front of the admin too, whose signed calls need the one
+`Authorization` header a request has. `TestApp` lists nothing, so the request walks straight through.
 
 ### ④ Routing
 
@@ -277,20 +276,20 @@ to see the response.
 
 They are listed in two places, and discovered in none:
 
-- **Around every request**, `App::layerTable()`: the framework's `SiteGate`, always first, so no site
-  can forget it or put something ahead of it; then the site's own `App::layers()`; and inside them,
-  the router.
+- **Around every request**, `App::layerTable()`: the site's own `App::layers()`, and inside them,
+  the router. The framework puts nothing there of its own.
 - **Around one route**, `Route::through()`: around that route's controller only, and only past its
   method gate — a `POST` a read-only route refuses never reaches them. A gate belongs here rather than
   in the controller, so the password is written where the address is and the route table is where a
   test asks whether a page is behind one.
 
-Six ship with the framework, in `Service/Layer/`:
+Seven ship with the framework, in `Service/Layer/`:
 
-- `SiteGate`, the pre-launch gate;
 - `AdminGate`, the admin gate for a route;
+- `CsrfGuard` and `LoginGate`, a form's token and a page behind a login — see
+  [login.md](login.md);
 - `Maintenance`, a `503` that no cache keeps for every page while a switch file exists — absent means
-  off, like the site gate's — and never for the admin, because a push is how maintenance usually
+  off — and never for the admin, because a push is how maintenance usually
   ends. It recognises the admin by its routes' own match, `App::adminRoutes()`, never by a prefix;
 - `TrailingSlash`, one address per page: a read of `/x/` is a 308 to `/x`, the query kept — never a
   write, and never an address that trims into another host;
@@ -303,6 +302,8 @@ Six ship with the framework, in `Service/Layer/`:
   file per key under a directory the caller supplies, and a `ThrottleException` rather than an
   allowance when that directory is missing or unwritable. It keys by the remote address, the only
   identity an anonymous request has, so behind a reverse proxy every visitor shares the proxy's.
+
+A layer that gates goes on the route, never around the app — see ③ above.
 
 ## `Http/` — the wire
 

@@ -28,11 +28,11 @@ use ReflectionMethod;
  *
  * `Auth::accepts()` and `Route::accepts()` are the members that are not builders, and they are the
  * ones where dropping the result is not merely useless but unsafe: each is a gate's entire decision.
- * `Auth::accepts()` is one of two ways to ask a credential — a `data/` file for the site and admin
- * gates, or a {@link \Phpanta\Support\PasswordHash} a site holds for a gate of its own.
+ * `Auth::accepts()` is one of two ways to ask a credential — a `data/` file for the admin gate, or
+ * a {@link \Phpanta\Support\PasswordHash} a site holds for a gate of its own.
  *
- * The gates wrapped around them are the same kind, one step on: `Auth::siteGate()`,
- * `Auth::adminGate()` and `Auth::challenge()` *return* the 401 rather than ending the request, so the
+ * The gates wrapped around them are the same kind, one step on: `Auth::adminGate()` and
+ * `Auth::challenge()` *return* the 401 rather than ending the request, so the
  * caller has to return it in turn, and a call whose result goes nowhere is the refusal thrown away
  * and the door left open. `Response::answer()` on every response and `App::handle()` are the builders
  * of that value, where a dropped one answered no one.
@@ -177,7 +177,6 @@ final class NoDiscardTest extends TestCase
                 'Phpanta\Service\Auth::accepts',
                 'Phpanta\Service\Auth::adminGate',
                 'Phpanta\Service\Auth::challenge',
-                'Phpanta\Service\Auth::siteGate',
                 'Phpanta\Service\FilesystemProbe::run',
                 'Phpanta\Service\Login::attempt',
                 'Phpanta\Service\Passkey\PasskeyVerifier::asserts',
