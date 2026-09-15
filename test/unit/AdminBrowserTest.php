@@ -503,6 +503,44 @@ final class AdminBrowserTest extends TestCase
         self::assertStringContainsString('data-passkey="webauthn.get"', $page->body());
     }
 
+    /**
+     * In development a device on the same LAN — a phone at `https://box.local` — runs the ceremony at
+     * the origin it reached, and unlocks; the very same request in production does not, because only a
+     * server says development and a passkey then binds the app's own public origin. So a key a phone
+     * registers on the developer's network opens nothing live.
+     *
+     * @return void
+     */
+    public function testDevelopmentOnTheLanRunsAtTheRequestsOwnOrigin(): void
+    {
+        $was   = $_SERVER[ServerVariable::Environment->value] ?? null;
+        $lan   = 'https://box.local';
+        $phone = '192.168.7.7';
+
+        try {
+            $unlocked = [];
+
+            foreach (['development' => self::DEVICE, 'production' => null] as $environment => $expected) {
+                $_SERVER[ServerVariable::Environment->value] = $environment;
+                $session = $this->atTheEntrance();
+                $answer  = $this->answer($this->posted('/admin', $session, [
+                    [PasskeyFormField::Ceremony, 'unlock'],
+                    ...$this->assertion((string) $session->challenge()?->value, 1, origin: $lan),
+                ])->withServer(ServerVariable::RemoteAddress, $phone)->with(RequestHeader::Origin, $lan));
+
+                $unlocked[$environment] = $this->sessionOf($answer)->admin();
+            }
+        } finally {
+            if ($was === null) {
+                unset($_SERVER[ServerVariable::Environment->value]);
+            } else {
+                $_SERVER[ServerVariable::Environment->value] = $was;
+            }
+        }
+
+        self::assertSame(['development' => self::DEVICE, 'production' => null], $unlocked);
+    }
+
     // ───────────────────────── past it ─────────────────────────
 
     /**

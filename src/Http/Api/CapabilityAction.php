@@ -86,12 +86,23 @@ enum CapabilityAction: string implements ApiAction
     }
 
     /**
+     * None: an inventory is of the host, not of a path on it.
+     *
+     * @return bool
+     */
+    public function takesPath(): bool
+    {
+        return false;
+    }
+
+    /**
      * No handler takes anything from the manifest; see {@link HealthAction::handler()}.
      *
      * @param VerifiedRequest $verified
+     * @param string|null     $path     Never one; see {@link self::takesPath()}.
      * @return ApiHandler
      */
-    public function handler(VerifiedRequest $verified): ApiHandler
+    public function handler(VerifiedRequest $verified, ?string $path = null): ApiHandler
     {
         return match ($this) {
             self::Runtime    => new CapabilityRuntime(),

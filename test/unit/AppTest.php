@@ -189,7 +189,7 @@ final class AppTest extends TestCase
 
     /**
      * The route table is the app's own routes and then the admin's, which no app registers and so
-     * none can forget. An app with no routes of its own has exactly the admin's four, and none of
+     * none can forget. An app with no routes of its own has exactly the admin's five, and none of
      * them is a page of a static export.
      *
      * @return void
@@ -198,7 +198,7 @@ final class AppTest extends TestCase
     {
         $routes = App::current()->routeTable()->toValues();
 
-        self::assertCount(4, $routes);
+        self::assertCount(5, $routes);
 
         foreach ($routes as $index => $route) {
             self::assertSame(AdminPath::cases()[$index], $route->path());

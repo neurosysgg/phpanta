@@ -174,6 +174,39 @@ final readonly class TestRequest
     }
 
     /**
+     * This request as a multipart form, sending each of $files as $parameter — one file input that
+     * took several, which PHP keeps as a list: `$_FILES['name']['error'][0]` is the first file's error.
+     * Each is sent under its own name. The test owns the files, and removes them.
+     *
+     * @param Parameter $parameter
+     * @param File      ...$files
+     * @return self
+     */
+    public function withUploads(Parameter $parameter, File ...$files): self
+    {
+        $entry = [
+            FileEntryKey::Name->value    => [],
+            FileEntryKey::TmpName->value => [],
+            FileEntryKey::Error->value   => [],
+            FileEntryKey::Size->value    => [],
+        ];
+
+        foreach ($files as $file) {
+            $entry[FileEntryKey::Name->value][]    = $file->name();
+            $entry[FileEntryKey::TmpName->value][] = $file->path;
+            $entry[FileEntryKey::Error->value][]   = UPLOAD_ERR_OK;
+            $entry[FileEntryKey::Size->value][]    = $file->size();
+        }
+
+        return new self(
+            self::multipart($this->server),
+            $this->body,
+            $this->fields,
+            [...$this->files, (string) $parameter->value => $entry],
+        );
+    }
+
+    /**
      * The request itself, for a test that hands it to a controller or a gate directly.
      *
      * @return Request

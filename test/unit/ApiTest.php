@@ -159,6 +159,11 @@ final class ApiTest extends TestCase
         '/admin/nope',
         '/admin/nope/v1',
         '/admin/nope/v1/nope',
+        '/admin/update/v1/patch/extra',
+        '/admin/nope/v1/nope/a/b',
+        '/admin/machine',
+        '/admin/machine/v1',
+        '/admin/machine/v1/files/etc/passwd',
     ];
 
     private const string PATCH      = '/admin/update/v1/patch';

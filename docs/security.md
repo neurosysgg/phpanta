@@ -349,14 +349,20 @@ listings the moment it exists. The signed commands resolve an address through th
 and nothing answers under any other prefix: an address outside `/admin` is a site's to route or to
 leave unrouted.
 
-`health`, `capability` and `access` are the other three services, and each cost exactly that: an
-`ApiService` case, an action enum and its handlers.
+`health`, `capability`, `access` and `machine` are the other four services, and each cost exactly
+that: an `ApiService` case, an action enum and its handlers.
 
 - `health` checks the site's declared requirements and answers `503` when a required one is unmet.
 - `capability` lists what the host has: every extension, every directive, the SAPI, the clock, the
   `data/` files, the error log's tail.
 - `access` holds the devices that may open the admin in a browser: `enrol`, `passkeys` and `revoke`
   — see [A browser, by passkey](#a-browser-by-passkey).
+- `machine` administers the host a deployment runs on — its files, its system facts, and a command.
+  It is **off unless `data/machine.json` switches it on**, and its actions are the first to take a
+  path as part of the address, at a fifth `AdminPath` depth so a signature and a passkey's tap cover
+  the path with the rest — see [machine.md](machine.md). It reaches only the roots that file names,
+  and only writes and runs commands where it says to; the file is per deployment and never shipped,
+  with `data/update.pub`'s polarity.
 
 In anyone else's hands, either answer is reconnaissance. That is exactly why they are services
 behind this signature rather than the public `/health` a monitor would ping. See

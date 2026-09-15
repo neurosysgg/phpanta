@@ -38,6 +38,7 @@ export enum HtmlTag {
 
   /** Native media. Server-side only — it is native precisely so no client code is needed. */
   Audio    = 'audio',
+  Video    = 'video',
 
   Iframe   = 'iframe',
 
@@ -46,8 +47,13 @@ export enum HtmlTag {
 
   /** Written by a view where text is shown for copying, and made by Navigation to decode entities. */
   Textarea = 'textarea',
+  Pre      = 'pre',
+
+  /** Written by the server; the machine's live readings set its value. */
+  Meter    = 'meter',
   Table    = 'table',
   Tr       = 'tr',
+  Th       = 'th',
   Td       = 'td',
   Tbody    = 'tbody',
 

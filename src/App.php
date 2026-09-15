@@ -595,7 +595,7 @@ abstract class App
     }
 
     /**
-     * The framework's admin routes: `/admin` at each of its four depths, every method to one
+     * The framework's admin routes: `/admin` at each of its five depths, every method to one
      * controller.
      *
      * Public because it is also the one honest answer to "is this an admin address?" — the routes'
@@ -631,6 +631,17 @@ abstract class App
             new Route(
                 AdminPath::Action,
                 fn($service, $version, $action) => new ApiController($service, $version, $action),
+                MethodPolicy::Delegated,
+                $none,
+            ),
+            new Route(
+                AdminPath::Subject,
+                fn($service, $version, $action, $subject) => new ApiController(
+                    $service,
+                    $version,
+                    $action,
+                    subject: $subject,
+                ),
                 MethodPolicy::Delegated,
                 $none,
             ),

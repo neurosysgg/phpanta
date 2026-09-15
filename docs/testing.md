@@ -16,7 +16,7 @@ whole point of the suite. A test that only passed with one site's languages, rou
 booted would be a test of that site. [`TestApp`](../test/TestApp.php) is the smallest thing that is
 an app:
 
-- no routes of its own, so its table holds the framework's four admin routes and nothing else;
+- no routes of its own, so its table holds the framework's five admin routes and nothing else;
 - no data files beyond the framework's credentials;
 - both of the framework's languages, English first;
 - the standard vocabulary;

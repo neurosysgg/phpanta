@@ -12,6 +12,7 @@ use Phpanta\Http\BasicChallenge;
 use Phpanta\Http\ByteRange;
 use Phpanta\Http\CacheControl;
 use Phpanta\Http\CacheDirective;
+use Phpanta\Http\ContentDisposition;
 use Phpanta\Http\ContentLanguage;
 use Phpanta\Http\ContentLength;
 use Phpanta\Http\ContentRange;
@@ -75,6 +76,7 @@ use RecursiveIteratorIterator;
 // here the rows that drive them record nothing.
 #[CoversClass(CacheControl::class)]
 #[CoversClass(Vary::class)]
+#[CoversClass(ContentDisposition::class)]
 final class SecurityPolicyTest extends TestCase
 {
     // ───────────────────────── StrictTransportSecurity ─────────────────────────
@@ -462,6 +464,14 @@ final class SecurityPolicyTest extends TestCase
         yield 'who may read it from afar' => ['https://app.example.org', Origin::of('https://app.example.org')];
         yield 'how long to wait'          => ['120', new RetryAfter(120)];
 
+        // A file the admin serves: shown where it lands, or saved under its name — written twice,
+        // plainly with what a quoted string cannot hold replaced, and in full as UTF-8.
+        yield 'shown where it lands'      => ['inline', ContentDisposition::inline()];
+        yield 'saved under its name'      => [
+            'attachment; filename="__ber ___ _.flac"; filename*=UTF-8\'\'%C3%BCber%20%22_%22%20%5C.flac',
+            ContentDisposition::attachment('über "_" \\.flac'),
+        ];
+
         // The four that already rendered before the interface existed. They are here as well as in
         // their own tests above, because this table is the one place that answers "what can the
         // site put after a colon?" — and the audit below is what keeps it able to answer.
@@ -576,6 +586,7 @@ final class SecurityPolicyTest extends TestCase
                 'Phpanta\Http\Allow',
                 'Phpanta\Http\BasicChallenge',
                 'Phpanta\Http\CacheControl',
+                'Phpanta\Http\ContentDisposition',
                 'Phpanta\Http\ContentLanguage',
                 'Phpanta\Http\ContentLength',
                 'Phpanta\Http\ContentRange',

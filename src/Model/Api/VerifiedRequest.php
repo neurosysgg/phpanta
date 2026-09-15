@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Phpanta\Model\Api;
 
+use Phpanta\Http\Upload;
+use Phpanta\Support\Collection;
+
 /**
  * The VerifiedRequest class. What {@link \Phpanta\Service\ApiGate} proved, and what it proved it
  * about.
@@ -18,9 +21,10 @@ namespace Phpanta\Model\Api;
  * true. Three named fields need no excuse at all, and `$verified->body` reads where
  * `[$manifest, $archive] = $verified` only reads correctly if you already know the answer.
  *
- * Nothing on it is nullable and nothing on it is optional: an instance existing at all means the
- * signature passed, which is why {@link \Phpanta\Http\Api\ApiHandler} takes no `Request` and can
- * act on every one of these fields without asking again.
+ * Nothing on it is nullable: an instance existing at all means the signature passed — or a passkey
+ * answered — which is why {@link \Phpanta\Http\Api\ApiHandler} takes no `Request` and can act on every
+ * one of these fields without asking again. The one field with a default is the files a browser's
+ * write sent beside its form, which a signed call never has: its bytes are its body.
  */
 final readonly class VerifiedRequest
 {
@@ -34,10 +38,14 @@ final readonly class VerifiedRequest
      *                         out of a re-encoding of the part already parsed.
      * @param string $body The request body, exactly as it arrived and already matched against the
      *                     envelope's digest and size. `''` for a read.
+     * @param Collection<Upload> $uploads The files a browser's write sent under a field its action
+     *                                    declares, read once the passkey had answered; none for a
+     *                                    signed call.
      */
     public function __construct(
         public ApiEnvelope $envelope,
         public string      $manifest,
         public string      $body,
+        public Collection  $uploads = new Collection(Upload::class),
     ) {}
 }

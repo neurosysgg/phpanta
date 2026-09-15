@@ -26,6 +26,10 @@ use Phpanta\View\Html\Node;
  *
  * A refusal is a result too — {@link self::refusal()} — so a verified caller who asked for data
  * gets data even when the answer is no.
+ *
+ * **A file is the one answer that is not a report**, and {@link self::file()} says so: its bytes are
+ * what either kind of caller asked for, so it goes out as the file whatever the request would have
+ * read, and has no sections to write.
  */
 final readonly class ApiResult implements JsonSerializable
 {
@@ -33,20 +37,25 @@ final readonly class ApiResult implements JsonSerializable
      * Constructs an instance of {@link self}.
      *
      * @param HttpStatusCode $status What the answer's status line says.
-     * @param Collection<HealthSection> $sections In the order they are read.
+     * @param Collection<ResultSection> $sections In the order they are read.
+     * @param ResultFile|null $file The file this answers with instead of a report, or null.
      */
-    private function __construct(public HttpStatusCode $status, private Collection $sections) {}
+    private function __construct(
+        public HttpStatusCode $status,
+        private Collection $sections,
+        public ?ResultFile $file = null,
+    ) {}
 
     /**
      * A result of these sections.
      *
      * @param HttpStatusCode $status
-     * @param HealthSection ...$sections
+     * @param ResultSection ...$sections
      * @return self
      */
-    public static function of(HttpStatusCode $status, HealthSection ...$sections): self
+    public static function of(HttpStatusCode $status, ResultSection ...$sections): self
     {
-        return new self($status, new Collection(HealthSection::class)->with(...$sections));
+        return new self($status, new Collection(ResultSection::class)->with(...$sections));
     }
 
     /**
@@ -60,6 +69,17 @@ final readonly class ApiResult implements JsonSerializable
     public static function refusal(HttpStatusCode $status, string $message): self
     {
         return self::of($status, HealthSection::lines(null, $message));
+    }
+
+    /**
+     * A result that is a file's bytes.
+     *
+     * @param ResultFile $file
+     * @return self
+     */
+    public static function file(ResultFile $file): self
+    {
+        return new self(HttpStatusCode::Ok, new Collection(ResultSection::class), $file);
     }
 
     /**
@@ -82,7 +102,7 @@ final readonly class ApiResult implements JsonSerializable
     public function node(): Node
     {
         return new Fragment(...$this->sections
-            ->map(static fn(HealthSection $section): Node => $section->node())
+            ->map(static fn(ResultSection $section): Node => $section->node())
             ->toValues());
     }
 

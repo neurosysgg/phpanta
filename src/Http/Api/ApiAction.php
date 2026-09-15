@@ -64,6 +64,19 @@ interface ApiAction extends BackedEnum
     public function method(): HttpMethod;
 
     /**
+     * Whether this action may be addressed with a path after it — a file or a directory it acts on,
+     * at {@link \Phpanta\Support\AdminPath::Subject}.
+     *
+     * **A path is part of the address rather than a field**, so a signed call's envelope binds it
+     * like the rest of the path and a browser's write is tapped for it; a listing still links the
+     * action without one. An action that takes no path has no address at that depth, and a
+     * verified caller asking for one there is told there is no such action.
+     *
+     * @return bool
+     */
+    public function takesPath(): bool;
+
+    /**
      * This action, ready to answer, built from what the gate verified.
      *
      * The handler parses whatever fields it owns out of `$verified->manifest` — the same signed
@@ -71,9 +84,11 @@ interface ApiAction extends BackedEnum
      * so an action's own parameters are covered by the signature exactly as the envelope is.
      *
      * @param VerifiedRequest $verified
+     * @param string|null     $path     The path after the action, decoded, where the address named
+     *                                  one — only ever for an action that {@link self::takesPath()}.
      * @return ApiHandler
      *
      * @throws ApiException if this action's own fields are missing from the manifest or mistyped.
      */
-    public function handler(VerifiedRequest $verified): ApiHandler;
+    public function handler(VerifiedRequest $verified, ?string $path = null): ApiHandler;
 }

@@ -97,6 +97,18 @@ enum HtmlAttribute: string implements AttributeName
     /** Not shown until something shows it — what a passkey form says when nobody answered. */
     case Hidden = 'hidden';
 
+    /** A file control that takes several files at once — the admin's upload. */
+    case Multiple = 'multiple';
+
+    /** Where a `<meter>`'s range starts. */
+    case Min = 'min';
+
+    /** Where a `<meter>`'s range ends. */
+    case Max = 'max';
+
+    /** What an empty text control is for, said inside it — the filter over a directory. */
+    case Placeholder = 'placeholder';
+
     /**
      * @return string
      */

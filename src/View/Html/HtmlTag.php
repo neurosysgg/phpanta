@@ -70,6 +70,12 @@ enum HtmlTag: string implements TagName
      */
     case Audio    = 'audio';
 
+    /**
+     * {@link self::Audio}'s sibling, native for the same reason — the browser's controls are the
+     * feature. Written by the admin's `machine` service where a file it shows is a film.
+     */
+    case Video    = 'video';
+
     /** An embedded frame. What it shows is its own document, never children — see {@link self::isRawText()}. */
     case Iframe   = 'iframe';
 
@@ -85,8 +91,21 @@ enum HtmlTag: string implements TagName
      */
     case Textarea = 'textarea';
 
+    /**
+     * Text whose line breaks and spaces are its own — a file's contents, or what a command printed,
+     * as the admin's `machine` service shows them. Its one child is a text, which {@link Element}
+     * keeps on one line, so nothing is indented into it.
+     */
+    case Pre      = 'pre';
+
+    /** A measurement within a range — how full a disk is, how busy a processor. */
+    case Meter    = 'meter';
+
     case Table = 'table';
     case Tr    = 'tr';
+
+    /** A column's heading, where a table has more columns than a name and a value. */
+    case Th    = 'th';
     case Td    = 'td';
 
     /**
@@ -143,7 +162,7 @@ enum HtmlTag: string implements TagName
     {
         return match ($this) {
             self::A, self::Img, self::Button, self::Span, self::Small, self::Strong, self::Em, self::Br,
-            self::Audio, self::Iframe, self::Canvas, self::Textarea,
+            self::Audio, self::Video, self::Iframe, self::Canvas, self::Textarea, self::Meter,
             self::Input, self::Label, self::Select => true,
             default                                => false,
         };

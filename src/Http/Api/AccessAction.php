@@ -80,12 +80,23 @@ enum AccessAction: string implements ApiAction
     }
 
     /**
+     * None: a device is named by its credential id, which is a field.
+     *
+     * @return bool
+     */
+    public function takesPath(): bool
+    {
+        return false;
+    }
+
+    /**
      * @param VerifiedRequest $verified
+     * @param string|null     $path     Never one; see {@link self::takesPath()}.
      * @return ApiHandler
      * @throws ApiException if the manifest does not carry what the action takes, or an enrolment's code
      *                      is not one this deployment made in the last ten minutes.
      */
-    public function handler(VerifiedRequest $verified): ApiHandler
+    public function handler(VerifiedRequest $verified, ?string $path = null): ApiHandler
     {
         return match ($this) {
             self::Enrol    => AccessEnrol::open(

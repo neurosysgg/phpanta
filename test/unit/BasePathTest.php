@@ -111,7 +111,10 @@ final class BasePathTest extends TestCase
      */
     public function testTheAddressAttributesAreTheOnesTheVocabularyCallsUrls(): void
     {
-        self::assertSame(['href', 'src', 'action'], BasePath::urlAttributesOf(Vocabulary::standard()));
+        self::assertSame(
+            ['href', 'src', 'action', 'data-source'],
+            BasePath::urlAttributesOf(Vocabulary::standard()),
+        );
     }
 
     /**

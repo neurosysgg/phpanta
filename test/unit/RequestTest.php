@@ -100,6 +100,49 @@ final class RequestTest extends TestCase
     }
 
     /**
+     * Which addresses count as the machine itself, and which as the same LAN besides — the wider
+     * question the admin asks in development before running a passkey ceremony at the request's own
+     * origin. A superset of loopback, and nothing routable from the wider internet.
+     *
+     * @return iterable<string, array{string, bool, bool}>
+     */
+    public static function networkProvider(): iterable
+    {
+        //                            loopback | private
+        yield 'IPv4 loopback'      => ['127.0.0.1', true, true];
+        yield 'IPv4 loopback net'  => ['127.9.9.9', true, true];
+        yield 'IPv6 loopback'      => ['::1', true, true];
+        yield 'mapped loopback'    => ['::ffff:127.0.0.1', true, true];
+        yield 'ten dot'            => ['10.1.2.3', false, true];
+        yield 'one seventy two'    => ['172.16.4.5', false, true];
+        yield 'not one seventy two' => ['172.32.0.1', false, false];
+        yield 'one ninety two'     => ['192.168.7.7', false, true];
+        yield 'link local v4'      => ['169.254.1.1', false, true];
+        yield 'mapped LAN'         => ['::ffff:192.168.1.9', false, true];
+        yield 'unique local v6'    => ['fd12:3456::1', false, true];
+        yield 'link local v6'      => ['fe80::1', false, true];
+        yield 'a public v4'        => ['192.0.2.1', false, false];
+        yield 'a public v6'        => ['2001:db8::1', false, false];
+        yield 'not an address'     => ['not-an-ip', false, false];
+        yield 'nothing arrived'    => ['', false, false];
+    }
+
+    /**
+     * @param string $address
+     * @param bool   $loopback
+     * @param bool   $private
+     * @return void
+     */
+    #[DataProvider('networkProvider')]
+    public function testWhereARequestCameFrom(string $address, bool $loopback, bool $private): void
+    {
+        $request = TestRequest::get('/')->withServer(ServerVariable::RemoteAddress, $address)->request();
+
+        self::assertSame($loopback, $request->isFromLoopback(), "$address loopback");
+        self::assertSame($private, $request->isFromPrivateNetwork(), "$address private");
+    }
+
+    /**
      * An unrecognised method is null rather than a guess, and null is not read-only.
      *
      * @return void

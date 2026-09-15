@@ -84,6 +84,16 @@ enum HealthAction: string implements ApiAction
     }
 
     /**
+     * None: a check is of the host, not of a path on it.
+     *
+     * @return bool
+     */
+    public function takesPath(): bool
+    {
+        return false;
+    }
+
+    /**
      * The one area this action checks, or null for every area.
      *
      * Matched rather than derived with `Area::from($this->value)`, which would work today and make
@@ -109,9 +119,10 @@ enum HealthAction: string implements ApiAction
      * {@link UpdateAction::handler()} declares one. There is no field to be missing.
      *
      * @param VerifiedRequest $verified
+     * @param string|null     $path     Never one; see {@link self::takesPath()}.
      * @return ApiHandler
      */
-    public function handler(VerifiedRequest $verified): ApiHandler
+    public function handler(VerifiedRequest $verified, ?string $path = null): ApiHandler
     {
         return new HealthCheck(App::current()->requirements(), $this->area());
     }

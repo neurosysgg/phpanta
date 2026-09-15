@@ -7,6 +7,7 @@ namespace Phpanta\Test\Unit;
 use Phpanta\App;
 use Phpanta\Exception\RouteException;
 use Phpanta\Support\AdminPath;
+use Phpanta\Support\Path;
 use Phpanta\Support\Route;
 use Phpanta\Test\TestRequest;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -114,7 +115,7 @@ final class RouteTest extends TestCase
     {
         foreach (AdminPath::cases() as $path) {
             self::assertMatchesRegularExpression(
-                '#^(/|(/[\w-]+|/\{\w+\})+)$#',
+                '#^(/|(/[\w-]+|/\{\w+(?::\w+)?\})+)$#',
                 $path->value,
                 "{$path->name} contains something that is not a plain segment or a {placeholder}.",
             );
@@ -122,15 +123,14 @@ final class RouteTest extends TestCase
     }
 
     /**
-     * Past the admin's four depths nothing matches, and nothing at all matches under `/api`, which
-     * the admin used to be at — both fall through to the same 404 as any other address that is
-     * not there.
+     * Nothing at all matches under `/api`, which the admin used to be at — it falls through to the
+     * same 404 as any other address that is not there.
      *
      * @param string $path
      * @return void
      */
     #[DataProvider('unadministeredProvider')]
-    public function testAnAddressPastTheAdminOrUnderTheOldApiMatchesNoRoute(string $path): void
+    public function testAnAddressUnderTheOldApiMatchesNoRoute(string $path): void
     {
         foreach (App::current()->routeTable() as $route) {
             self::assertFalse($route->matches($path), "$path unexpectedly matched a route");
@@ -138,12 +138,38 @@ final class RouteTest extends TestCase
     }
 
     /**
+     * Past an action, however deep, is the fifth depth: the action and a path it acts on. Only that
+     * route matches, so an address there is the admin's to answer — a verified caller is told the
+     * action takes no path, a stranger gets the one answer — and never the site's.
+     *
+     * @return void
+     */
+    public function testPastAnActionIsTheFifthDepthAlone(): void
+    {
+        $subject = App::current()->adminRoutes()->toValues()[4];
+
+        self::assertSame(['update', 'v1', 'patch', 'extra'], $subject->matches('/admin/update/v1/patch/extra'));
+        self::assertSame(
+            ['machine', 'v1', 'files', 'home/a b/c.flac'],
+            $subject->matches('/admin/machine/v1/files/home/a%20b/c.flac'),
+        );
+
+        foreach (['/admin/update/v1/patch/extra', '/admin/health/v1/report/a/b/c'] as $path) {
+            $matched = App::current()->routeTable()
+                ->where(static fn(Route $route): bool => $route->matches($path) !== false)
+                ->map(static fn(Route $route): Path => $route->path());
+
+            self::assertSame([$subject->path()], $matched->toValues(), $path);
+        }
+
+        self::assertFalse($subject->matches('/admin/machine/v1/files/a//b'), 'an empty segment is no path');
+    }
+
+    /**
      * @return iterable<array{string}>
      */
     public static function unadministeredProvider(): iterable
     {
-        yield ['/admin/update/v1/patch/extra'];
-        yield ['/admin/health/v1/report/extra'];
         yield ['/api'];
         yield ['/api/update'];
         yield ['/api/update/v1'];
@@ -164,6 +190,7 @@ final class RouteTest extends TestCase
         self::assertSame(['update'], $routes[1]->matches('/admin/update'));
         self::assertSame(['update', 'v1'], $routes[2]->matches('/admin/update/v1'));
         self::assertSame(['update', 'v1', 'patch'], $routes[3]->matches('/admin/update/v1/patch'));
+        self::assertSame(['machine', 'v1', 'files', 'etc'], $routes[4]->matches('/admin/machine/v1/files/etc'));
     }
 
     // ───────────────────────── to() ─────────────────────────

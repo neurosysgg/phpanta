@@ -101,6 +101,12 @@ enum ResponseHeader: string implements HeaderName
     case ContentRange = 'Content-Range';
 
     /**
+     * Whether a file is shown where it lands or saved, and under which name — sent with a file the
+     * admin serves. See {@link ContentDisposition}.
+     */
+    case ContentDisposition = 'Content-Disposition';
+
+    /**
      * What a crawler may do with this response.
      *
      * Sent only on gated routes that ask for it. It is not what keeps them out of an index — a crawler is

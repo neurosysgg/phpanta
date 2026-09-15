@@ -43,4 +43,8 @@ export enum HtmlAttribute {
   Readonly        = 'readonly',
   Disabled        = 'disabled',
   Hidden          = 'hidden',
+  Multiple        = 'multiple',
+  Min             = 'min',
+  Max             = 'max',
+  Placeholder     = 'placeholder',
 }

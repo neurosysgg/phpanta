@@ -26,6 +26,7 @@ use Phpanta\Http\ResponseHeader;
 use Phpanta\Http\RetryAfter;
 use Phpanta\Http\Session;
 use Phpanta\Http\SessionSeal;
+use Phpanta\Http\Upload;
 use Phpanta\Http\ViewResponse;
 use Phpanta\Model\Api\ApiEnvelope;
 use Phpanta\Model\Api\VerifiedRequest;
@@ -63,9 +64,12 @@ use stdClass;
  *
  * **Off unless the deployment says where it is.** A passkey is bound to an origin, and the origin is
  * the app's ({@link App::origin()}), never the `Host` a request names. An app that names none lets no
- * browser in. In development and from loopback only, the origin the request says it comes from comes
- * first — so a local copy runs a real ceremony at the address it is served on, whatever public origin
- * the app names. With no session key, no browser is let in either.
+ * browser in. In development, and from a private network — the machine itself or a device on the same
+ * LAN ({@link \Phpanta\Environment::trustsOriginOf()}) — the origin the request says it comes from
+ * comes first, so a local copy runs a real ceremony at the address it is served on, whatever public
+ * origin the app names, and a phone on the developer's own network can register and unlock at
+ * `https://box.local` rather than the public origin it could never reach. With no session key, no
+ * browser is let in either.
  */
 final readonly class AdminBrowser
 {
@@ -223,14 +227,39 @@ final readonly class AdminBrowser
             return new BrowserRequest(null, $spent);
         }
 
+        // Read only once the passkey has answered, and outside the refusal above: a file too large
+        // for the host is the router's 413, which says so, rather than a tap said to be missing.
+        $uploads = $fields === null ? new Collection(Upload::class) : self::uploads($request, $action);
+
         return new BrowserRequest(
             $fields === null || $challenge === null ? null : new VerifiedRequest(
                 ApiEnvelope::of($challenge->minted(), HttpMethod::Post, $path),
                 (string) json_encode($fields, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 '',
+                $uploads,
             ),
             $spent,
         );
+    }
+
+    /**
+     * The files $request sent under each field $action declares as files — and none under any other.
+     *
+     * @param Request   $request
+     * @param ApiAction $action
+     * @return Collection<Upload>
+     */
+    private static function uploads(Request $request, ApiAction $action): Collection
+    {
+        $uploads = new Collection(Upload::class);
+
+        foreach ($action->fields() as $field) {
+            if ($field->isUpload()) {
+                $uploads = $uploads->with(...$request->uploads($field)->toValues());
+            }
+        }
+
+        return $uploads;
     }
 
     /**
@@ -496,7 +525,9 @@ final readonly class AdminBrowser
         $fields = new stdClass();
 
         foreach ($action->fields() as $field) {
-            $fields->{$field->value} = $field->isFlag() ? $form->flag($field) : (string) $form->text($field);
+            if (!$field->isUpload()) {
+                $fields->{$field->value} = $field->isFlag() ? $form->flag($field) : (string) $form->text($field);
+            }
         }
 
         return $fields;
@@ -526,13 +557,14 @@ final readonly class AdminBrowser
     {
         return $this->origin !== null
             || App::current()->origin() !== null
-            || App::current()->environment()->showsFaultsTo($request);
+            || App::current()->environment()->trustsOriginOf($request);
     }
 
     /**
-     * The origin a ceremony must have run on: the app's — except in development and from loopback,
-     * where the request's own comes first, so a local copy of a site that names its public origin
-     * still runs a real ceremony at the address it is served on.
+     * The origin a ceremony must have run on: the app's — except in development from a private
+     * network, where the request's own comes first, so a local copy of a site that names its public
+     * origin still runs a real ceremony at the address it is served on, whether that is loopback or a
+     * device on the same LAN. See {@link \Phpanta\Environment::trustsOriginOf()}.
      *
      * @param Request $request
      * @return Origin|null
@@ -541,7 +573,7 @@ final readonly class AdminBrowser
     {
         $app = App::current();
 
-        return ($app->environment()->showsFaultsTo($request) ? $request->origin() : null)
+        return ($app->environment()->trustsOriginOf($request) ? $request->origin() : null)
             ?? $this->origin
             ?? $app->origin();
     }

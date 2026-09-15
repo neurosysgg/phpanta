@@ -7,6 +7,7 @@ namespace Phpanta\Http;
 use Phpanta\App;
 use Phpanta\Exception\InputException;
 use Phpanta\Exception\TooLargeException;
+use Phpanta\Support\Collection;
 use Phpanta\Support\Diagnostics;
 use Phpanta\Support\File;
 use Phpanta\Text\Language;
@@ -614,6 +615,30 @@ readonly class Request
     }
 
     /**
+     * Every file a multipart form sent as $parameter — several, where one file input took several
+     * under `name[]` — or none where it sent none, or was no multipart form at all.
+     *
+     * An API action never calls this either, for the reason {@link self::query()} gives: the admin's
+     * browser side reads a write's files, once its passkey has answered, and hands them on.
+     *
+     * @param Parameter $parameter
+     * @return Collection<Upload>
+     * @throws TooLargeException if a file, or the whole form, was larger than the host takes.
+     * @throws InputException    if one arrived only in part, or nested deeper than one list.
+     * @throws \Phpanta\Exception\UploadException if the host could not keep one.
+     */
+    public function uploads(Parameter $parameter): Collection
+    {
+        if (FormEncoding::tryFrom($this->bodyType()) !== FormEncoding::Multipart) {
+            return new Collection(Upload::class);
+        }
+
+        $this->refuseEmptied();
+
+        return $this->multipart->uploads($parameter);
+    }
+
+    /**
      * The essence of what the sender says the body is — `multipart/form-data` out of
      * `multipart/form-data; boundary=…` — lower-cased, or `''` where it says nothing.
      *
@@ -710,6 +735,53 @@ readonly class Request
             4       => $packed[0] === "\x7f",
             default => $packed === str_repeat("\0", 15) . "\x01"
                 || (str_starts_with($packed, $mapped) && $packed[12] === "\x7f"),
+        };
+    }
+
+    /**
+     * True if this request came from a private network — the machine itself, or a device on the same
+     * LAN: loopback, IPv4's `10/8`, `172.16/12`, `192.168/16` and link-local `169.254/16`, and IPv6's
+     * unique-local `fc00::/7` and link-local `fe80::/10` (an IPv4 mapped into IPv6 is asked as the
+     * IPv4). Nothing routable from the wider internet is one, and neither is a request that did not
+     * arrive.
+     *
+     * **A superset of {@link self::isFromLoopback()}, for a broader question**: whether, in
+     * development, the deployment may run the admin's passkey ceremony at the origin the request
+     * actually reached it on — see {@link \Phpanta\Service\Passkey\AdminBrowser}. It is deliberately
+     * **not** what {@link \Phpanta\Environment::showsFaultsTo()} asks: a trace names the code's own
+     * paths and goes to loopback alone, where a passkey bound to a LAN host opens nothing anywhere
+     * else and is enrolled only by the signing key.
+     *
+     * Read as an address, not matched as a prefix on the text, so `192.168.0.1.example` is not one
+     * and neither is anything that does not parse.
+     *
+     * @return bool
+     */
+    public function isFromPrivateNetwork(): bool
+    {
+        if (filter_var($this->remoteAddress, FILTER_VALIDATE_IP) === false) {
+            return false;
+        }
+
+        if ($this->isFromLoopback()) {
+            return true;
+        }
+
+        $packed = (string) inet_pton($this->remoteAddress);
+        $mapped = str_repeat("\0", 10) . "\xff\xff";
+
+        // An IPv4 address mapped into IPv6 (`::ffff:a.b.c.d`) is asked as the IPv4 it carries.
+        if (strlen($packed) === 16 && str_starts_with($packed, $mapped)) {
+            $packed = substr($packed, 12);
+        }
+
+        return match (strlen($packed)) {
+            4       => $packed[0] === "\x0a"                                             // 10/8
+                || ($packed[0] === "\xac" && (ord($packed[1]) & 0xf0) === 0x10)          // 172.16/12
+                || ($packed[0] === "\xc0" && $packed[1] === "\xa8")                      // 192.168/16
+                || ($packed[0] === "\xa9" && $packed[1] === "\xfe"),                     // 169.254/16
+            default => (ord($packed[0]) & 0xfe) === 0xfc                                 // fc00::/7
+                || ($packed[0] === "\xfe" && (ord($packed[1]) & 0xc0) === 0x80),         // fe80::/10
         };
     }
 

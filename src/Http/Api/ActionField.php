@@ -34,6 +34,18 @@ enum ActionField: string implements Parameter
     case Passkey = 'passkey';
 
     /**
+     * The files a browser sends to be kept — the one field that is not in the manifest: a file is
+     * bytes, not text, so {@link \Phpanta\Service\Passkey\AdminBrowser} hands it over beside it.
+     */
+    case Files = 'files';
+
+    /** A name to give — a new directory's, or the one an entry is renamed to. */
+    case Target = 'target';
+
+    /** A command line, run by the machine's shell. */
+    case Command = 'command';
+
+    /**
      * Whether the field is a yes or a no, rather than a line of text.
      *
      * @return bool
@@ -41,6 +53,16 @@ enum ActionField: string implements Parameter
     public function isFlag(): bool
     {
         return $this === self::Apply || $this === self::Mirror;
+    }
+
+    /**
+     * Whether the field is files a browser sends, rather than a value in the manifest.
+     *
+     * @return bool
+     */
+    public function isUpload(): bool
+    {
+        return $this === self::Files;
     }
 
     /**
@@ -56,6 +78,9 @@ enum ActionField: string implements Parameter
             self::Code    => AdminText::FieldCode,
             self::Name    => AdminText::FieldName,
             self::Passkey => AdminText::FieldPasskey,
+            self::Files   => AdminText::FieldFiles,
+            self::Target  => AdminText::FieldTarget,
+            self::Command => AdminText::FieldCommand,
         };
     }
 }

@@ -13,7 +13,8 @@ namespace Phpanta\Support;
  * site's routes, last, so no site route can be shadowed by one and a site cannot forget them.
  *
  * **One case per depth, and every depth answers.** The entrance is a page for anyone; below it, a
- * service lists its versions, a version lists its actions, and the fourth depth is an action. That is
+ * service lists its versions, a version lists its actions, the fourth depth is an action, and the
+ * fifth is an action and the path it acts on, for the few that act on one. That is
  * what makes the admin discoverable: a caller who can open it at all can walk it from the top, and
  * a new service is an {@link \Phpanta\Http\Api\ApiService} case and its handlers — it appears in the
  * listings, and answers, with no route to register.
@@ -40,4 +41,13 @@ enum AdminPath: string implements Path
 
     /** One action — the address a verified call is made to. */
     case Action = '/admin/{service}/{version}/{action}';
+
+    /**
+     * One action, and the path it acts on — a file or a directory, for an action that takes one
+     * ({@link \Phpanta\Http\Api\ApiAction::takesPath()}). The path is part of the address, so a
+     * signed call's envelope binds it and a browser's write is tapped for it, with nothing read
+     * from a query. An action that takes none has no address here: a verified caller asking for one
+     * is told there is no such action, and a stranger gets the one answer, as at every depth.
+     */
+    case Subject = '/admin/{service}/{version}/{action}/{subject:path}';
 }

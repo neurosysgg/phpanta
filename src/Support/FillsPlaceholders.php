@@ -30,10 +30,10 @@ trait FillsPlaceholders
      * It throws rather than returning null because a caller cannot do anything useful with the
      * answer: the page is already being rendered, and a link to nowhere is not a fallback.
      *
-     * Each value is `rawurlencode`d. That is a no-op for the usual slug — letters, digits and
-     * hyphens are nothing the encoding cares about — and it is the right answer for the first
-     * value that is not, rather than a `%` appearing in a path segment
-     * where the router will read it as content.
+     * Each value is `rawurlencode`d — each segment of a `{name:path}`, whose slashes are kept. That
+     * is a no-op for the usual slug — letters, digits and hyphens are nothing the encoding cares
+     * about — and it is the right answer for the first value that is not, rather than a `%`
+     * appearing in a path segment where the router will read it as content.
      *
      * @param string|int ...$values One per placeholder, left to right.
      * @return string
@@ -84,7 +84,7 @@ trait FillsPlaceholders
                     ));
                 }
 
-                return rawurlencode($value);
+                return $type->encode($value);
             },
             $this->value,
         );

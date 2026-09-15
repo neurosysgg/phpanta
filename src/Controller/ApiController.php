@@ -80,6 +80,10 @@ final readonly class ApiController implements Controller
      * @param string|null $action  Same, for the third; null above an action.
      * @param ApiGate|null $gate A test seam: null is the real gate, and a test passes its own.
      * @param AdminBrowser|null $browser The same, for the browser's side of the admin.
+     * @param string|null $subject The path after the action, decoded — a file or a directory, for an
+     *                             action that takes one — or null where the address ends at the
+     *                             action. Last, because it is the one segment only the fifth depth
+     *                             has; the signature covers it as part of the path it binds.
      */
     public function __construct(
         private ?string       $service = null,
@@ -87,6 +91,7 @@ final readonly class ApiController implements Controller
         private ?string       $action = null,
         private ?ApiGate      $gate = null,
         private ?AdminBrowser $browser = null,
+        private ?string       $subject = null,
     ) {}
 
     /**
@@ -293,8 +298,11 @@ final readonly class ApiController implements Controller
         // A version is resolved from the ones the service offers rather than from every version
         // there is, so a version one service has and another has not is an address the second does
         // not have — and a listing of it can never come out empty.
+        // A service that offers nothing here — one a deployment has not switched on — is a service
+        // this deployment does not have, and is answered as one that does not exist.
         $language = $request->language();
         $service  = $this->service === null ? null : ApiService::tryFrom($this->service);
+        $service  = $service?->versions()->isEmpty() === false ? $service : null;
         $version  = $service?->versions()->first(fn(ApiVersion $each): bool => $each->value === $this->version);
 
         $listing = match (true) {
@@ -344,7 +352,7 @@ final readonly class ApiController implements Controller
     private function run(ApiGate $gate, VerifiedRequest $verified, ApiAction $action): ApiResult
     {
         try {
-            $handler = $action->handler($verified);
+            $handler = $action->handler($verified, $this->subject);
 
             // Only an action that changes something spends the serial. A read leaves it alone, and
             // so does a dry run, so the very same credential can then be sent for real.
@@ -383,6 +391,11 @@ final readonly class ApiController implements Controller
      */
     private function answer(Representation $representation, ApiResult $result, Header ...$headers): Response
     {
+        // A file's bytes are what either kind of caller asked for; there is no page or data of it.
+        if ($result->file !== null) {
+            return $result->file->response();
+        }
+
         // The page's Vary comes from its view, beside the ones every page sends; the data's has to
         // be said here, because a JsonResponse varies on nothing unless told.
         return match ($representation) {
@@ -428,13 +441,16 @@ final readonly class ApiController implements Controller
     }
 
     /**
-     * The three segments as they were sent, as `service/version/action`.
+     * The segments as they were sent, as `service/version/action` — and the path after it, where
+     * the address names one.
      *
      * @return string
      */
     private function address(): string
     {
-        return $this->service . '/' . $this->version . '/' . $this->action;
+        $address = $this->service . '/' . $this->version . '/' . $this->action;
+
+        return $this->subject === null ? $address : $address . '/' . $this->subject;
     }
 
     /**
@@ -444,7 +460,8 @@ final readonly class ApiController implements Controller
      * reason: each segment is whatever the caller sent, and a caller being verified does not make
      * their typo an exception. Three nulls collapse to one, because the difference between a
      * service that does not exist and an action that does not is of no use to anyone who has
-     * already been told the address is wrong.
+     * already been told the address is wrong. A path after an action that takes none is the same
+     * null: that address is not one the action has.
      *
      * @return ApiAction|null
      */
@@ -452,11 +469,8 @@ final readonly class ApiController implements Controller
     {
         $service = ApiService::tryFrom((string) $this->service);
         $version = ApiVersion::tryFrom((string) $this->version);
+        $action  = $service === null || $version === null ? null : $service->action($version, (string) $this->action);
 
-        if ($service === null || $version === null) {
-            return null;
-        }
-
-        return $service->action($version, (string) $this->action);
+        return $this->subject !== null && $action?->takesPath() === false ? null : $action;
     }
 }

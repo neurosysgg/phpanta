@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Phpanta;
 
 /**
- * The CredentialFile enum. The four files in `data/` the framework itself reads: the admin gate's
- * credentials, the admin's signing key, the key sessions are sealed with, and the devices that may
- * open the admin in a browser.
+ * The CredentialFile enum. The five files in `data/` the framework itself reads: the admin gate's
+ * credentials, the admin's signing key, the key sessions are sealed with, the devices that may
+ * open the admin in a browser, and what the admin may do to the machine it runs on.
  *
  * **Every one of them changes what the site does rather than what it shows**, which is why they
  * are the framework's rather than a site's: the admin gate, the signed API and the admin's browser
@@ -17,8 +17,8 @@ namespace Phpanta;
  * as "no such file", so absence must never be the open state: without its file the admin gate
  * refuses loudly, no signed call verifies, no session opens and no device is enrolled.
  *
- * All four hold live credentials, so a full deploy excludes all four; each that a deployment needs is
- * uploaded, minted or enrolled by hand.
+ * All five are per deployment, so a full deploy excludes all five; each that a deployment needs is
+ * uploaded, minted, enrolled or written by hand.
  */
 enum CredentialFile: string implements DataFileName
 {
@@ -63,6 +63,16 @@ enum CredentialFile: string implements DataFileName
      * devices on the live host.
      */
     case AdminPasskeys = 'admin-passkeys.json';
+
+    /**
+     * Whether the admin's `machine` service is on, and what it reaches: the roots it may walk, and
+     * whether it may write there or run a command. See {@link Model\Machine\MachineConfig}.
+     *
+     * **Absent is off**, with {@link self::UpdateKey}'s polarity: no file, no service, and the
+     * admin's listings do not name it. A file that does not read is off too. Per deployment and never
+     * deployed — a copy from a laptop would open the live host's filesystem to its admin.
+     */
+    case Machine = 'machine.json';
 
     /**
      * None is tracked: each holds what one deployment holds — a credential, a key, a list of

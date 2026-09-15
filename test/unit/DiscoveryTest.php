@@ -47,14 +47,19 @@ use PHPUnit\Framework\TestCase;
 final class DiscoveryTest extends TestCase
 {
     /**
-     * Every service offers the one version there is.
+     * Every service offers the one version there is — but `machine`, which a deployment switches on
+     * and this one has not, and which therefore offers nothing at all.
      *
      * @return void
      */
     public function testEveryServiceOffersTheVersionThereIs(): void
     {
         foreach (ApiService::cases() as $service) {
-            self::assertSame([ApiVersion::V1], $service->versions()->toValues(), $service->value);
+            self::assertSame(
+                $service === ApiService::Machine ? [] : [ApiVersion::V1],
+                $service->versions()->toValues(),
+                $service->value,
+            );
         }
     }
 
@@ -141,6 +146,19 @@ final class DiscoveryTest extends TestCase
         self::assertTrue(AccessAction::Revoke->fromBrowser());
         self::assertSame(HttpMethod::Post, AccessAction::Enrol->method());
         self::assertSame(HttpMethod::Get, AccessAction::Passkeys->method());
+    }
+
+    /**
+     * No action but the machine service's takes a path after it: every other acts on the deployment
+     * as a whole, or on a device named by a field.
+     *
+     * @return void
+     */
+    public function testOnlyTheMachineServiceTakesAPath(): void
+    {
+        foreach ([...UpdateAction::cases(), ...HealthAction::cases(), ...CapabilityAction::cases(), ...AccessAction::cases()] as $action) {
+            self::assertFalse($action->takesPath(), $action->value);
+        }
     }
 
     /**

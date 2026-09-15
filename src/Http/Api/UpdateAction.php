@@ -115,13 +115,24 @@ enum UpdateAction: string implements ApiAction
     }
 
     /**
+     * None: a push carries its own tree, and the rest act on the deployment as a whole.
+     *
+     * @return bool
+     */
+    public function takesPath(): bool
+    {
+        return false;
+    }
+
+    /**
      * @param VerifiedRequest $verified
+     * @param string|null     $path     Never one; see {@link self::takesPath()}.
      * @return ApiHandler
      *
      * @throws UpdateException if a patch's manifest is missing `apply` or `mirror`, or a rollback's
      *                         or a probe's is missing `apply`, or any of them is not a bool.
      */
-    public function handler(VerifiedRequest $verified): ApiHandler
+    public function handler(VerifiedRequest $verified, ?string $path = null): ApiHandler
     {
         return match ($this) {
             // The manifest is parsed here rather than inside the handler so that a malformed one is

@@ -68,6 +68,10 @@ const MIRRORED = [
   ['Language', 'Phpanta\\Text\\Language'],
   ['LinkAttribute', 'Phpanta\\View\\Html\\LinkAttribute'],
   ['LinkRel', 'Phpanta\\View\\Html\\LinkRel'],
+  ['MachineAttribute', 'Phpanta\\View\\Html\\MachineAttribute'],
+  ['MachineCounter', 'Phpanta\\Model\\Machine\\MachineCounter'],
+  ['MachineReading', 'Phpanta\\Model\\Machine\\MachineReading'],
+  ['MachineTag', 'Phpanta\\View\\Html\\MachineTag'],
   ['PasskeyAttribute', 'Phpanta\\View\\Html\\PasskeyAttribute'],
   ['PasskeyFormField', 'Phpanta\\Http\\PasskeyFormField'],
   ['RegionAttribute', 'Phpanta\\View\\Html\\RegionAttribute'],
@@ -94,13 +98,27 @@ test('ResponseHeader mirrors the part of Phpanta\\Http\\ResponseHeader the clien
 });
 
 /**
+ * ResultKey, mirrored in part for the same reason: the client reads an answer's sections and the
+ * machine service's counters, and nothing else an answer carries.
+ */
+test('ResultKey mirrors the part of Phpanta\\Http\\Api\\ResultKey the client reads', () => {
+  const all  = new Map(phpCases('Phpanta\\Http\\Api\\ResultKey'));
+  const mine = mirrored('ResultKey');
+
+  assert.deepEqual(mine, mine.map(([member]) => [member, all.get(member)]));
+});
+
+/**
  * MediaType, which has no PHP enum to mirror: MimeType is a class, because it carries a charset.
  * What Navigation compares a response with is the essence of the type a page is sent as.
  */
-test('MediaType mirrors the essence of Phpanta\\Http\\MimeType::html()', () => {
+test('MediaType mirrors the essences of Phpanta\\Http\\MimeType::html() and ::json()', () => {
   assert.deepEqual(
     mirrored('MediaType'),
-    [['Html', php('echo json_encode(Phpanta\\Http\\MimeType::html()->essence());')]],
+    [
+      ['Html', php('echo json_encode(Phpanta\\Http\\MimeType::html()->essence());')],
+      ['Json', php('echo json_encode(Phpanta\\Http\\MimeType::json()->essence());')],
+    ],
   );
 });
 
@@ -108,6 +126,6 @@ test('MediaType mirrors the essence of Phpanta\\Http\\MimeType::html()', () => {
 test('every mirror in assets/ts/model/ is compared', () => {
   assert.deepEqual(
     readdirSync(MODEL).filter((file) => file.endsWith('.ts')).map((file) => file.slice(0, -3)).sort(),
-    [...MIRRORED.map(([name]) => name), 'MediaType', 'ResponseHeader'].sort(),
+    [...MIRRORED.map(([name]) => name), 'MediaType', 'ResponseHeader', 'ResultKey'].sort(),
   );
 });

@@ -39,7 +39,8 @@ final readonly class ApiListing implements JsonSerializable
     ) {}
 
     /**
-     * The entrance: every service.
+     * The entrance: every service this deployment offers anything at — so a service a deployment
+     * must switch on, and has not, is not named at all.
      *
      * @param Language $language
      * @return self
@@ -48,6 +49,7 @@ final readonly class ApiListing implements JsonSerializable
     {
         return new self(AdminPath::Index->to(), $language, new Collection(ApiService::class)
             ->with(...ApiService::cases())
+            ->where(static fn(ApiService $service): bool => !$service->versions()->isEmpty())
             ->map(static fn(ApiService $service): ListingEntry => new ListingEntry(
                 $service->value,
                 AdminPath::Service->to($service->value),

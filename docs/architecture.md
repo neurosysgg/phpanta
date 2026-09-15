@@ -30,7 +30,7 @@ What a site owes, and what it may add:
 |---|---|---|
 | owes | `name()` | the Basic Auth realm, and the title a page is named under |
 | | `above()` | the deployment directory — the one holding `autoload.php` |
-| | `routes()` | the site's routes; `routeTable()` appends the framework's four admin routes after them |
+| | `routes()` | the site's routes; `routeTable()` appends the framework's five admin routes after them |
 | | `notFound()` | the page for an address the site does not have, to a method that reads |
 | | `languages()` | the languages it is written in, its default first |
 | | `shell()` | the document every page is rendered inside |
@@ -62,7 +62,7 @@ that depends on nothing, because it has to work when nothing else did — and th
 
 ## The request, traced
 
-Follow one request all the way through. The app is `TestApp`, whose table holds the framework's four
+Follow one request all the way through. The app is `TestApp`, whose table holds the framework's five
 admin routes and nothing else, and the request is **`GET /admin/update/v1/version`** with `Accept:
 application/json`, the signed read that asks a deployment what it is running. A site's page route takes the same road as far as the controller; where it parts is
 [at the end](#a-page-instead).
@@ -159,14 +159,15 @@ in front of every request would stand in front of the admin too, whose signed ca
 ### ④ Routing
 
 [`Router::dispatch()`](../src/Router.php) asks the table [`App::routeTable()`](../src/App.php)
-builds: the site's `routes()`, in match order, then the framework's four admin routes,
+builds: the site's `routes()`, in match order, then the framework's five admin routes,
 `App::adminRoutes()`, last, so no site route can be shadowed by one. `TestApp`'s `routes()` is empty,
-so its table is those four. The router does two things, in order:
+so its table is those five. The router does two things, in order:
 
 1. **The match.** Each [`Route`](../src/Support/Route.php) is a
    [`Path`](../src/Support/Path.php) case, a factory closure and a
    [`MethodGate`](../src/Support/MethodGate.php). `{param}` compiles to `([^/]+)`; a typed one —
-   `{id:int}`, `{tag:slug}`, see [`PlaceholderType`](../src/Support/PlaceholderType.php) — to its
+   `{id:int}`, `{tag:slug}`, `{subject:path}` (the last spans slashes, for the `machine` service's
+   `files/etc/hosts`), see [`PlaceholderType`](../src/Support/PlaceholderType.php) — to its
    type's expression, so a segment of the wrong kind is simply no match. Static parts are quoted,
    the expression ends in `\z`, and the captures — decoded, and an `int` for `{id:int}` — are passed
    positionally to the factory. `AdminPath::Action` is `/admin/{service}/{version}/{action}`, so this

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Phpanta\Http\Api;
 
+use Phpanta\Model\Machine\MachineConfig;
+use Phpanta\Support\BareArray;
 use Phpanta\Support\Collection;
 use Phpanta\Text\AdminText;
 use Phpanta\Text\Translatable;
@@ -70,6 +72,16 @@ enum ApiService: string
     case Access = 'access';
 
     /**
+     * The machine this runs on: what it is and what it runs, its files, and — where it may — changing
+     * them and running a command. See {@link MachineAction}.
+     *
+     * **The one service a deployment switches on**, by writing `data/machine.json`; without it the
+     * service offers nothing, so no listing names it and no address under it answers. A shared host
+     * is left without it, and a machine of one's own given it.
+     */
+    case Machine = 'machine';
+
+    /**
      * What this service is for, in the caller's language — what the admin's entrance says of it.
      *
      * @return Translatable
@@ -81,6 +93,7 @@ enum ApiService: string
             self::Health     => AdminText::ServiceHealth,
             self::Capability => AdminText::ServiceCapability,
             self::Access     => AdminText::ServiceAccess,
+            self::Machine    => AdminText::ServiceMachine,
         };
     }
 
@@ -118,6 +131,7 @@ enum ApiService: string
             $this === self::Health && $version === ApiVersion::V1     => HealthAction::cases(),
             $this === self::Capability && $version === ApiVersion::V1 => CapabilityAction::cases(),
             $this === self::Access && $version === ApiVersion::V1     => AccessAction::cases(),
+            $this === self::Machine && $version === ApiVersion::V1    => self::machineActions(),
 
             // A pair nothing has wired yet, which is only reachable once a second version exists.
             // Empty rather than an unhandled match: a version this service does not offer is an
@@ -125,6 +139,20 @@ enum ApiService: string
             // omission as their fault.
             default => [],
         });
+    }
+
+    /**
+     * The machine actions this deployment offers — none where its `data/machine.json` is off.
+     *
+     * A method of its own so {@link self::actions()}'s arm stays a line: the offered set is worked
+     * out from the switch file, not from the enum alone.
+     *
+     * @return list<MachineAction>
+     */
+    #[BareArray('spread into with() beside the other services\' cases(), which is the variadic this arm feeds')]
+    private static function machineActions(): array
+    {
+        return MachineAction::offered(MachineConfig::current())->toValues();
     }
 
     /**

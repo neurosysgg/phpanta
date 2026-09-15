@@ -128,9 +128,86 @@ final readonly class MultipartParameters
         // array, the error code included.
         $error = is_array($entry) ? ($entry[FileEntryKey::Error->value] ?? null) : null;
 
-        if (!is_int($error)) {
+        if (!is_int($error) || !is_array($entry)) {
             throw new InputException(sprintf("'%s' sent more than one file.", $name));
         }
+
+        return self::kept($name, $entry);
+    }
+
+    /**
+     * Every file sent as $parameter — one, or several a file input took at once under `name[]` — in
+     * the order they were sent; none where none was.
+     *
+     * The list is PHP's shape turned inside out: `$_FILES['name']['error'][0]` is the first file's
+     * error, and each file is put back together from its index before it is read as one.
+     *
+     * @param Parameter $parameter
+     * @return Collection<Upload>
+     * @throws TooLargeException if a file was larger than the host takes.
+     * @throws InputException    if one arrived only in part, nested deeper than one list, or with a
+     *                           name that is not UTF-8.
+     * @throws UploadException   if the host could not keep one.
+     */
+    public function uploads(Parameter $parameter): Collection
+    {
+        $name    = (string) $parameter->value;
+        $entry   = $this->files[$name] ?? null;
+        $uploads = new Collection(Upload::class);
+        $errors  = is_array($entry) ? ($entry[FileEntryKey::Error->value] ?? null) : null;
+
+        if ($errors === null || !is_array($entry)) {
+            return $uploads;
+        }
+
+        if (is_int($errors)) {
+            $one = self::kept($name, $entry);
+
+            return $one === null ? $uploads : $uploads->with($one);
+        }
+
+        if (!is_array($errors)) {
+            throw new InputException(sprintf("'%s' sent files this cannot read.", $name));
+        }
+
+        foreach ($errors as $index => $error) {
+            $file = [FileEntryKey::Error->value => $error];
+
+            foreach (FileEntryKey::cases() as $key) {
+                $values            = $entry[$key->value] ?? null;
+                $file[$key->value] = $key === FileEntryKey::Error || !is_array($values)
+                    ? ($file[$key->value] ?? null)
+                    : ($values[$index] ?? null);
+            }
+
+            if (!is_int($file[FileEntryKey::Error->value])) {
+                throw new InputException(sprintf("'%s' sent files nested deeper than one list.", $name));
+            }
+
+            $one = self::kept($name, $file);
+
+            if ($one !== null) {
+                $uploads = $uploads->with($one);
+            }
+        }
+
+        return $uploads;
+    }
+
+    /**
+     * The file one `$_FILES` entry holds — its error an int — or null where the input was left empty.
+     *
+     * @param string                  $name
+     * @param array<array-key, mixed> $entry
+     * @return Upload|null
+     * @throws TooLargeException
+     * @throws InputException
+     * @throws UploadException
+     */
+    #[BareArray('one $_FILES entry, on its way from the door to the reading of its error code')]
+    private static function kept(string $name, array $entry): ?Upload
+    {
+        $error = (int) $entry[FileEntryKey::Error->value];
 
         return match ($error) {
             UPLOAD_ERR_OK         => self::uploaded($name, $entry),

@@ -243,4 +243,135 @@ enum AdminText: string implements Translatable
 
     #[Translation(en: 'Remove what the pushed tree leaves out.', de: 'Entfernen, was der gepushte Baum weglässt.')]
     case FieldMirror = 'field-mirror';
+
+    #[Translation(
+        en: 'The machine this runs on: what it is, what it is doing, and its files.',
+        de: 'Die Maschine, auf der das läuft: was sie ist, was sie tut, und ihre Dateien.',
+    )]
+    case ServiceMachine = 'service-machine';
+
+    #[Translation(
+        en: 'The machine at a glance: host, hardware, memory, disks, network, sensors — and live readings.',
+        de: 'Die Maschine auf einen Blick: Host, Hardware, Speicher, Laufwerke, Netz, Sensoren — und'
+            . ' laufende Messwerte.',
+    )]
+    case MachineSystem = 'machine-system';
+
+    #[Translation(
+        en: 'The processes holding the most memory.',
+        de: 'Die Prozesse, die am meisten Speicher belegen.',
+    )]
+    case MachineProcesses = 'machine-processes';
+
+    #[Translation(
+        en: 'Browse the files: a directory is its entries, a file what it holds.',
+        de: 'Die Dateien durchsehen: ein Verzeichnis zeigt seine Einträge, eine Datei ihren Inhalt.',
+    )]
+    case MachineFiles = 'machine-files';
+
+    #[Translation(
+        en: "A file's bytes, shown where a browser can show them.",
+        de: 'Die Bytes einer Datei, angezeigt, wo ein Browser sie anzeigen kann.',
+    )]
+    case MachineRaw = 'machine-raw';
+
+    #[Translation(en: "A file's bytes, to save.", de: 'Die Bytes einer Datei, zum Speichern.')]
+    case MachineDownload = 'machine-download';
+
+    #[Translation(en: 'Keep files in a directory.', de: 'Dateien in einem Verzeichnis ablegen.')]
+    case MachineUpload = 'machine-upload';
+
+    #[Translation(en: 'Make a directory in a directory.', de: 'Ein Verzeichnis in einem Verzeichnis anlegen.')]
+    case MachineFolder = 'machine-folder';
+
+    #[Translation(en: 'Give an entry another name.', de: 'Einem Eintrag einen anderen Namen geben.')]
+    case MachineRename = 'machine-rename';
+
+    #[Translation(
+        en: 'Remove a file, a link, or a directory with nothing in it.',
+        de: 'Eine Datei, eine Verknüpfung oder ein leeres Verzeichnis entfernen.',
+    )]
+    case MachineDelete = 'machine-delete';
+
+    #[Translation(
+        en: "Run a command in a directory, with the machine's shell, and show what it printed.",
+        de: 'Einen Befehl in einem Verzeichnis mit der Shell der Maschine ausführen, und zeigen, was er'
+            . ' ausgegeben hat.',
+    )]
+    case MachineRun = 'machine-run';
+
+    #[Translation(en: 'The files to keep here.', de: 'Die Dateien, die hier abgelegt werden.')]
+    case FieldFiles = 'field-files';
+
+    #[Translation(en: 'The name to give.', de: 'Der Name, der vergeben wird.')]
+    case FieldTarget = 'field-target';
+
+    #[Translation(en: 'The command line to run.', de: 'Die Befehlszeile, die ausgeführt wird.')]
+    case FieldCommand = 'field-command';
+
+    #[Translation(en: 'Open', de: 'Öffnen')]
+    case Open = 'open';
+
+    #[Translation(en: 'Save', de: 'Speichern')]
+    case Save = 'save';
+
+    #[Translation(en: 'Keep files here', de: 'Dateien hier ablegen')]
+    case UploadHere = 'upload-here';
+
+    #[Translation(en: 'New directory', de: 'Neues Verzeichnis')]
+    case NewFolder = 'new-folder';
+
+    #[Translation(en: 'Run a command here', de: 'Hier einen Befehl ausführen')]
+    case RunHere = 'run-here';
+
+    #[Translation(en: 'Rename', de: 'Umbenennen')]
+    case Rename = 'rename';
+
+    #[Translation(en: 'Remove', de: 'Entfernen')]
+    case Remove = 'remove';
+
+    #[Translation(en: 'Filter by name', de: 'Nach Namen filtern')]
+    case Filter = 'filter';
+
+    #[Translation(en: 'Where this is', de: 'Wo das ist')]
+    case Whereabouts = 'whereabouts';
+
+    #[Translation(en: 'Back to where it is', de: 'Zurück dorthin')]
+    case BackThere = 'back-there';
+
+    #[Translation(en: 'Name', de: 'Name')]
+    case ColumnName = 'column-name';
+
+    #[Translation(en: 'Size', de: 'Größe')]
+    case ColumnSize = 'column-size';
+
+    #[Translation(en: 'Modified', de: 'Geändert')]
+    case ColumnModified = 'column-modified';
+
+    #[Translation(en: 'Permissions', de: 'Rechte')]
+    case ColumnMode = 'column-mode';
+
+    #[Translation(en: 'Owner', de: 'Besitzer')]
+    case ColumnOwner = 'column-owner';
+
+    #[Translation(
+        en: 'Only the first entries are listed; the directory holds more.',
+        de: 'Nur die ersten Einträge sind aufgeführt; das Verzeichnis enthält mehr.',
+    )]
+    case MoreEntries = 'more-entries';
+
+    #[Translation(
+        en: 'Nothing of it is shown here: it is not a picture, a recording, a film or text.',
+        de: 'Nichts davon wird hier gezeigt: es ist weder Bild noch Aufnahme, Film oder Text.',
+    )]
+    case NoPreview = 'no-preview';
+
+    #[Translation(
+        en: 'Only its beginning is shown; save it for the rest.',
+        de: 'Nur der Anfang wird gezeigt; für den Rest speichern.',
+    )]
+    case PreviewCut = 'preview-cut';
+
+    #[Translation(en: 'Live', de: 'Live')]
+    case Live = 'live';
 }

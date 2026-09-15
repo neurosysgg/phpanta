@@ -7,4 +7,7 @@
  */
 export enum MediaType {
   Html = 'text/html',
+
+  /** What the machine service's live readings ask for — the admin's answer as data. */
+  Json = 'application/json',
 }

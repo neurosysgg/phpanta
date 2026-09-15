@@ -63,4 +63,52 @@ enum ResultKey: string
 
     /** The fields an action takes. */
     case Fields = 'fields';
+
+    /** The `machine` service's raw counters, under {@link \Phpanta\Model\Machine\MachineCounter}'s keys. */
+    case Counters = 'counters';
+
+    /** What a directory entry is — an {@link \Phpanta\Model\Machine\EntryKind}. */
+    case Kind = 'kind';
+
+    /** An entry's size, in bytes. */
+    case Size = 'size';
+
+    /** When an entry last changed. */
+    case Modified = 'modified';
+
+    /** An entry's permissions, as `ls -l` writes them. */
+    case Mode = 'mode';
+
+    /** Who owns an entry, or runs a process. */
+    case Owner = 'owner';
+
+    /** Where a link leads. */
+    case Target = 'target';
+
+    /** How many entries a directory holds, whether or not all are listed. */
+    case Held = 'held';
+
+    /** What a text file begins with, as the page shows it. */
+    case Preview = 'preview';
+
+    /** A process's id. */
+    case Pid = 'pid';
+
+    /** What a process is doing, as the kernel's one letter says it. */
+    case State = 'state';
+
+    /** How much memory a process holds, in bytes. */
+    case Memory = 'memory';
+
+    /** How much processor time a process has had, in seconds. */
+    case Cpu = 'cpu';
+
+    /** When a process started. */
+    case Started = 'started';
+
+    /** A process's command line. */
+    case Command = 'command';
+
+    /** The processes, in order. */
+    case Processes = 'processes';
 }

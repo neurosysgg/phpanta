@@ -42,4 +42,25 @@ enum Environment: string
     {
         return $this === self::Development && $request->isFromLoopback();
     }
+
+    /**
+     * True if this deployment may run the admin's passkey ceremony at the origin $request reached it
+     * on: this is development, and the request came from a private network — the machine itself or a
+     * device on the same LAN.
+     *
+     * **Wider than {@link self::showsFaultsTo()} on purpose, and safe to be.** A trace names the
+     * code's own file paths, so it goes to loopback alone; a passkey is bound to the host it was
+     * registered at, opens nothing on any other origin, and is enrolled only by the signing key —
+     * so letting a phone on the developer's own LAN register and unlock at the address it actually
+     * reached (`https://box.local`, not the public `App::origin()`) widens nothing a stranger could
+     * turn into access. Production is never either, whatever a request's address:
+     * {@link \Phpanta\Service\Passkey\AdminBrowser} then falls back to the app's own origin.
+     *
+     * @param Request $request
+     * @return bool
+     */
+    public function trustsOriginOf(Request $request): bool
+    {
+        return $this === self::Development && $request->isFromPrivateNetwork();
+    }
 }

@@ -42,17 +42,19 @@ final readonly class Vocabulary
 
     /**
      * What every site can parse: HTML's own tags and attributes, and those the framework's own
-     * scripts read — navigation's `data-no-spa` and `data-language-bound`, and the passkey forms'.
+     * scripts read — navigation's `data-no-spa` and `data-language-bound`, the passkey forms', and the
+     * machine service's elements and what they read.
      *
      * @return self
      */
     public static function standard(): self
     {
         return new self(
-            new Collection('string')->with(HtmlTag::class),
+            new Collection('string')->with(HtmlTag::class, MachineTag::class),
             new Collection('string')->with(
                 HtmlAttribute::class,
                 LinkAttribute::class,
+                MachineAttribute::class,
                 PasskeyAttribute::class,
                 RegionAttribute::class,
             ),

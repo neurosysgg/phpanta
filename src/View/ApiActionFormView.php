@@ -6,6 +6,7 @@ namespace Phpanta\View;
 
 use Phpanta\Http\Api\ActionField;
 use Phpanta\Http\Api\ApiAction;
+use Phpanta\Http\FormEncoding;
 use Phpanta\Http\RequestHeader;
 use Phpanta\Model\Passkey\CeremonyType;
 use Phpanta\Support\BareArray;
@@ -59,11 +60,18 @@ final class ApiActionFormView extends View
             ->where(static fn(ActionField $field): bool => !$field->isFlag())
             ->map(static fn(ActionField $field): Node => self::field($field))
             ->toValues();
+        $files  = $this->action->fields()->first(static fn(ActionField $field): bool => $field->isUpload()) !== null;
 
         return new Element(HtmlTag::Section)->containing(
             new Element(HtmlTag::H1)->containing($this->path),
             new Element(HtmlTag::P)->containing($this->action->describe()),
-            AdminForm::posting($this->path, $this->token, CeremonyType::Get, $this->challenge)->containing(
+            AdminForm::posting(
+                $this->path,
+                $this->token,
+                CeremonyType::Get,
+                $this->challenge,
+                $files ? FormEncoding::Multipart : null,
+            )->containing(
                 ...$fields,
                 ...[
                     AdminForm::button(AdminText::DryRun, ActionField::Apply, self::said(false)),
@@ -96,9 +104,10 @@ final class ApiActionFormView extends View
     }
 
     /**
-     * A labelled, required line of text for $field.
+     * A labelled, required control for $field: a line of text, or — for files — a file control that
+     * takes several, sent as a list, which is how PHP keeps more than the last.
      *
-     * Only text: `apply` is the two buttons, and the one other yes-or-no there is — a push's `mirror` —
+     * Never a yes-or-no: `apply` is the two buttons, and the one other there is — a push's `mirror` —
      * belongs to an action a browser may not carry out, so a form here never has one to write.
      *
      * @param ActionField $field
@@ -106,15 +115,18 @@ final class ApiActionFormView extends View
      */
     private static function field(ActionField $field): Element
     {
-        return new Element(HtmlTag::P)->containing(
-            new Element(HtmlTag::Label)->containing(
-                $field->describe(),
-                ' ',
-                new Element(HtmlTag::Input)
-                    ->attr(HtmlAttribute::Type, InputType::Text)
-                    ->attr(HtmlAttribute::Name, $field)
-                    ->attr(HtmlAttribute::Required),
-            ),
-        );
+        $control = $field->isUpload()
+            ? new Element(HtmlTag::Input)
+                ->attr(HtmlAttribute::Type, InputType::File)
+                ->attr(HtmlAttribute::Name, $field->value . '[]')
+                ->attr(HtmlAttribute::Multiple, true)
+            : new Element(HtmlTag::Input)
+                ->attr(HtmlAttribute::Type, InputType::Text)
+                ->attr(HtmlAttribute::Name, $field);
+
+        $labelled = new Element(HtmlTag::Label)
+            ->containing($field->describe(), ' ', $control->attr(HtmlAttribute::Required, true));
+
+        return new Element(HtmlTag::P)->containing($labelled);
     }
 }

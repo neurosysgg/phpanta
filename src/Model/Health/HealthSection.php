@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Phpanta\Model\Health;
 
-use JsonSerializable;
 use Phpanta\Http\Api\ResultKey;
+use Phpanta\Http\Api\ResultSection;
 use Phpanta\Support\BareString;
 use Phpanta\Support\Collection;
 use Phpanta\View\Html\Element;
@@ -47,7 +47,7 @@ use Phpanta\View\Html\Node;
     . 'the same word; this is the collection of lines a section of text is, and join() will only '
     . 'join a collection that says it holds strings.',
 )]
-final readonly class HealthSection implements JsonSerializable
+final readonly class HealthSection implements ResultSection
 {
     /** How far a captioned section's lines sit under its caption. */
     private const string INDENT = '  ';
@@ -101,15 +101,15 @@ final readonly class HealthSection implements JsonSerializable
 
     /**
      * A whole response body of sections: each rendered, a blank line between them, and the newline
-     * every body here ends in.
+     * every body here ends in — this kind of section or any other.
      *
-     * @param self ...$sections
+     * @param ResultSection ...$sections
      * @return string
      */
-    public static function document(self ...$sections): string
+    public static function document(ResultSection ...$sections): string
     {
-        return new Collection(self::class)->with(...$sections)
-            ->map(static fn(self $section): string => $section->render())
+        return new Collection(ResultSection::class)->with(...$sections)
+            ->map(static fn(ResultSection $section): string => $section->render())
             ->join("\n\n") . "\n";
     }
 

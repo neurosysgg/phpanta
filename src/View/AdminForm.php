@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phpanta\View;
 
 use Phpanta\Http\CsrfField;
+use Phpanta\Http\FormEncoding;
 use Phpanta\Http\Parameter;
 use Phpanta\Http\PasskeyFormField;
 use Phpanta\Model\Passkey\CeremonyType;
@@ -62,13 +63,21 @@ final class AdminForm
      * @param string            $token
      * @param CeremonyType|null $type
      * @param string|null       $challenge
+     * @param FormEncoding|null $encoding  How it packs what it sends — multipart for one that sends
+     *                                     files; null for the default.
      * @return Element
      */
-    public static function posting(string $action, string $token, ?CeremonyType $type, ?string $challenge): Element
-    {
+    public static function posting(
+        string $action,
+        string $token,
+        ?CeremonyType $type,
+        ?string $challenge,
+        ?FormEncoding $encoding = null,
+    ): Element {
         $form = new Element(HtmlTag::Form)
             ->attr(HtmlAttribute::Method, FormMethod::Post)
             ->attr(HtmlAttribute::Action, $action)
+            ->attr(HtmlAttribute::Enctype, $encoding)
             ->attr(PasskeyAttribute::Ceremony, $type)
             ->attr(PasskeyAttribute::Challenge, $challenge)
             ->containing(self::hidden(CsrfField::Token, $token));

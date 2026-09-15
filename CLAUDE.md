@@ -128,7 +128,9 @@ These fail silently — no error, no log, a page that looks fine.
 - **Every credential file fails closed: `data/update.pub` absent means no signed call verifies and
   no device can be enrolled; `data/admin-passkeys.json` absent means no device is enrolled** — per
   deployment, written only by `access v1 enrol` and `revoke`, and never shipped. Keep it that way:
-  a misspelled case reads as absent.
+  a misspelled case reads as absent. **`data/machine.json` absent means the `machine` service is off**
+  — no listing names it and no address under it answers — so a deployment that has not deliberately
+  been given one keeps its disk closed. See [docs/machine.md](docs/machine.md).
 - **Passkeys are off unless the app names its origin** (`App::origin()`, never `Host`) **and the
   deployment has `data/session.key`.** In development from loopback only, the request's `Origin`
   comes first — before the app's — so a local copy runs a real ceremony where it is served. Otherwise the entrance says browsers cannot sign in, and nothing fails.
@@ -236,6 +238,7 @@ serves its export; `.github/workflows/pages.yml` runs the suite first and publis
 | [docs/security.md](docs/security.md) | headers, the method gate, the guards, the admin — its signed calls and its passkeys |
 | [docs/login.md](docs/login.md) | a login page — the recipe that puts `Form`, `Session`, the two guards and `Login` together |
 | [docs/health.md](docs/health.md) | `health` and `capability`, or a requirement to declare |
+| [docs/machine.md](docs/machine.md) | the `machine` service — the filesystem, the system facts, running a command, and the switch that gates it |
 | [docs/data.md](docs/data.md) | `Phpanta\Data` — a database, a statement, a row, a migration |
 | [docs/testing.md](docs/testing.md) | the framework's suite and `TestApp` |
 | [docs/tooling.md](docs/tooling.md) | the CLI layer, the signed commands, the build tools |
