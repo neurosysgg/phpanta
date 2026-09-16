@@ -374,4 +374,61 @@ enum AdminText: string implements Translatable
 
     #[Translation(en: 'Live', de: 'Live')]
     case Live = 'live';
+
+    #[Translation(
+        en: 'Secret texts and files, sealed and kept behind a link.',
+        de: 'Geheime Texte und Dateien, versiegelt und hinter einem Link hinterlegt.',
+    )]
+    case ServiceDrop = 'service-drop';
+
+    #[Translation(
+        en: 'Keeps a text or a file, sealed, and answers the link that opens it.',
+        de: 'Hinterlegt einen Text oder eine Datei, versiegelt, und antwortet mit dem Link, der sie öffnet.',
+    )]
+    case DropCreate = 'drop-create';
+
+    #[Translation(
+        en: 'The drops kept here: when each goes, and how it opens.',
+        de: 'Die hier hinterlegten Übergaben: wann jede verschwindet und wie sie sich öffnet.',
+    )]
+    case DropList = 'drop-list';
+
+    #[Translation(
+        en: 'Takes a drop away before it expires.',
+        de: 'Nimmt eine Übergabe weg, bevor sie abläuft.',
+    )]
+    case DropRevoke = 'drop-revoke';
+
+    #[Translation(en: 'Text to share', de: 'Zu teilender Text')]
+    case FieldText = 'field-text';
+
+    #[Translation(en: 'Or a file', de: 'Oder eine Datei')]
+    case FieldFile = 'field-file';
+
+    #[Translation(en: 'A name to save it under', de: 'Ein Name, unter dem sie gespeichert wird')]
+    case FieldFilename = 'field-filename';
+
+    #[Translation(
+        en: 'How long it is kept — 30m, 12h, 7d; a day where left empty',
+        de: 'Wie lange sie bleibt — 30m, 12h, 7d; ein Tag, wenn leer',
+    )]
+    case FieldLifetime = 'field-lifetime';
+
+    #[Translation(en: 'Gone once it has been read', de: 'Fort, sobald sie gelesen wurde')]
+    case FieldOnce = 'field-once';
+
+    #[Translation(en: 'A password it needs as well', de: 'Ein Passwort, das sie zusätzlich braucht')]
+    case FieldPassword = 'field-password';
+
+    #[Translation(en: 'The link that opens it', de: 'Der Link, der sie öffnet')]
+    case DropLink = 'drop-link';
+
+    #[Translation(en: 'Take it away', de: 'Wegnehmen')]
+    case DropRevokeLink = 'drop-revoke-link';
+
+    #[Translation(en: 'Make one', de: 'Eine anlegen')]
+    case DropMake = 'drop-make';
+
+    #[Translation(en: 'Every drop kept here', de: 'Alle hier hinterlegten Übergaben')]
+    case DropsKept = 'drops-kept';
 }

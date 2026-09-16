@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Phpanta\Model\Machine;
 
 use Phpanta\Http\MimeType;
-use Phpanta\Http\TopLevelType;
 
 /**
  * The MediaExtension enum. The extensions the `machine` service knows the kind of, and the subtype
@@ -127,6 +126,6 @@ enum MediaExtension: string
      */
     public static function octetStream(): MimeType
     {
-        return new MimeType(TopLevelType::Application, 'octet-stream', null);
+        return MimeType::octetStream();
     }
 }

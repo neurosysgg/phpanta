@@ -12,7 +12,8 @@ use Phpanta\Support\Collection;
 
 /**
  * The AdminHeaders class. What every answer under `/admin` carries, whoever gives it: kept by no
- * cache, since each is one caller's, and not to be indexed.
+ * cache, since each is one caller's, and not to be indexed. Every answer at `/drop` carries the same
+ * two, for the same reasons — see {@link \Phpanta\Controller\DropController}.
  */
 final class AdminHeaders
 {

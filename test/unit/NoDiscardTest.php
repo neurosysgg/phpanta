@@ -179,6 +179,8 @@ final class NoDiscardTest extends TestCase
                 'Phpanta\Service\Auth::accepts',
                 'Phpanta\Service\Auth::adminGate',
                 'Phpanta\Service\Auth::challenge',
+                'Phpanta\Service\Drop\DropStore::create',
+                'Phpanta\Service\Drop\DropStore::open',
                 'Phpanta\Service\FilesystemProbe::run',
                 'Phpanta\Service\Login::attempt',
                 'Phpanta\Service\Passkey\PasskeyRegistry::change',

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Phpanta\Http;
 
 use Generator;
-use Phpanta\Support\Diagnostics;
 use Phpanta\Support\File;
 
 /**
@@ -73,7 +72,8 @@ final readonly class FileBody implements Body
      * `Content-Length` and one that does not, which a browser treats as a broken response rather
      * than as extra.
      *
-     * **Opening the file is muted, and failing to is no body at all.** Whoever built this asked
+     * **Opening the file is muted — {@link \Phpanta\Support\File::reading()} — and failing to is no body
+     * at all.** Whoever built this asked
      * `exists()`, which is `is_file()` and says nothing about whether the file can be *read*. An
      * unreadable one makes `fopen()` warn, and by the time this runs the headers have gone out —
      * so the warning would be written into the audio, the same trap that once put an `E_WARNING`
@@ -83,9 +83,9 @@ final readonly class FileBody implements Body
      */
     private function chunks(): Generator
     {
-        $handle = Diagnostics::muted(fn(): mixed => fopen($this->file->path, 'rb'));
+        $handle = $this->file->reading();
 
-        if ($handle === false) {
+        if ($handle === null) {
             return;
         }
 

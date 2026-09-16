@@ -45,6 +45,27 @@ enum ActionField: string implements Parameter
     /** A command line, run by the machine's shell. */
     case Command = 'command';
 
+    /** The text a drop keeps — shown where it is revealed, unless it is given a filename. */
+    case Text = 'text';
+
+    /**
+     * The one file a drop keeps — a file a browser sends beside the form, like {@link self::Files}; a
+     * signed call's is its body.
+     */
+    case File = 'file';
+
+    /** The name a drop's bytes are saved under — a file's own, where left empty. */
+    case Filename = 'filename';
+
+    /** How long a drop is kept: `30m`, `12h`, `7d`. */
+    case Lifetime = 'lifetime';
+
+    /** Whether a drop is gone once it has been read. */
+    case Once = 'once';
+
+    /** A password a drop needs besides its link. */
+    case Password = 'password';
+
     /**
      * Whether the field is a yes or a no, rather than a line of text.
      *
@@ -52,7 +73,7 @@ enum ActionField: string implements Parameter
      */
     public function isFlag(): bool
     {
-        return $this === self::Apply || $this === self::Mirror;
+        return $this === self::Apply || $this === self::Mirror || $this === self::Once;
     }
 
     /**
@@ -62,7 +83,21 @@ enum ActionField: string implements Parameter
      */
     public function isUpload(): bool
     {
-        return $this === self::Files;
+        return $this === self::Files || $this === self::File;
+    }
+
+    /**
+     * Whether an action taking the field may be sent without it — every field a drop takes, since it
+     * is sent either text or a file, and has a default for the rest.
+     *
+     * @return bool
+     */
+    public function isOptional(): bool
+    {
+        return match ($this) {
+            self::Text, self::File, self::Filename, self::Lifetime, self::Once, self::Password => true,
+            default                                                                            => false,
+        };
     }
 
     /**
@@ -79,8 +114,14 @@ enum ActionField: string implements Parameter
             self::Name    => AdminText::FieldName,
             self::Passkey => AdminText::FieldPasskey,
             self::Files   => AdminText::FieldFiles,
-            self::Target  => AdminText::FieldTarget,
-            self::Command => AdminText::FieldCommand,
+            self::Target   => AdminText::FieldTarget,
+            self::Command  => AdminText::FieldCommand,
+            self::Text     => AdminText::FieldText,
+            self::File     => AdminText::FieldFile,
+            self::Filename => AdminText::FieldFilename,
+            self::Lifetime => AdminText::FieldLifetime,
+            self::Once     => AdminText::FieldOnce,
+            self::Password => AdminText::FieldPassword,
         };
     }
 }

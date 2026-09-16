@@ -47,8 +47,8 @@ use PHPUnit\Framework\TestCase;
 final class DiscoveryTest extends TestCase
 {
     /**
-     * Every service offers the one version there is — but `machine`, which a deployment switches on
-     * and this one has not, and which therefore offers nothing at all.
+     * Every service offers the one version there is — but `machine` and `drop`, which a deployment
+     * switches on and this one has not, and which therefore offer nothing at all.
      *
      * @return void
      */
@@ -56,7 +56,7 @@ final class DiscoveryTest extends TestCase
     {
         foreach (ApiService::cases() as $service) {
             self::assertSame(
-                $service === ApiService::Machine ? [] : [ApiVersion::V1],
+                $service === ApiService::Machine || $service === ApiService::Drop ? [] : [ApiVersion::V1],
                 $service->versions()->toValues(),
                 $service->value,
             );

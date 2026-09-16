@@ -55,6 +55,7 @@ use Phpanta\Service\UpdateApplier;
 use Phpanta\Support\AdminPath;
 use Phpanta\Support\Collection;
 use Phpanta\Support\Directory;
+use Phpanta\Support\DropPath;
 use Phpanta\Support\File;
 use Phpanta\Support\FileLock;
 use Phpanta\Support\MethodPolicy;
@@ -331,13 +332,16 @@ final class ApiTest extends TestCase
     }
 
     /**
-     * The admin's routes are the ones that accept a write method, and the only ones.
+     * The framework's routes — `/drop`, then the admin's — are the ones that accept a write method,
+     * and the only ones.
      *
      * Asserted over the table an app hands the router, by reflection rather than by reading the
      * registration, because what matters is what the router will do and not what anybody wrote
      * down. The booted app declares no routes of its own, so fixture routes stand in front of the
-     * admin's for a site's, registered the way a site registers one. Both directions: another route
-     * accepting a write, and another route made `Delegated`, are each a hole.
+     * framework's for a site's, registered the way a site registers one. Both directions: another
+     * route accepting a write, and another route made `Delegated`, are each a hole. `/drop` is the
+     * one delegated route outside the admin, because its controller answers as an address that is not
+     * there wherever drops are off — which a method gate naming `POST` would not.
      *
      * @return void
      */
@@ -368,8 +372,10 @@ final class ApiTest extends TestCase
             }
         }
 
-        self::assertSame(AdminPath::cases(), $accepting);
-        self::assertSame(AdminPath::cases(), $delegated, 'another route stopped being method-gated');
+        $framework = [DropPath::Index, ...AdminPath::cases()];
+
+        self::assertSame($framework, $accepting);
+        self::assertSame($framework, $delegated, 'another route stopped being method-gated');
     }
 
     /**

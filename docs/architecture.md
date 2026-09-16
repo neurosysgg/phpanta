@@ -30,7 +30,7 @@ What a site owes, and what it may add:
 |---|---|---|
 | owes | `name()` | the Basic Auth realm, and the title a page is named under |
 | | `above()` | the deployment directory — the one holding `autoload.php` |
-| | `routes()` | the site's routes; `routeTable()` appends the framework's five admin routes after them |
+| | `routes()` | the site's routes; `routeTable()` appends the framework's `/drop` and its five admin routes after them |
 | | `notFound()` | the page for an address the site does not have, to a method that reads |
 | | `languages()` | the languages it is written in, its default first |
 | | `shell()` | the document every page is rendered inside |
@@ -159,9 +159,11 @@ in front of every request would stand in front of the admin too, whose signed ca
 ### ④ Routing
 
 [`Router::dispatch()`](../src/Router.php) asks the table [`App::routeTable()`](../src/App.php)
-builds: the site's `routes()`, in match order, then the framework's five admin routes,
-`App::adminRoutes()`, last, so no site route can be shadowed by one. `TestApp`'s `routes()` is empty,
-so its table is those five. The router does two things, in order:
+builds: the site's `routes()`, in match order, then the framework's own — `/drop`,
+`App::dropRoutes()`, and the five admin routes, `App::adminRoutes()` — last, so no site route can be
+shadowed by one. `TestApp`'s `routes()` is empty, so its table is those six. `/drop` is delegated like
+the admin's, so that where drops are off it answers as an address that is not there; see
+[drop.md](drop.md). The router does two things, in order:
 
 1. **The match.** Each [`Route`](../src/Support/Route.php) is a
    [`Path`](../src/Support/Path.php) case, a factory closure and a

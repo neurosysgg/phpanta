@@ -239,6 +239,55 @@ final class ApiCallTest extends TestCase
     }
 
     /**
+     * `drop v1 create` carries a body too — the bytes a drop keeps — and `drop` is the command that
+     * sends it.
+     *
+     * @return void
+     */
+    public function testMakingADropIsRefusedHere(): void
+    {
+        /** @var ArrayObject<int, Request> $sent */
+        $sent = new ArrayObject();
+
+        [$code, , $error] = $this->call(200, '', 'drop', 'v1', 'create', $sent);
+
+        self::assertSame(ExitCode::Usage, $code);
+        self::assertStringContainsString('carries a body', $error);
+        self::assertCount(0, $sent);
+    }
+
+    /**
+     * A path after the action is part of its address, and signed with it — for a service this
+     * checkout's own switch files do not offer, too, since what the deployment called offers is its to
+     * say — and a path after an action that takes none is refused before anything is sent.
+     *
+     * @return void
+     */
+    public function testAPathAfterTheActionIsSignedAsPartOfItsAddress(): void
+    {
+        /** @var ArrayObject<int, Request> $sent */
+        $sent = new ArrayObject();
+        $id   = str_repeat('a', 32);
+
+        $answer    = self::written(200, null, 'x');
+        [$revoked] = $this->invoke(200, $answer, ['drop', 'v1', 'revoke', $id], $sent, ['--dry-run']);
+        [$listed]  = $this->invoke(200, $answer, ['machine', 'v1', 'files', '/etc'], $sent);
+
+        self::assertSame(ExitCode::Success, $revoked);
+        self::assertSame(ExitCode::Success, $listed);
+        self::assertSame('https://example.test/admin/drop/v1/revoke/' . $id, $sent[0]->url->render());
+        self::assertSame('/admin/drop/v1/revoke/' . $id, self::manifestOf($sent[0])['path']);
+        self::assertFalse(self::manifestOf($sent[0])['apply']);
+        self::assertSame('https://example.test/admin/machine/v1/files/etc', $sent[1]->url->render());
+
+        [$refused, , $error] = $this->invoke(200, '', ['health', 'v1', 'report', 'x'], $sent);
+
+        self::assertSame(ExitCode::Usage, $refused);
+        self::assertStringContainsString('report takes no path after it', $error);
+        self::assertCount(2, $sent);
+    }
+
+    /**
      * A verified refusal is not a key problem: a rollback with nothing to roll back is a 422 whose
      * body says so, and the command says only what came back.
      *

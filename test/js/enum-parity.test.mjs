@@ -62,6 +62,8 @@ function mirrored(name) {
 /** Every mirror that repeats a PHP enum whole: its file's name, and the enum it mirrors. */
 const MIRRORED = [
   ['CeremonyType', 'Phpanta\\Model\\Passkey\\CeremonyType'],
+  ['DropField', 'Phpanta\\Http\\DropField'],
+  ['DropTag', 'Phpanta\\View\\Html\\DropTag'],
   ['ElementId', 'Phpanta\\View\\Html\\ElementId'],
   ['HtmlAttribute', 'Phpanta\\View\\Html\\HtmlAttribute'],
   ['HtmlTag', 'Phpanta\\View\\Html\\HtmlTag'],

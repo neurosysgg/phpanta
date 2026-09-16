@@ -12,6 +12,7 @@ use Phpanta\Model\Passkey\CeremonyType;
 use Phpanta\Support\BareArray;
 use Phpanta\Text\AdminText;
 use Phpanta\Text\Translatable;
+use Phpanta\View\Html\Autocomplete;
 use Phpanta\View\Html\Element;
 use Phpanta\View\Html\HtmlAttribute;
 use Phpanta\View\Html\HtmlTag;
@@ -57,7 +58,7 @@ final class ApiActionFormView extends View
     public function content(): Node
     {
         $fields = $this->action->fields()
-            ->where(static fn(ActionField $field): bool => !$field->isFlag())
+            ->where(static fn(ActionField $field): bool => $field !== ActionField::Apply)
             ->map(static fn(ActionField $field): Node => self::field($field))
             ->toValues();
         $files  = $this->action->fields()->first(static fn(ActionField $field): bool => $field->isUpload()) !== null;
@@ -104,28 +105,43 @@ final class ApiActionFormView extends View
     }
 
     /**
-     * A labelled, required control for $field: a line of text, or — for files — a file control that
-     * takes several, sent as a list, which is how PHP keeps more than the last.
+     * A labelled control for $field — required unless the field is optional: a line of text; a file
+     * control, which for {@link ActionField::Files} takes several, sent as a list, which is how PHP keeps
+     * more than the last; a box of text; a password; or a box to tick, for a yes-or-no.
      *
-     * Never a yes-or-no: `apply` is the two buttons, and the one other there is — a push's `mirror` —
-     * belongs to an action a browser may not carry out, so a form here never has one to write.
+     * `apply` is never one of these — it is the two buttons — and the only yes-or-no besides it that a
+     * browser meets is a drop's `once`. A push's `mirror` belongs to an action a browser may not carry
+     * out, so a form here never has it to write.
      *
      * @param ActionField $field
      * @return Element
      */
     private static function field(ActionField $field): Element
     {
-        $control = $field->isUpload()
-            ? new Element(HtmlTag::Input)
+        $control = match (true) {
+            $field === ActionField::Files => new Element(HtmlTag::Input)
                 ->attr(HtmlAttribute::Type, InputType::File)
                 ->attr(HtmlAttribute::Name, $field->value . '[]')
-                ->attr(HtmlAttribute::Multiple, true)
-            : new Element(HtmlTag::Input)
+                ->attr(HtmlAttribute::Multiple, true),
+            $field->isUpload()            => new Element(HtmlTag::Input)
+                ->attr(HtmlAttribute::Type, InputType::File)
+                ->attr(HtmlAttribute::Name, $field),
+            $field === ActionField::Text  => new Element(HtmlTag::Textarea)->attr(HtmlAttribute::Name, $field),
+            $field === ActionField::Password => new Element(HtmlTag::Input)
+                ->attr(HtmlAttribute::Type, InputType::Password)
+                ->attr(HtmlAttribute::Name, $field)
+                ->attr(HtmlAttribute::Autocomplete, Autocomplete::NewPassword),
+            $field->isFlag()              => new Element(HtmlTag::Input)
+                ->attr(HtmlAttribute::Type, InputType::Checkbox)
+                ->attr(HtmlAttribute::Name, $field)
+                ->attr(HtmlAttribute::Value, self::said(true)),
+            default                       => new Element(HtmlTag::Input)
                 ->attr(HtmlAttribute::Type, InputType::Text)
-                ->attr(HtmlAttribute::Name, $field);
+                ->attr(HtmlAttribute::Name, $field),
+        };
 
         $labelled = new Element(HtmlTag::Label)
-            ->containing($field->describe(), ' ', $control->attr(HtmlAttribute::Required, true));
+            ->containing($field->describe(), ' ', $control->attr(HtmlAttribute::Required, !$field->isOptional()));
 
         return new Element(HtmlTag::P)->containing($labelled);
     }

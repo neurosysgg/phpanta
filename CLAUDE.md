@@ -31,7 +31,7 @@ Plain PHP 8.5 / HTML / CSS, **no runtime dependencies**. PHP ≥ 8.5 is load-bea
 pipe operator in `autoload.php`, `#[\NoDiscard]` on the copy-returning builders, and `ext/uri`, the
 WHATWG and RFC 3986 parsers `Element` and `Request` put their URL questions to. The runtime also
 needs `ext/dom` (`MarkupParser`), `ext/intl` (`MessageFormatter`), `ext/openssl` (`PublicKey`, the
-API's signature check, and `SessionSeal`), `ext/zlib` (`UpdateApplier`'s `gzdecode()`) and `ext/mbstring` (`Input`'s
+API's signature check, `SessionSeal` and `DropCipher`), `ext/zlib` (`UpdateApplier`'s `gzdecode()`) and `ext/mbstring` (`Input`'s
 UTF-8 check — every form read); `ext/curl` is tooling only.
 Composer and npm are dev tooling; nothing on the PHP side is built, and composer never runs on the
 server.
@@ -130,7 +130,13 @@ These fail silently — no error, no log, a page that looks fine.
   deployment, written only by `access v1 enrol` and `revoke`, and never shipped. Keep it that way:
   a misspelled case reads as absent. **`data/machine.json` absent means the `machine` service is off**
   — no listing names it and no address under it answers — so a deployment that has not deliberately
-  been given one keeps its disk closed. See [docs/machine.md](docs/machine.md).
+  been given one keeps its disk closed. See [docs/machine.md](docs/machine.md). **`data/drop.json`
+  absent means the `drop` service is off, and `/drop` answers every method as an address that is not
+  there; `data/drop.key` absent keeps `/drop` off too**, and the admin says how to mint one. Taking the
+  key away destroys every drop at once. See [docs/drop.md](docs/drop.md).
+- **`/drop` is the one framework route outside `/admin`, and `Delegated` like the admin's**, so that
+  off it can answer exactly as `/no-such-page`. `ApiTest` and a site's routing test hold the list of
+  routes that accept a write to it and the admin's — another route in either is a hole.
 - **Passkeys are off unless the app names its origin** (`App::origin()`, never `Host`) **and the
   deployment has `data/session.key`.** In development from loopback only, the request's `Origin`
   comes first — before the app's — so a local copy runs a real ceremony where it is served. Otherwise the entrance says browsers cannot sign in, and nothing fails.
@@ -239,6 +245,7 @@ serves its export; `.github/workflows/pages.yml` runs the suite first and publis
 | [docs/login.md](docs/login.md) | a login page — the recipe that puts `Form`, `Session`, the two guards and `Login` together |
 | [docs/health.md](docs/health.md) | `health` and `capability`, or a requirement to declare |
 | [docs/machine.md](docs/machine.md) | the `machine` service — the filesystem, the system facts, running a command, and the switch that gates it |
+| [docs/drop.md](docs/drop.md) | the `drop` service and `/drop` — its switch and key, how a drop is sealed, opened, claimed once and swept |
 | [docs/data.md](docs/data.md) | `Phpanta\Data` — a database, a statement, a row, a migration |
 | [docs/testing.md](docs/testing.md) | the framework's suite and `TestApp` |
 | [docs/tooling.md](docs/tooling.md) | the CLI layer, the signed commands, the build tools |

@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace Phpanta;
 
 /**
- * The CredentialFile enum. The five files in `data/` the framework itself reads: the admin gate's
+ * The CredentialFile enum. The seven files in `data/` the framework itself reads: the admin gate's
  * credentials, the admin's signing key, the key sessions are sealed with, the devices that may
- * open the admin in a browser, and what the admin may do to the machine it runs on.
+ * open the admin in a browser, what the admin may do to the machine it runs on, and whether it keeps
+ * drops and the key it seals them under.
  *
  * **Every one of them changes what the site does rather than what it shows**, which is why they
  * are the framework's rather than a site's: the admin gate, the signed API and the admin's browser
@@ -17,7 +18,7 @@ namespace Phpanta;
  * as "no such file", so absence must never be the open state: without its file the admin gate
  * refuses loudly, no signed call verifies, no session opens and no device is enrolled.
  *
- * All five are per deployment, so a full deploy excludes all five; each that a deployment needs is
+ * All seven are per deployment, so a full deploy excludes all seven; each that a deployment needs is
  * uploaded, minted, enrolled or written by hand.
  */
 enum CredentialFile: string implements DataFileName
@@ -73,6 +74,25 @@ enum CredentialFile: string implements DataFileName
      * deployed — a copy from a laptop would open the live host's filesystem to its admin.
      */
     case Machine = 'machine.json';
+
+    /**
+     * Whether the `drop` service is on, and how much it keeps for how long. See
+     * {@link Model\Drop\DropConfig}.
+     *
+     * **Absent is off**, with {@link self::Machine}'s polarity: no file, no service — no listing names
+     * it, and `/drop` answers as an address that is not there. Per deployment and never deployed.
+     */
+    case Drop = 'drop.json';
+
+    /**
+     * The key every drop is sealed under beside its link — thirty-two random bytes, base64. See
+     * {@link Service\Drop\DropCipher}.
+     *
+     * Per deployment like {@link self::SessionKey}, minted on the host it serves and never deployed.
+     * **Removing it is the quickest way to destroy every drop at once**: without it no drop opens,
+     * whoever holds a link.
+     */
+    case DropKey = 'drop.key';
 
     /**
      * None is tracked: each holds what one deployment holds — a credential, a key, a list of

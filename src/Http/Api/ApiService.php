@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Phpanta\Http\Api;
 
+use Phpanta\Model\Drop\DropConfig;
 use Phpanta\Model\Machine\MachineConfig;
 use Phpanta\Support\BareArray;
 use Phpanta\Support\Collection;
@@ -82,6 +83,15 @@ enum ApiService: string
     case Machine = 'machine';
 
     /**
+     * Secret texts and files kept behind a link: making one, listing them, taking one away. See
+     * {@link DropAction}; a drop is opened at `/drop`, by whoever holds its link.
+     *
+     * **Switched on like {@link self::Machine}**, by writing `data/drop.json`; without it the service
+     * offers nothing and `/drop` is an address that is not there.
+     */
+    case Drop = 'drop';
+
+    /**
      * What this service is for, in the caller's language — what the admin's entrance says of it.
      *
      * @return Translatable
@@ -94,6 +104,7 @@ enum ApiService: string
             self::Capability => AdminText::ServiceCapability,
             self::Access     => AdminText::ServiceAccess,
             self::Machine    => AdminText::ServiceMachine,
+            self::Drop       => AdminText::ServiceDrop,
         };
     }
 
@@ -132,6 +143,8 @@ enum ApiService: string
             $this === self::Capability && $version === ApiVersion::V1 => CapabilityAction::cases(),
             $this === self::Access && $version === ApiVersion::V1     => AccessAction::cases(),
             $this === self::Machine && $version === ApiVersion::V1    => self::machineActions(),
+            $this === self::Drop && $version === ApiVersion::V1       => DropAction::offered(DropConfig::current())
+                ->toValues(),
 
             // A pair nothing has wired yet, which is only reachable once a second version exists.
             // Empty rather than an unhandled match: a version this service does not offer is an

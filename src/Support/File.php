@@ -91,6 +91,23 @@ final readonly class File
     }
 
     /**
+     * The file, open for reading from its start — a stream to read a chunk at a time, which the caller
+     * closes — or null where it cannot be opened.
+     *
+     * Muted, for {@link self::read()}'s reason: a file that is there and cannot be read makes `fopen()`
+     * warn, and something streaming it has usually sent its headers already. `mixed` rather than a
+     * resource, for {@link self::append()}'s.
+     *
+     * @return mixed A stream, or null.
+     */
+    public function reading(): mixed
+    {
+        $handle = Diagnostics::muted(fn(): mixed => fopen($this->path, 'rb'));
+
+        return $handle === false ? null : $handle;
+    }
+
+    /**
      * The file's last $bytes bytes — all of it where it is shorter — or null where it cannot be read.
      *
      * {@link self::read()} from the other end, and bounded for the same reason. A log is read from

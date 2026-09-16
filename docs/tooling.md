@@ -14,8 +14,8 @@ tools/
 ├── build-cli.mjs  build-css.mjs  build-assets.mjs  build-prod.mjs   ← the build; see frontend.md
 └── lib/
     ├── Cli/              ← Command, Option, Arity, Input, Output, ExitCode, UsageException, Runner
-    ├── Command/          ← ApiCall, PushUpdate, MergeCoverage, Export, Authenticator (+ its
-    │                       AuthenticatorWalk), each with its option enum
+    ├── Command/          ← ApiCall, PushUpdate, DropCreate, MergeCoverage, Export, Authenticator
+    │                       (+ its AuthenticatorWalk), each with its option enum
     ├── Api/              ← the signing side: ApiTarget, PrivateKey, SignedCredential, SignedRequest,
     │                       and ResultReader and ListingReader, which read an answer back
     ├── Passkey/          ← the software authenticator's device and page reader: SoftwareDevice, AdminPage
@@ -28,11 +28,13 @@ tools/
     └── Php/              ← an expression tree for emitting PHP source, so none is built from a string
 ```
 
-**Four of the five commands need something only a site knows**, so the framework ships them as
+**Five of the six commands need something only a site knows**, so the framework ships them as
 classes, and a site gives each one an entry script of its own:
 
 - `ApiCall` takes the deployment's origin and the path of its key, relative to `$HOME`;
 - `PushUpdate` takes the project root as well;
+- `DropCreate` takes the origin and key `ApiCall` does — it sends `drop v1 create`, whose body is the
+  drop; see [drop.md](drop.md#making-one);
 - `MergeCoverage` takes the root whose `src/` it measures;
 - `Authenticator` takes the origin and key `ApiCall` does, to enrol the device it plays — see
   [The software authenticator](#the-software-authenticator).
@@ -51,11 +53,16 @@ application/json`, and `ResultReader` reads the answer back into the server's ow
 wrote the data, not by a second formatter here, and the keys it reads are the server's own
 `ResultKey` cases. `ListingReader` does the same for a listing, one line an entry.
 
-**`ApiCall` takes up to three operands, and fewer than three is a question.** `api`, `api update`
+**`ApiCall` takes up to four operands, and fewer than three is a question.** `api`, `api update`
 and `api update v1` each ask the server, as a signed `GET`, what it offers at that depth, and print
 its listing: services, versions, or actions with their method and description. A whole address runs
 the action, and that one the local enums must know — a listing says what the server has, and the
-command signs only what it can name.
+command signs only what it can name. `machine` and `drop` actions are named from their enums whether
+or not this checkout's own switch file offers them: the signing machine is not the deployment, and
+whether the one called offers an action is its listing's to say. **A fourth operand is the path after
+an action that acts on one** — `machine v1 files /etc`, `drop v1 revoke <id>` — signed as part of the
+address; after an action that takes none it is refused. An action with a body is never sent: `patch`
+has `PushUpdate`, and `drop v1 create` has `DropCreate`.
 
 **An action's other fields are flags of their own.** `--code` and `--name` fill `access v1 enrol`'s,
 and `--passkey` fills `access v1 revoke`'s; `apply` is still the absence of `--dry-run`. Each

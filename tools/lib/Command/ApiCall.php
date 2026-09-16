@@ -6,8 +6,11 @@ namespace Phpanta\Tool\Command;
 
 use Closure;
 use Phpanta\Http\Api\ActionField;
+use Phpanta\Http\Api\ApiAction;
 use Phpanta\Http\Api\ApiService;
 use Phpanta\Http\Api\ApiVersion;
+use Phpanta\Http\Api\DropAction;
+use Phpanta\Http\Api\MachineAction;
 use Phpanta\Http\Api\UpdateAction;
 use Phpanta\Http\HttpMethod;
 use Phpanta\Http\HttpStatusCode;
@@ -64,7 +67,11 @@ use Phpanta\Tool\Http\Url;
  * **And it refuses an action that takes a body**, for the honest reason: this command has no way to
  * produce one. A `--body-file` would be the beginning of a general-purpose HTTP client, which is
  * not what this is — an action with a body is an action whose payload somebody has to build, and
- * that is a command of its own.
+ * that is a command of its own: {@link PushUpdate} for `update v1 patch`, {@link DropCreate} for
+ * `drop v1 create`.
+ *
+ * **A fourth operand is the path after the action**, for one that acts on a place — `machine v1
+ * files /etc`, `drop v1 revoke <id>` — and is signed as part of the address, like the rest of it.
  *
  * Which deployment it calls, and with which key, is {@link ApiTarget}'s to decide.
  */
@@ -98,7 +105,7 @@ final readonly class ApiCall implements Command
      */
     public function usage(): string
     {
-        return '[<service> [<version> [<action>]]] [--dry-run] [--code <code>] [--name <name>]'
+        return '[<service> [<version> [<action> [<path>]]]] [--dry-run] [--code <code>] [--name <name>]'
             . ' [--passkey <id>] [--url <origin>] [--key <file>]';
     }
 
@@ -123,7 +130,7 @@ final readonly class ApiCall implements Command
      */
     public function operands(): Arity
     {
-        return Arity::between(0, 3);
+        return Arity::between(0, 4);
     }
 
     /**
@@ -136,6 +143,7 @@ final readonly class ApiCall implements Command
         $service = $input->operand(0);
         $version = $input->operand(1);
         $action  = $input->operand(2);
+        $subject = $input->operand(3);
 
         if ($action === null) {
             return $this->list($input, $output, $service, $version);
@@ -143,7 +151,7 @@ final readonly class ApiCall implements Command
 
         $known   = ApiService::tryFrom($service ?? '');
         $revised = ApiVersion::tryFrom($version ?? '');
-        $named   = $revised === null ? null : $known?->action($revised, $action);
+        $named   = $known === null || $revised === null ? null : self::named($known, $revised, $action);
 
         if ($known === null || $revised === null || $named === null) {
             $output->error(sprintf(
@@ -157,8 +165,16 @@ final readonly class ApiCall implements Command
             return ExitCode::Usage;
         }
 
-        if ($named === UpdateAction::Patch) {
+        if ($named === UpdateAction::Patch || $named === DropAction::Create) {
             $output->error(sprintf("%s: %s carries a body, so it has a command of its own.\n", $this->name(), $action));
+
+            return ExitCode::Usage;
+        }
+
+        // The path after an action is part of its address, so it is signed with the rest of it — and an
+        // action that takes none has no such address, which is a mistake to say here rather than a 404.
+        if ($subject !== null && !$named->takesPath()) {
+            $output->error(sprintf("%s: %s takes no path after it.\n", $this->name(), $action));
 
             return ExitCode::Usage;
         }
@@ -208,8 +224,41 @@ final readonly class ApiCall implements Command
             }
         }
 
-        return $this->send($input, $output, static fn(Url $origin, PrivateKey $key): Request
-            => SignedRequest::build($origin, $known, $revised, $named, '', $fields, $key));
+        $path = $subject === null ? null : AdminPath::Subject->to(
+            $known->value,
+            $revised->value,
+            (string) $named->value,
+            ltrim($subject, '/'),
+        );
+
+        return $this->send($input, $output, static fn(Url $origin, PrivateKey $key): Request => $path === null
+            ? SignedRequest::build($origin, $known, $revised, $named, '', $fields, $key)
+            : SignedRequest::signed($origin, $path, $named->method(), '', $fields, $key));
+    }
+
+    /**
+     * The action $segment names on $service at $version — every one the service has, whether or not a
+     * switch file in *this* checkout offers it.
+     *
+     * `machine` and `drop` offer their actions only where a deployment's own switch file is there, and
+     * this checkout is the signing machine, not the deployment: whether the one called offers an action
+     * is its answer to say, and its listing — the command with the action left off — is where it says
+     * it. Asked through the checkout's switch alone, a laptop with no `data/drop.json` could never sign
+     * a `drop` call to a machine that has one.
+     *
+     * @param ApiService $service
+     * @param ApiVersion $version
+     * @param string     $segment
+     * @return ApiAction|null
+     */
+    private static function named(ApiService $service, ApiVersion $version, string $segment): ?ApiAction
+    {
+        return $service->action($version, $segment) ?? match (true) {
+            $version !== ApiVersion::V1      => null,
+            $service === ApiService::Machine => MachineAction::tryFrom($segment),
+            $service === ApiService::Drop    => DropAction::tryFrom($segment),
+            default                          => null,
+        };
     }
 
     /**

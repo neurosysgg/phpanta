@@ -150,8 +150,11 @@ the same way at every depth, whether the address exists or not. A router that re
 one depth with one `Allow` and let it through to another would say which depth is an action before
 the caller had proved anything; an unrecognised verb, being in no set, would make the refusal name
 the whole set. So there are two policies, not one set per route: every route a site registers is
-`ReadOnly` unless it says otherwise, and the framework's four `AdminPath` routes are `Delegated`,
+`ReadOnly` unless it says otherwise, and the framework's `AdminPath` routes are `Delegated`,
 which means the router forms **no opinion at all** and the controller answers every method itself.
+`/drop` is the one other: where drops are off its controller hands every method to the answer an
+address that is not there gets, which a router naming `POST` in an `Allow` would not — see
+[drop.md](drop.md).
 The only `Allow` the router ever sends is `GET, HEAD`, and the admin sends one only to a caller it
 has verified.
 
@@ -349,8 +352,8 @@ listings the moment it exists. The signed commands resolve an address through th
 and nothing answers under any other prefix: an address outside `/admin` is a site's to route or to
 leave unrouted.
 
-`health`, `capability`, `access` and `machine` are the other four services, and each cost exactly
-that: an `ApiService` case, an action enum and its handlers.
+`health`, `capability`, `access`, `machine` and `drop` are the other five services, and each cost
+exactly that: an `ApiService` case, an action enum and its handlers.
 
 - `health` checks the site's declared requirements and answers `503` when a required one is unmet.
 - `capability` lists what the host has: every extension, every directive, the SAPI, the clock, the
@@ -363,6 +366,10 @@ that: an `ApiService` case, an action enum and its handlers.
   the path with the rest — see [machine.md](machine.md). It reaches only the roots that file names,
   and only writes and runs commands where it says to; the file is per deployment and never shipped,
   with `data/update.pub`'s polarity.
+- `drop` keeps secret texts and files behind a link: making one, listing them and taking one away are
+  the admin's, and opening one is the link's, at `/drop` — the framework's one address outside the
+  admin. It is **off unless `data/drop.json` switches it on and `data/drop.key` holds its key**, and
+  off, `/drop` answers every method as an address that is not there. See [drop.md](drop.md).
 
 In anyone else's hands, either answer is reconnaissance. That is exactly why they are services
 behind this signature rather than the public `/health` a monitor would ping. See
@@ -589,8 +596,9 @@ deployment holding no key does no verification work at all. A browser whose devi
 before the key went still opens the admin; revoking it needs the key or that browser. So a fresh clone and every machine that has not deliberately been given a key are closed rather
 than open — worth reading twice, because the two files look alike and mean opposite things.
 
-`PublicKey` is the only place under `src/` that verifies a signature, and `SessionSeal`'s encrypt
-and decrypt are the only other `openssl_*` calls. It asks `=== 1`, because
+`PublicKey` is the only place under `src/` that verifies a signature, and `SessionSeal`'s and
+`DropCipher`'s encrypt and decrypt are the only other `openssl_*` calls — the same cipher, each in one
+class, so the nonce, the tag and the associated data are right in one place apiece. It asks `=== 1`, because
 `openssl_verify()` returns `1`, `0` **or `-1`**, and a call site written `if (openssl_verify(...))`
 would read the error case as a pass. Nothing under `src/` names a signing or key-minting call at
 all, so a private key arriving on the server would have nothing to use it — both are worth a check

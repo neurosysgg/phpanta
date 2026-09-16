@@ -30,8 +30,11 @@ use SensitiveParameter;
  */
 final readonly class SessionSeal
 {
-    /** The cipher. Authenticated, so opening is also checking. */
-    private const string CIPHER = 'aes-256-gcm';
+    /**
+     * The cipher. Authenticated, so opening is also checking. Public because it is the framework's one
+     * AEAD, and a drop is sealed with it too — {@link \Phpanta\Service\Drop\DropCipher}.
+     */
+    public const string CIPHER = 'aes-256-gcm';
 
     /** The key's length, in bytes. */
     private const int KEY_BYTES = 32;

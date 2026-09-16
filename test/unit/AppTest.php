@@ -19,6 +19,7 @@ use Phpanta\Model\Health\Requirement;
 use Phpanta\Support\AdminPath;
 use Phpanta\Support\Collection;
 use Phpanta\Support\Directory;
+use Phpanta\Support\DropPath;
 use Phpanta\Support\RequirementInitialization;
 use Phpanta\Support\Route;
 use Phpanta\Test\TestApp;
@@ -188,22 +189,23 @@ final class AppTest extends TestCase
     }
 
     /**
-     * The route table is the app's own routes and then the admin's, which no app registers and so
-     * none can forget. An app with no routes of its own has exactly the admin's five, and none of
-     * them is a page of a static export.
+     * The route table is the app's own routes and then the framework's — `/drop`, then the admin's —
+     * which no app registers and so none can forget. An app with no routes of its own has exactly
+     * those six, and none of them is a page of a static export.
      *
      * @return void
      */
     public function testTheRouteTableEndsInTheAdminRoutes(): void
     {
-        $routes = App::current()->routeTable()->toValues();
+        $routes    = App::current()->routeTable()->toValues();
+        $framework = [DropPath::Index, ...AdminPath::cases()];
 
-        self::assertCount(5, $routes);
+        self::assertCount(6, $routes);
 
         foreach ($routes as $index => $route) {
-            self::assertSame(AdminPath::cases()[$index], $route->path());
-            self::assertTrue($route->accepts(null), 'an admin route stopped delegating its methods');
-            self::assertTrue($route->exportedPaths()->isEmpty(), 'an admin route became a page to export');
+            self::assertSame($framework[$index], $route->path());
+            self::assertTrue($route->accepts(null), 'a framework route stopped delegating its methods');
+            self::assertTrue($route->exportedPaths()->isEmpty(), 'a framework route became a page to export');
         }
     }
 

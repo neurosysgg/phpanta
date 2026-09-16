@@ -7,6 +7,7 @@ namespace Phpanta;
 use DateTimeImmutable;
 use NoDiscard;
 use Phpanta\Controller\ApiController;
+use Phpanta\Controller\DropController;
 use Phpanta\Controller\Layer;
 use Phpanta\Controller\Layered;
 use Phpanta\Exception\AppException;
@@ -32,6 +33,7 @@ use Phpanta\Support\AdminPath;
 use Phpanta\Support\BareArray;
 use Phpanta\Support\Collection;
 use Phpanta\Support\Directory;
+use Phpanta\Support\DropPath;
 use Phpanta\Support\ErrorLog;
 use Phpanta\Support\File;
 use Phpanta\Support\MethodPolicy;
@@ -569,6 +571,19 @@ abstract class App
     }
 
     /**
+     * `data/throttle/`: where every door that counts its attempts keeps the count — the admin's
+     * entrance, and a drop's reveal. See {@link Support\Throttle}.
+     *
+     * Made by hand, like {@link self::logs()}: without it each such door answers `503`, failing closed.
+     *
+     * @return Directory
+     */
+    final public function throttles(): Directory
+    {
+        return $this->data()->directory('throttle');
+    }
+
+    /**
      * This month's PHP error log, which {@link self::run()} points `error_log` at. See
      * {@link ErrorLog}.
      *
@@ -582,16 +597,34 @@ abstract class App
     // ───────────────────────── the request ─────────────────────────
 
     /**
-     * Every route the router asks: the site's own, then the framework's admin.
+     * Every route the router asks: the site's own, then the framework's `/drop`, then its admin.
      *
-     * The admin goes last, so no site route can be shadowed by it, and it is added here rather than
-     * registered by each site, so no site can forget it — or register it with the wrong policy.
+     * The framework's go last, so no site route can be shadowed by one, and they are added here rather
+     * than registered by each site, so no site can forget them — or register them with the wrong
+     * policy.
      *
      * @return Collection<Route>
      */
     final public function routeTable(): Collection
     {
-        return $this->routes()->with(...$this->adminRoutes()->toValues());
+        return $this->routes()->with(...$this->dropRoutes()->toValues(), ...$this->adminRoutes()->toValues());
+    }
+
+    /**
+     * The framework's one address outside the admin: `/drop`, where a drop's link opens it.
+     *
+     * {@link \Phpanta\Support\MethodPolicy::Delegated}, like the admin's: where the `drop` service is
+     * off its controller answers every method exactly as an address that is not there, which a method
+     * gate in the router — naming `POST` in an `Allow` — would not. Never a page of a static export,
+     * since a delegated route is never one. See {@link Controller\DropController}.
+     *
+     * @return Collection<Route>
+     */
+    final public function dropRoutes(): Collection
+    {
+        return new Collection(Route::class)->with(
+            new Route(DropPath::Index, static fn() => new DropController(), MethodPolicy::Delegated),
+        );
     }
 
     /**

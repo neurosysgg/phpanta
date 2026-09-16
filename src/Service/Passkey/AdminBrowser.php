@@ -79,9 +79,6 @@ final readonly class AdminBrowser
     /** That window, in seconds: fifteen minutes. */
     private const int WINDOW = 900;
 
-    /** Where the entrance counts its attempts, in the deployment's data directory. */
-    private const string THROTTLE = 'throttle';
-
     /**
      * Constructs an instance of {@link self}. Every argument is a test seam; null is the deployment's own.
      *
@@ -605,8 +602,7 @@ final readonly class AdminBrowser
      */
     private function throttle(): Throttle
     {
-        return $this->throttle
-            ?? new Throttle(App::current()->data()->directory(self::THROTTLE), self::ATTEMPTS, self::WINDOW);
+        return $this->throttle ?? new Throttle(App::current()->throttles(), self::ATTEMPTS, self::WINDOW);
     }
 
     /**

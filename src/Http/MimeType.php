@@ -84,6 +84,16 @@ final readonly class MimeType implements HeaderValue
     }
 
     /**
+     * Bytes, and nothing claimed about them — what a file goes out as to be saved rather than shown.
+     *
+     * @return self
+     */
+    public static function octetStream(): self
+    {
+        return new self(TopLevelType::Application, 'octet-stream', null);
+    }
+
+    /**
      * What a {@link JsonResponse} is: `application/json`, with no charset.
      *
      * The charset is null on purpose, and this is the one text type where it is. RFC 8259 defines
